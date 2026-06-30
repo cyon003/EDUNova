@@ -7,12 +7,17 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Home Page */}
         <Route path="/" element={<Home />} />
+
+        {/* Login Page */}
         <Route path="/login" element={<Login />} />
+
+        {/* Sign Up Page */}
         <Route path="/signup" element={<Signup />} />
       </Routes>
     </BrowserRouter>
   );
 }
 
-export default Signup;
+export default App;

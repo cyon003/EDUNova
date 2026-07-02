@@ -1,0 +1,89 @@
+.home-page {
+    min-height: 100vh;
+    background: linear-gradient(to right, rgb(7, 7, 91), rgb(7, 7, 91), rgb(179, 179, 179));
+    color: aliceblue;
+    font-family: "Inter", sans-serif;
+}
+
+.home-navbar {
+    height: 80px;
+    padding: 0 60px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.home-navbar h2 {
+    font-size: 32px;
+    text-shadow: 2px 5px 5px rgb(226, 221, 241);
+}
+
+.home-nav-links {
+    display: flex;
+    align-items: center;
+    gap: 30px;
+}
+
+.home-nav-links a {
+    color: aliceblue;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.login-link {
+    padding: 10px 20px;
+}
+
+.signup-link {
+    padding: 10px 22px;
+    border-radius: 8px;
+    background: #5b06e4;
+    box-shadow: 3px 5px 5px #7d5fc9;
+}
+
+.home-hero {
+    min-height: calc(100vh - 80px);
+    display: flex;
+    align-items: center;
+    padding: 0 60px;
+}
+
+.home-content {
+    max-width: 650px;
+}
+
+.home-content h1 {
+    font-size: 72px;
+    line-height: 1.1;
+    margin-bottom: 30px;
+}
+
+.home-content p {
+    font-size: 22px;
+    line-height: 1.6;
+    margin-bottom: 40px;
+}
+
+.home-buttons {
+    display: flex;
+    gap: 20px;
+}
+
+.primary-btn,
+.secondary-btn {
+    text-decoration: none;
+    padding: 14px 28px;
+    border-radius: 8px;
+    font-weight: bold;
+}
+
+.primary-btn {
+    background: #5b06e4;
+    color: white;
+    box-shadow: 3px 5px 5px #7d5fc9;
+}
+
+.secondary-btn {
+    color: white;
+    border: 1px solid #b095dc;
+}

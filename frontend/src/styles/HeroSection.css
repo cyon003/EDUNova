@@ -1,0 +1,26 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root{
+
+    --bg:linear-gradient( 135deg,
+    rgb(25,18,5),
+    rgb(43,31,7),
+    rgb(65,48,9));
+
+    --sur:#181E3A;
+
+    --t0:#EFF0FB;
+    --t1:#A8AFD8;
+
+    --gold:#b07706c6;
+    --gold2:#f0a400;
+
+    --radius:14px;
+
+    --font:"Inter",sans-serif;
+
+}

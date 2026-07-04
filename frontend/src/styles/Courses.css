@@ -1,0 +1,592 @@
+/* ── SHELL ── */
+
+.cp-shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--t0);
+  font-family: var(--font);
+}
+
+/* ── LEFT SIDEBAR ── */
+
+.cp-sidebar {
+  width: 230px;
+  flex-shrink: 0;
+  background: var(--sur);
+  border-right: 1px solid var(--sur2);
+  display: flex;
+  flex-direction: column;
+  padding: 30px 18px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.cp-logo {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  margin-bottom: 28px;
+  padding-left: 8px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.edu  { color: var(--t0); }
+.nova { color: var(--p2); }
+
+.btn-join {
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--p1), #4339a8);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  margin-bottom: 28px;
+  font-family: var(--font);
+  box-shadow: 0 4px 16px rgba(90,79,207,.4);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+
+.btn-join:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(90,79,207,.55);
+}
+
+.cp-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.cp-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  color: var(--t1);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background .16s ease, color .16s ease;
+}
+
+.cp-nav-item:hover {
+  background: var(--sur2);
+  color: var(--t0);
+}
+
+.cp-nav-active {
+  background: color-mix(in srgb, var(--p1) 20%, transparent);
+  color: var(--t0);
+  font-weight: 700;
+  border-right: 3px solid var(--p1);
+}
+
+.cp-nav-icon {
+  font-size: 15px;
+  width: 18px;
+  text-align: center;
+}
+
+.cp-upgrade-box {
+  margin-top: 24px;
+  background: var(--sur2);
+  border-radius: 16px;
+  padding: 18px 14px;
+  text-align: center;
+  border: 1px solid var(--bg2);
+}
+
+.upgrade-icon { font-size: 28px; margin-bottom: 8px; }
+
+.cp-upgrade-box p {
+  font-size: 12px;
+  color: var(--t1);
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+
+.btn-upgrade {
+  width: 100%;
+  padding: 10px;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--p1), #4339a8);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: opacity .18s;
+}
+
+.btn-upgrade:hover { opacity: .85; }
+
+/* ── MAIN CONTENT GRID AREA ── */
+
+.cp-main {
+  flex: 1;
+  min-width: 0;
+  padding: 30px 36px 60px;
+  overflow-x: hidden;
+  perspective: 1400px; /* Essential setup for hardware-accelerated 3D tilt space */
+}
+
+/* Topbar */
+
+.cp-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  gap: 16px;
+}
+
+.cp-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--sur);
+  border: 1px solid var(--sur2);
+  border-radius: 999px;
+  padding: 11px 20px;
+  width: 340px;
+  transition: border-color .2s;
+}
+
+.cp-search:focus-within { border-color: var(--p1); }
+
+.cp-search-icon { color: var(--t2); font-size: 16px; }
+
+.cp-search-input {
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--t0);
+  font-size: 14px;
+  width: 100%;
+  font-family: var(--font);
+}
+
+.cp-search-input::placeholder { color: var(--t2); }
+
+.cp-topbar-right { display: flex; align-items: center; gap: 10px; }
+
+.icon-btn {
+  background: var(--sur);
+  border: 1px solid var(--sur2);
+  border-radius: 50%;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background .18s;
+}
+
+.icon-btn:hover { background: var(--sur2); }
+
+/* Heading + tabs */
+
+.cp-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.cp-heading {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+}
+
+.cp-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.cp-tab {
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  background: none;
+  color: var(--t1);
+  cursor: pointer;
+  font-family: var(--font);
+  transition: background .16s ease, color .16s ease;
+}
+
+.cp-tab:hover { color: var(--t0); }
+
+.cp-tab-active {
+  background: var(--p1);
+  color: #fff;
+}
+
+/* ── THE ULTRAL-REALISTIC FULL 3D MOLDED CONTAINER BOX ── */
+
+.cp-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  align-items: stretch;
+}
+
+.course-card-wide {
+  grid-column: span 2;
+}
+
+.course-card {
+  /* Dynamic structural gradient base to mimic actual angled ambient room reflection */
+  background: linear-gradient(185deg, var(--sur) 0%, color-mix(in srgb, var(--sur) 80%, #000) 100%);
+  
+  /* Creates a subtle raised outer ridge wrap around the entire bento element */
+  border: 1px solid rgba(255, 255, 255, 0.07); 
+  border-bottom: 4px solid rgba(0, 0, 0, 0.5); /* Extruded structural base edge thickness */
+  border-radius: 22px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+  
+  /* Stacking complex shadows: Upper specular rim line + soft inner core recess + outer drop block */
+  box-shadow: 
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.16),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.4),
+    0 8px 20px rgba(0, 0, 0, 0.45);
+  
+  /* 3D matrix transform space triggers */
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  transition: transform 0.4s cubic-bezier(0.165, 0.84, 0.44, 1), 
+              box-shadow 0.4s cubic-bezier(0.165, 0.84, 0.44, 1),
+              border-color 0.4s ease;
+}
+
+/* Unified 3D Hover Lift: The whole container tilts organically toward the cursor */
+.course-card:hover {
+  transform: translateY(-10px) rotateX(3.5deg) scale(1.015);
+  border-color: rgba(255, 255, 255, 0.18);
+  
+  box-shadow: 
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.28),
+    0 3px 5px rgba(0, 0, 0, 0.25),
+    0 32px 55px rgba(0, 0, 0, 0.7), /* Giant blurry floor ambient light fallout separation */
+    0 0 30px color-mix(in srgb, var(--p1) 22%, transparent); /* Neon panel light bleeding from back */
+}
+
+/* Mechanical Spring Press-Down Behavior when the entire tile is clicked */
+.course-card:active {
+  transform: translateY(-2px) scale(0.99) rotateX(1.5deg);
+  border-bottom-width: 1.5px; /* Compresses the structural ridge thickness */
+  box-shadow: 
+    inset 0 1px 0px rgba(255, 255, 255, 0.05),
+    0 4px 12px rgba(0, 0, 0, 0.65);
+  transition: transform 0.08s ease-out, box-shadow 0.08s ease-out, border-width 0.08s ease-out;
+}
+
+/* Moving Light Gloss Foil Overlay across the container box on hover */
+.card-3d-shine {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: linear-gradient(125deg, transparent 35%, rgba(255, 255, 255, 0.02) 42%, rgba(255, 255, 255, 0.08) 50%, transparent 58%);
+  transform: translateY(-100%);
+  transition: transform 0.65s cubic-bezier(0.25, 1, 0.5, 1);
+  pointer-events: none; /* Keeps links and inner buttons clickable */
+  z-index: 5;
+}
+.course-card:hover .card-3d-shine {
+  transform: translateY(100%);
+}
+
+/* Upper Picture Segment - Steps cleanly over the bottom body platform */
+.course-thumb {
+  position: relative;
+  height: 165px;
+  overflow: hidden;
+  /* Shadow recess that isolates the picture from the lower textual info block */
+  box-shadow: 
+    inset 0 -4px 8px rgba(0, 0, 0, 0.35),
+    0 1.5px 0 rgba(255, 255, 255, 0.08); 
+  z-index: 1;
+}
+
+.course-card-wide .course-thumb {
+  height: 205px;
+}
+
+.thumb-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px;
+  z-index: 3;
+}
+
+.thumb-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  pointer-events: auto;
+}
+
+.thumb-cat {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  padding: 5px 11px;
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+}
+
+.thumb-bottom { 
+  display: flex; 
+  pointer-events: auto;
+}
+
+.thumb-play {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #fff;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease;
+}
+
+.thumb-play:hover {
+  transform: scale(1.15) translateZ(12px);
+  background: #ffffff;
+  color: var(--p1);
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.25);
+}
+
+/* Background floating abstract elements inside the thumbnail area */
+.thumb-shape {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.14;
+  pointer-events: none;
+  z-index: -1;
+  transition: transform 0.45s cubic-bezier(0.165, 0.84, 0.44, 1), opacity 0.45s ease;
+}
+
+.shape-a { width: 180px; height: 180px; background: #fff; top: -60px; right: -50px; }
+.shape-b { width: 100px; height: 100px; background: #fff; bottom: -30px; left: 40px; }
+
+.course-card:hover .shape-a { transform: translate(-18px, 10px) scale(1.08); opacity: 0.2; }
+.course-card:hover .shape-b { transform: translate(14px, -10px) scale(1.16); opacity: 0.2; }
+
+/* Lower Panel Body Plate */
+
+.course-body {
+  padding: 18px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+  z-index: 2;
+  position: relative;
+}
+
+.course-body-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.course-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--t0);
+  margin-bottom: 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 42px;
+}
+
+.course-meta {
+  font-size: 12px;
+  color: var(--t2);
+  font-weight: 500;
+}
+
+/* Carved Out Progress Track Slot (Looks recessed into the substrate plate) */
+.card-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.card-progress-bar {
+  flex: 1;
+  height: 8px; /* Slightly thicker slot width to emphasize depth contours */
+  border-radius: 999px;
+  background: #090d16; /* Pitch dark trench floor color */
+  padding: 1px;
+  overflow: hidden;
+  /* Deep downward molded inner shadow setup */
+  box-shadow: 
+    inset 0 2.5px 4px rgba(0, 0, 0, 0.8),
+    0 1px 1px rgba(255, 255, 255, 0.04); 
+}
+
+/* Glowing Tube Liquid Progress Fill */
+.card-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  box-shadow: 
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.4),
+    0 0 8px rgba(255, 255, 255, 0.15);
+}
+
+.card-progress-pct {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--t0);
+  min-width: 32px;
+  text-align: right;
+}
+
+/* Solid Tactile Pressable Enroll Button */
+.btn-enroll {
+  width: 100%;
+  padding: 11px;
+  border-radius: var(--radius);
+  border: 1px solid #141923;
+  background: linear-gradient(180deg, #1d2433 0%, #131822 100%);
+  color: var(--t0);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  position: relative;
+  z-index: 10; 
+  pointer-events: auto; 
+  box-shadow: 
+    inset 0 1px 1px rgba(255, 255, 255, 0.06),
+    0 2.5px 4px rgba(0, 0, 0, 0.45);
+  transition: all 0.2s cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+
+.btn-enroll:hover {
+  background: var(--p1);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  box-shadow: 
+    inset 0 1px 1px rgba(255, 255, 255, 0.22),
+    0 5px 14px color-mix(in srgb, var(--p1) 45%, transparent);
+}
+
+/* Layout placeholders when no content matches filter views */
+
+.cp-empty {
+  padding: 80px 0;
+  text-align: center;
+  color: var(--t1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  font-size: 15px;
+}
+
+.cp-empty .btn-enroll { width: auto; padding: 11px 24px; }
+
+/* ── RIGHT PANELS UTILITY SECTION ── */
+
+.cp-right {
+  width: 270px;
+  flex-shrink: 0;
+  background: var(--sur);
+  border-left: 1px solid var(--sur2);
+  padding: 30px 20px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.cp-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.cp-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--p1), var(--p2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.cp-user-name { font-size: 14px; font-weight: 700; color: var(--t0); }
+.cp-user-plan { font-size: 11px; color: var(--t2); }
+.cp-user-arrow { margin-left: auto; color: var(--t2); font-size: 16px; cursor: pointer; }
+.cp-section-title { font-size: 15px; font-weight: 800; color: var(--t0); margin-bottom: 16px; }
+
+/* Progress Items Tracker List */
+
+.cp-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cp-prog-item { display: flex; align-items: center; gap: 10px; }
+.cp-prog-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.cp-prog-info { flex: 1; min-width: 0; }
+.cp-prog-label { font-size: 13px; font-weight: 700; color: var(--t0); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp-prog-sub { font-size: 11px; color: var(--t2); margin-bottom: 6px; }
+.cp-prog-bar { width: 100%; height: 5px; border-radius: 999px; background: var(--sur2); overflow: hidden; }
+.cp-prog-fill { height: 100%; border-radius: 999px; }
+.cp-prog-pct { font-size: 12px; font-weight: 700; color: var(--t1); min-width: 30px; text-align: right; }
+
+/* Tasks list block structure nodes */
+
+.cp-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cp-task { display: flex; align-items: flex-start; gap: 12px; background: var(--sur2); border-radius

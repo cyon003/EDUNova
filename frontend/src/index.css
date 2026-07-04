@@ -1,0 +1,53 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  :root {
+
+    /* ============ Background ============ */
+    --bg: #080B1A;
+    --bg1: #0D1127;
+    --bg2: #121734;
+  
+    /* ============ Surface ============ */
+    --sur: #181E3A;
+    --sur2: #1F2647;
+  
+    /* ============ Text ============ */
+    --t0: #EFF0FB;
+    --t1: #8D95C6;
+    --t2: #505B8E;
+  
+    /* ============ Brand ============ */
+    --p1: #5A4FCF;
+    --p2: #00D5F7;
+  
+    /* ============ Status ============ */
+    --green: #34D399;
+    --red: #F87171;
+    --amber: #FBBF24;
+    --purple: #A78BFA;
+  
+    /* ============ Font ============ */
+    --font: "Inter", sans-serif;
+  
+    /* ============ Radius ============ */
+    --radius: 12px;
+  
+    /* ============ Shadow ============ */
+    --shadow: 0 10px 30px rgba(0,0,0,.35);
+  
+  }
+  
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+}

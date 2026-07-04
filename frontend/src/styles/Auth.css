@@ -4,50 +4,36 @@
     box-sizing: border-box;
 }
 
-:root {
+:root{
 
-    /* ============ Background ============ */
-    --bg: #080B1A;
-    --bg1: #0D1127;
-    --bg2: #121734;
+    --bg:linear-gradient( 135deg,
+    rgb(25,18,5),
+    rgb(43,31,7),
+    rgb(65,48,9));
 
-    /* ============ Surface ============ */
-    --sur: #181E3A;
-    --sur2: #1F2647;
+    --sur:#181E3A;
 
-    /* ============ Text ============ */
-    --t0: #EFF0FB;
-    --t1: #8D95C6;
-    --t2: #505B8E;
+    --t0:#EFF0FB;
+    --t1:#A8AFD8;
 
-    /* ============ Brand ============ */
-    --p1: #5A4FCF;
-    --p2: #00D5F7;
+    --gold:#b07706c6;
+    --gold2:#f0a400;
 
-    /* ============ Status ============ */
-    --green: #34D399;
-    --red: #F87171;
-    --amber: #FBBF24;
-    --purple: #A78BFA;
+    --radius:14px;
 
-    /* ============ Font ============ */
-    --font: "Inter", sans-serif;
-
-    /* ============ Radius ============ */
-    --radius: 12px;
-
-    /* ============ Shadow ============ */
-    --shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    --font:"Inter",sans-serif;
 
 }
-
 .signup-page{
     display:flex;
     flex-direction: row;
     justify-content:space-between;
     align-items: center;
     width:100%;
-    background: linear-gradient(to right, rgb(7, 7, 91),rgb(7, 7, 91),rgb(179, 179, 179));
+    background: linear-gradient( 135deg,
+    rgb(25,18,5),
+    rgb(43,31,7),
+    rgb(65,48,9));
     min-height:100vh;   
     padding: 50px;
     gap: 20px;
@@ -69,17 +55,18 @@
     width: 55px;
     height: 55px;
     border-radius: 15px;
-    background: #5b06e4;
+    background: var(--gold);
+    border: 1px solid white;
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 26px;
+    font-size: 40px;
 }
 
 .signup-brand h2 {
     font-size: 34px;
     color: aliceblue;
-    text-shadow: 2px 5px 5px rgb(226, 221, 241);
+    text-shadow: 2px 5px 5px var(--gold);
 }
 
 .signup-hero h1 {
@@ -105,9 +92,12 @@
     width: 150px;
     padding: 20px;
     border-radius: 15px;
-    background: #0d132f;
-    border: 3px solid rgb(113, 113, 113);
-    box-shadow: 8px 10px 10px #2c2f46;
+    background: linear-gradient( 135deg,
+    rgb(25,18,5),
+    rgb(43,31,7),
+    rgb(65,48,9));
+    border: 1px solid whitesmoke;
+    box-shadow: 8px 10px 10px var(--gold);
     color: aliceblue;
 }
 
@@ -126,7 +116,7 @@
     font-weight: 200;
     color: aliceblue;
     width: 100%;
-    text-shadow: 3px 5px 5px rgb(226, 221, 241);
+    text-shadow: 3px 5px 5px var(--gold);
     display: flex;
     justify-content: center;
 }
@@ -138,10 +128,13 @@
     padding: 30px;
     align-items: start baseline;
     flex-direction: column;
-    border: 3px solid rgb(113, 113, 113);
+    border: 1px solid whitesmoke;
     border-radius: 15px;
-    background: #0d132f;
-    box-shadow: 15px 20px 20px #2c2f46;
+    background: linear-gradient( 135deg,
+    rgb(25,18,5),
+    rgb(43,31,7),
+    rgb(65,48,9));
+    box-shadow: 10px 15px 20px var(--gold);
     color: aliceblue;
 }
 
@@ -168,8 +161,8 @@
     border: none;
     outline: none;
     font-size: 14px;
-    border: 1px solid #74717a;
-    box-shadow: 3px 5px 5px #7d5fc9;
+    border: 1px solid whitesmoke;
+    box-shadow: 3px 5px 5px var(--gold);
 }
 
 .password-input {
@@ -191,13 +184,13 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    color: #555;
+    color: var(--gold);
     font-size: 16px;
     transition: color 0.3s ease;
 }
 
 .eye-icon:hover {
-    color: #5b06e4;
+    color: var(--gold2);
 }
 
 .signup-btn-container {
@@ -212,18 +205,18 @@
     width: 150px;
     height: 40px;
     border-radius: 5px;
-    background: #5b06e4;
+    background: var(--gold);
     color: whitesmoke;
     font-weight: bold;
-    border: 1px solid #b095dc;
+    border: 1px solid whitesmoke;
     outline: none;
     cursor: pointer;
-    font-size: 14px;
-    box-shadow: 3px 5px 5px #7d5fc9;
+    font-size: 18px;
+    box-shadow: 3px 5px 5px var(--gold);
 }
 
 .signup-form button:hover {
-    background: #2f1d5b;
+    background: var(--gold2);
     transition: 0.5s;
 }
 
@@ -239,13 +232,14 @@
 .signup-login-link span {
     text-decoration: none;
     color: whitesmoke;
+    font-size: 16px;
     font-weight: bold;
     cursor: pointer;
 }
 
 .signup-login-link a:hover,
 .signup-login-link span:hover {
-    color: #7f3bec;
+    color: var(--gold2);
     transition: 0.3s;
 }
 
@@ -276,3 +270,10 @@
         transform: translateX(0);
     }
 }
+
+.auth-message {
+    color: var(--gold);
+    text-align: center;
+    margin-top: 10px;
+    font-size: 14px;
+  }

@@ -1,5 +1,5 @@
 import { FaGraduationCap } from "react-icons/fa";
-
+import "../styles/HeroSection.css";
 function HeroSection() {
   return (
     <div className="signup-hero">

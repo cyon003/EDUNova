@@ -4,6 +4,78 @@ import { FaEye, FaEyeSlash } from "react-icons/fa";
 function AuthCard() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLogin, setIsLogin] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+  });
+
+  const API_URL = "http://localhost:5050/api/auth";
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  const changeMode = () => {
+    setIsLogin(!isLogin);
+    setMessage("");
+    setFormData({
+      name: "",
+      email: "",
+      password: "",
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setMessage("");
+
+    const url = isLogin
+      ? `${API_URL}/login`
+      : `${API_URL}/signup`;
+
+    const bodyData = isLogin
+      ? {
+          email: formData.email,
+          password: formData.password,
+        }
+      : {
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+        };
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(bodyData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setMessage(data.message || "Something went wrong");
+        return;
+      }
+
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      setMessage(data.message);
+
+      window.location.href = "/";
+    } catch (error) {
+      console.error(error);
+      setMessage("Backend server is not running");
+    }
+  };
 
   return (
     <div className={`signup-card ${isLogin ? "login-mode" : "signup-mode"}`}>
@@ -12,16 +84,18 @@ function AuthCard() {
       </div>
 
       <div className="signup-form">
-        <form>
-          <div className="form-content" key={isLogin ? "login" : "signup"}>
+        <form onSubmit={handleSubmit}>
+          <div className="form-content">
             {!isLogin && (
               <div className="form-group">
-                <label htmlFor="username">Username</label>
+                <label htmlFor="name">Username</label>
                 <input
                   type="text"
-                  id="username"
-                  name="username"
+                  id="name"
+                  name="name"
                   placeholder="Enter username"
+                  value={formData.name}
+                  onChange={handleChange}
                   required
                 />
               </div>
@@ -33,7 +107,9 @@ function AuthCard() {
                 type="email"
                 id="email"
                 name="email"
-                placeholder="email"
+                placeholder="Enter email"
+                value={formData.email}
+                onChange={handleChange}
                 required
               />
             </div>
@@ -46,7 +122,9 @@ function AuthCard() {
                   type={showPassword ? "text" : "password"}
                   id="password"
                   name="password"
-                  placeholder="password"
+                  placeholder="Enter password"
+                  value={formData.password}
+                  onChange={handleChange}
                   required
                 />
 
@@ -59,6 +137,8 @@ function AuthCard() {
               </div>
             </div>
 
+            {message && <p className="auth-message">{message}</p>}
+
             <div className="signup-btn-container">
               <button type="submit">
                 {isLogin ? "Log In" : "Sign Up"}
@@ -68,8 +148,8 @@ function AuthCard() {
             <p className="signup-login-link">
               {isLogin ? "Don't have an account?" : "Already have an account?"}
 
-              <span onClick={() => setIsLogin(!isLogin)}>
-                {isLogin ? "Sign Up" : "Login"}
+              <span onClick={changeMode}>
+                {isLogin ? " Sign Up" : " Login"}
               </span>
             </p>
           </div>

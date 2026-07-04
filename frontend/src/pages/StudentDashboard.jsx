@@ -1,5 +1,4 @@
 import "../styles/StudentDashboard.css";
-
 function StudentDashboard() {
   return (
     <div className="student-dashboard">
@@ -12,7 +11,6 @@ function StudentDashboard() {
         <a>AI Chatbot</a>
         <a>Profile</a>
       </aside>
-
       <main className="dashboard-main">
         <div className="dashboard-header">
           <div>
@@ -21,7 +19,6 @@ function StudentDashboard() {
           </div>
           <button>Browse Courses</button>
         </div>
-
         <section className="stats-grid">
           <div className="stat-card">
             <h3>3</h3>
@@ -40,11 +37,9 @@ function StudentDashboard() {
             <p>Saved Summaries</p>
           </div>
         </section>
-
         <section className="content-grid">
           <div className="courses-card">
             <h2>My Courses</h2>
-
             <div className="course-item">
               <div>
                 <h3>Python Basics</h3>
@@ -52,7 +47,6 @@ function StudentDashboard() {
               </div>
               <span>80%</span>
             </div>
-
             <div className="course-item">
               <div>
                 <h3>React Development</h3>
@@ -60,7 +54,6 @@ function StudentDashboard() {
               </div>
               <span>65%</span>
             </div>
-
             <div className="course-item">
               <div>
                 <h3>Database Basics</h3>
@@ -69,16 +62,13 @@ function StudentDashboard() {
               <span>55%</span>
             </div>
           </div>
-
           <div className="ai-card">
             <h2>AI Learning Tools</h2>
-
             <div className="ai-box">
               <h3>AI Summary Generator</h3>
               <p>Summarize long lessons into short notes.</p>
               <button>Generate Summary</button>
             </div>
-
             <div className="ai-box">
               <h3>AI Chatbot</h3>
               <p>Ask questions when you do not understand lessons.</p>
@@ -86,20 +76,16 @@ function StudentDashboard() {
             </div>
           </div>
         </section>
-
         <section className="progress-section">
           <h2>Learning Progress</h2>
-
           <div className="progress-item">
             <p>Python Basics</p>
             <div className="progress-bar"><span style={{ width: "80%" }}></span></div>
           </div>
-
           <div className="progress-item">
             <p>React Development</p>
             <div className="progress-bar"><span style={{ width: "65%" }}></span></div>
           </div>
-
           <div className="progress-item">
             <p>Database Basics</p>
             <div className="progress-bar"><span style={{ width: "55%" }}></span></div>
@@ -109,5 +95,4 @@ function StudentDashboard() {
     </div>
   );
 }
-
 export default StudentDashboard;

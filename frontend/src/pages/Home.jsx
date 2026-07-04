@@ -32,15 +32,15 @@ function Home() {
           </div>
 
           <div className="home-nav-links">
-            {/* <Link to="/auth">Login</Link> */}
-            <Link to="/auth" className="signup-link">Sign Up</Link>
+            <Link to="/auth" className="signup-link">
+              Sign Up
+            </Link>
           </div>
         </nav>
 
         <section className="hero">
           <h1>
-            Learn Without
-            <span> Limits.</span>
+            Learn Without <span>Limits.</span>
           </h1>
 
           <p>

@@ -1,0 +1,279 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root{
+
+    --bg:linear-gradient( 135deg,
+    rgb(25,18,5),
+    rgb(43,31,7),
+    rgb(65,48,9));
+
+    --sur:#181E3A;
+
+    --t0:#EFF0FB;
+    --t1:#A8AFD8;
+
+    --gold:#b07706c6;
+    --gold2:#f0a400;
+
+    --radius:14px;
+
+    --font:"Inter",sans-serif;
+
+}
+.signup-page{
+    display:flex;
+    flex-direction: row;
+    justify-content:space-between;
+    align-items: center;
+    width:100%;
+    background: linear-gradient( 135deg,
+    rgb(25,18,5),
+    rgb(43,31,7),
+    rgb(65,48,9));
+    min-height:100vh;   
+    padding: 50px;
+    gap: 20px;
+}
+
+.signup-hero {
+    width: 45%;
+    color: aliceblue;
+}
+
+.signup-brand {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 55px;
+}
+
+.signup-brand-icon {
+    width: 55px;
+    height: 55px;
+    border-radius: 15px;
+    background: var(--gold);
+    border: 1px solid white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 40px;
+}
+
+.signup-brand h2 {
+    font-size: 34px;
+    color: aliceblue;
+    text-shadow: 2px 5px 5px var(--gold);
+}
+
+.signup-hero h1 {
+    font-size: 62px;
+    line-height: 1.1;
+    color: aliceblue;
+    margin-bottom: 30px;
+}
+
+.signup-hero p {
+    font-size: 20px;
+    line-height: 1.6;
+    color: aliceblue;
+    margin-bottom: 55px;
+}
+
+.signup-stats {
+    display: flex;
+    gap: 20px;
+}
+
+.signup-stat-card {
+    width: 150px;
+    padding: 20px;
+    border-radius: 15px;
+    background: linear-gradient( 135deg,
+    rgb(25,18,5),
+    rgb(43,31,7),
+    rgb(65,48,9));
+    border: 1px solid whitesmoke;
+    box-shadow: 8px 10px 10px var(--gold);
+    color: aliceblue;
+}
+
+.signup-stat-card h3 {
+    font-size: 30px;
+    color: aliceblue;
+}
+
+.signup-stat-card span {
+    font-size: 14px;
+    color: aliceblue;
+}
+
+.signup-header {
+    font-size: 18px;
+    font-weight: 200;
+    color: aliceblue;
+    width: 100%;
+    text-shadow: 3px 5px 5px var(--gold);
+    display: flex;
+    justify-content: center;
+}
+
+.signup-card {
+    width: 50%;
+    height: 500px;
+    display: flex;
+    padding: 30px;
+    align-items: start baseline;
+    flex-direction: column;
+    border: 1px solid whitesmoke;
+    border-radius: 15px;
+    background: linear-gradient( 135deg,
+    rgb(25,18,5),
+    rgb(43,31,7),
+    rgb(65,48,9));
+    box-shadow: 10px 15px 20px var(--gold);
+    color: aliceblue;
+}
+
+.form-group {
+    width: 100%;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    font-size: 12px;
+    margin-top: 30px;
+}
+
+.form-group label {
+    margin-bottom: 5px;
+    color: #fff;
+}
+
+.form-group input {
+    padding: 5px;
+    width: 100%;
+    height: 30px;
+    border-radius: 5px;
+    background: #ffffffc7;
+    border: none;
+    outline: none;
+    font-size: 14px;
+    border: 1px solid whitesmoke;
+    box-shadow: 3px 5px 5px var(--gold);
+}
+
+.password-input {
+    position: relative;
+    width: 100%;
+}
+
+.password-input input {
+    width: 100%;
+    padding-right: 40px;
+}
+
+.eye-icon {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--gold);
+    font-size: 16px;
+    transition: color 0.3s ease;
+}
+
+.eye-icon:hover {
+    color: var(--gold2);
+}
+
+.signup-btn-container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 70px;
+}
+
+.signup-form button {
+    width: 150px;
+    height: 40px;
+    border-radius: 5px;
+    background: var(--gold);
+    color: whitesmoke;
+    font-weight: bold;
+    border: 1px solid whitesmoke;
+    outline: none;
+    cursor: pointer;
+    font-size: 18px;
+    box-shadow: 3px 5px 5px var(--gold);
+}
+
+.signup-form button:hover {
+    background: var(--gold2);
+    transition: 0.5s;
+}
+
+.signup-login-link {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+    gap: 5px;
+    color: whitesmoke;
+}
+
+.signup-login-link a,
+.signup-login-link span {
+    text-decoration: none;
+    color: whitesmoke;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.signup-login-link a:hover,
+.signup-login-link span:hover {
+    color: var(--gold2);
+    transition: 0.3s;
+}
+
+.signup-card {
+    transition: transform 0.45s ease, box-shadow 0.45s ease;
+}
+
+.signup-card.login-mode {
+    transform: translateX(-15px);
+}
+
+.signup-card.signup-mode {
+    transform: translateX(0);
+}
+
+.form-content {
+    animation: cardSwitch 0.45s ease;
+}
+
+@keyframes cardSwitch {
+    from {
+        opacity: 0;
+        transform: translateX(35px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.auth-message {
+    color: var(--gold);
+    text-align: center;
+    margin-top: 10px;
+    font-size: 14px;
+  }

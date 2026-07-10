@@ -1,26 +1,214 @@
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+:root {
+  --bg: linear-gradient(135deg, rgb(25, 18, 5), rgb(43, 31, 7), rgb(65, 48, 9));
+
+  --sur: #181e3a;
+
+  --t0: #eff0fb;
+  --t1: #a8afd8;
+
+  --gold: #b07706c6;
+  --gold2: #f0a400;
+
+  --radius: 14px;
+
+  --font: "Inter", sans-serif;
 }
 
-:root{
+.signup-hero {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  flex: 1 1 480px;
+  color: aliceblue;
+  animation: heroFadeIn 0.8s ease both;
+}
 
-    --bg:linear-gradient( 135deg,
-    rgb(25,18,5),
-    rgb(43,31,7),
-    rgb(65,48,9));
+.signup-brand {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 30px;
+}
 
-    --sur:#181E3A;
+.signup-brand-icon {
+  width: 55px;
+  height: 55px;
+  border-radius: 15px;
+  background: var(--gold);
+  border: 1px solid white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 40px;
+  transition: transform 0.35s ease, box-shadow 0.35s ease;
+}
 
-    --t0:#EFF0FB;
-    --t1:#A8AFD8;
+.signup-brand:hover .signup-brand-icon {
+  transform: rotate(-8deg) scale(1.06);
+  box-shadow: 0 0 24px rgba(240, 164, 0, 0.55);
+}
 
-    --gold:#b07706c6;
-    --gold2:#f0a400;
+.signup-brand h2 {
+  font-size: 34px;
+  color: aliceblue;
+  text-shadow: 2px 5px 5px var(--gold);
+  letter-spacing: 1px;
+}
 
-    --radius:14px;
+.signup-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--t0);
+  padding: 8px 16px;
+  border-radius: 50px;
+  font-size: 13px;
+  font-weight: 500;
+  backdrop-filter: blur(6px);
+  margin-bottom: 25px;
+}
 
-    --font:"Inter",sans-serif;
+.signup-badge svg {
+  color: var(--gold2);
+}
 
+.signup-hero h1 {
+  font-size: 62px;
+  line-height: 1.1;
+  color: aliceblue;
+  margin-bottom: 30px;
+  font-weight: 800;
+}
+
+.signup-hero h1 span {
+  background: linear-gradient(90deg, var(--gold2), #ffd27a, var(--gold2));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shine 4s linear infinite;
+}
+
+@keyframes shine {
+  to {
+    background-position: 200% center;
+  }
+}
+
+.signup-hero p {
+  font-size: 20px;
+  line-height: 1.6;
+  color: var(--t1);
+  margin-bottom: 55px;
+  max-width: 480px;
+}
+
+.signup-stats {
+  display: flex;
+  gap: 20px;
+}
+
+.signup-stat-card {
+  width: 150px;
+  padding: 20px;
+  border-radius: 15px;
+  background: linear-gradient(135deg, rgb(25, 18, 5), rgb(43, 31, 7), rgb(65, 48, 9));
+  border: 1px solid whitesmoke;
+  box-shadow: 8px 10px 10px var(--gold);
+  color: aliceblue;
+  transition: transform 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
+  animation: statPop 0.6s ease both;
+}
+
+.signup-stat-card:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.signup-stat-card:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+.signup-stat-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--gold2);
+  box-shadow: 0 12px 28px rgba(240, 164, 0, 0.4);
+}
+
+.signup-stat-card h3 {
+  font-size: 30px;
+  color: aliceblue;
+}
+
+.signup-stat-card span {
+  font-size: 14px;
+  color: var(--t1);
+}
+
+.signup-hero-icon {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  font-size: 90px;
+  color: rgba(240, 164, 0, 0.12);
+  animation: float 6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-16px) rotate(6deg);
+  }
+}
+
+@keyframes heroFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes statPop {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 900px) {
+  .signup-hero {
+    max-width: 100%;
+  }
+
+  .signup-hero h1 {
+    font-size: 42px;
+  }
+
+  .signup-stats {
+    flex-wrap: wrap;
+  }
+
+  .signup-hero-icon {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
 }

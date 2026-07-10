@@ -1,5 +1,7 @@
-import { FaGraduationCap } from "react-icons/fa";
+import { FaGraduationCap, FaStar, } from "react-icons/fa";
+import { AiFillCloud } from "react-icons/ai";
 import "../styles/HeroSection.css";
+
 function HeroSection() {
   return (
     <div className="signup-hero">
@@ -10,8 +12,13 @@ function HeroSection() {
         <h2>EDUNOVA</h2>
       </div>
 
+      <div className="signup-badge">
+        <FaStar />
+        <span>Trusted by 15,000+ learners worldwide</span>
+      </div>
+
       <h1>
-        Your AI
+        Your <span>AI</span>
         <br />
         Learning
         <br />
@@ -38,6 +45,11 @@ function HeroSection() {
           <h3>95%</h3>
           <span>Success Rate</span>
         </div>
+      </div>
+
+      <div className="signup-hero-icon">
+        {/* <FaBrain /> */}
+        <AiFillCloud />
       </div>
     </div>
   );

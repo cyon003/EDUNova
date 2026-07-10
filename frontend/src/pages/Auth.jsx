@@ -5,8 +5,12 @@ import "../styles/Auth.css";
 function Auth() {
   return (
     <div className="signup-page">
-      <HeroSection />
-      <AuthCard />
+      <div className="auth-glow auth-glow-1" />
+      <div className="auth-glow auth-glow-2" />
+      <div className="signup-inner">
+        <HeroSection />
+        <AuthCard />
+      </div>
     </div>
   );
 }

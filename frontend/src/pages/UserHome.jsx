@@ -67,7 +67,8 @@ function getInitials(name) {
 }
 
 function UserHome() {
-  const [user, setUser] = useState(() => getStoredUser());
+  // const [user] = useState(() => getStoredUser());
+  const [user] = useState(() => getStoredUser());
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {

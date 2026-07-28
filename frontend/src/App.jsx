@@ -44,6 +44,7 @@ import Courses from "./pages/Courses";
 import Home from "./pages/Home";
 import StudentDashboard from "./pages/StudentDashboard";
 import UserHome from "./pages/UserHome";
+import Prototype from "./pages/Prototype";
 
 function getStoredUser() {
   try {
@@ -67,6 +68,7 @@ function App() {
         <Route path="/auth" element={<Auth />} />
         <Route path="/student-dashboard" element={<StudentDashboard />} />
         <Route path="/courses" element={<Courses />} />
+        <Route path="/prototype" element={<Prototype />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

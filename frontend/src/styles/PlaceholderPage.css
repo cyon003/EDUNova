@@ -1,0 +1,32 @@
+.placeholder-page {
+  min-height: 100vh;
+  padding: clamp(24px, 6vw, 80px);
+  color: whitesmoke;
+  font-family: "Inter", sans-serif;
+  background: linear-gradient(
+    135deg,
+    rgb(25, 18, 5),
+    rgb(43, 31, 7),
+    rgb(65, 48, 9)
+  );
+}
+
+.placeholder-page h1 {
+  margin: clamp(50px, 10vw, 120px) 0 12px;
+  font-size: clamp(36px, 7vw, 72px);
+}
+
+.placeholder-page p {
+  color: #cfc5b4;
+  font-size: clamp(16px, 2vw, 20px);
+}
+
+.placeholder-back {
+  color: #f0a400;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.placeholder-back:hover {
+  color: white;
+}

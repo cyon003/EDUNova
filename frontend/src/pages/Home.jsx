@@ -1,175 +1,223 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  FaArrowRight,
-  FaBolt,
-  FaCalculator,
-  FaChartLine,
   FaGraduationCap,
-  FaLaptopCode,
-  FaPaintBrush,
-  FaRobot,
+  FaHeart,
+  FaRegHeart,
   FaSearch,
-  FaShieldAlt,
-  FaStar,
 } from "react-icons/fa";
+import mathematicsImage from "../assets/images/mathematic.jpeg";
 import "../styles/Home.css";
 
 const courses = [
   {
-    icon: <FaLaptopCode />,
-    title: "Web Development",
-    desc: "Build modern, responsive apps from scratch.",
-    tag: "Bestseller",
+    name: "Mathematics",
+    description:
+      "Strengthen your skills in algebra, geometry, and problem-solving.",
+    rating: "4.8",
+    reviews: 240,
+    duration: "12 weeks",
   },
   {
-    icon: <FaPaintBrush />,
-    title: "UI / UX Design",
-    desc: "Craft interfaces people actually love to use.",
+    name: "Science",
+    description:
+      "Explore biology, chemistry, physics, and the natural world.",
+    rating: "4.7",
+    reviews: 198,
+    duration: "14 weeks",
   },
   {
-    icon: <FaRobot />,
-    title: "Artificial Intelligence",
-    desc: "Train models and build intelligent systems.",
-    tag: "Trending",
+    name: "English",
+    description:
+      "Improve your reading, writing, grammar, and communication skills.",
+    rating: "4.9",
+    reviews: 275,
+    duration: "10 weeks",
   },
   {
-    icon: <FaShieldAlt />,
-    title: "Cyber Security",
-    desc: "Defend systems against real-world threats.",
+    name: "Social Studies",
+    description:
+      "Discover history, geography, government, and global cultures.",
+    rating: "4.6",
+    reviews: 165,
+    duration: "12 weeks",
   },
   {
-    icon: <FaChartLine />,
-    title: "Business",
-    desc: "Strategy, growth and leadership essentials.",
-  },
-  {
-    icon: <FaBolt />,
-    title: "Data Science",
-    desc: "Turn raw data into decisions that matter.",
-  },
-  {
-    icon: <FaCalculator />,
-    title: "Financial Management",
-    desc: "Master budgeting, investing and analysis.",
+    name: "Physical Education",
+    description:
+      "Build healthy habits through fitness, movement, and team sports.",
+    rating: "4.8",
+    reviews: 184,
+    duration: "8 weeks",
   },
 ];
 
-function Home() {
-  return (
-    <div className="home">
-      <div className="home-glow home-glow-1" />
-      <div className="home-glow home-glow-2" />
+const popularCourses = [...courses]
+  .sort((a, b) => b.reviews - a.reviews)
+  .slice(0, 4);
 
-      <div className="home-content">
+function CourseCard({ course, isSaved, onToggleSaved }) {
+  return (
+    <article className="course-card">
+      <div className="course-image">
+        <img src={mathematicsImage} alt={`${course.name} course`} />
+        <span className="course-category">General Education</span>
+        <button
+          className="course-save"
+          type="button"
+          aria-label={`${isSaved ? "Remove" : "Save"} ${course.name}`}
+          aria-pressed={isSaved}
+          onClick={onToggleSaved}
+        >
+          {isSaved ? <FaHeart /> : <FaRegHeart />}
+        </button>
+      </div>
+
+      <div className="course-information">
+        <h3 className="course-name">{course.name}</h3>
+        <p className="course-description">{course.description}</p>
+
+        <div className="course-rating-duration">
+          <div className="course-rating">
+            <span className="rating-star">★</span>
+            <strong>{course.rating}</strong>
+            <span>({course.reviews} reviews)</span>
+          </div>
+
+          <div className="course-duration">
+            <span>◷</span>
+            <span>{course.duration}</span>
+          </div>
+        </div>
+
+        <button className="course-view" type="button">
+          View Course
+          <span aria-hidden="true">→</span>
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function Home({ navigation = null, showFooter = true }) {
+  const [savedCourses, setSavedCourses] = useState([]);
+
+  const toggleSavedCourse = (courseName) => {
+    setSavedCourses((current) =>
+      current.includes(courseName)
+        ? current.filter((name) => name !== courseName)
+        : [...current, courseName],
+    );
+  };
+
+  return (
+    <main className="home">
+      {navigation ?? (
         <nav className="home-nav">
-          <Link to="/" className="logo" aria-label="EDUNOVA home">
-            <div className="home-brand-icon">
+          <Link to="/" className="home-logo" aria-label="EDUNOVA home">
+            <span className="home-brand-icon">
               <FaGraduationCap />
-            </div>
-            <h2 className="home-brand">EDUNOVA</h2>
+            </span>
+            <span className="home-brand">EDUNOVA</span>
           </Link>
 
           <div className="home-nav-center">
-            <Link to="/" className="active">
+            <a href="/" className="active">
               Home
-            </Link>
-            <Link to="/courses">Courses</Link>
-            <a href="#courses">Categories</a>
-            <a href="#courses">AI Chatbot</a>
-            <a href="#courses">Ranking</a>
-            <a href="#courses">About</a>
+            </a>
+            <a href="#courses">Courses</a>
+            <Link to="/ai-chatbot">AI Chatbot</Link>
+            <Link to="/ranking">Ranking</Link>
+            <a href="#about">About</a>
+            <label className="home-nav-search">
+              <FaSearch aria-hidden="true" />
+              <input
+                type="search"
+                aria-label="Search courses"
+                placeholder="Search"
+              />
+            </label>
           </div>
-
-          <div className="home-nav-links">
-            <Link to="/auth" className="signup-link">
-              Get Started
-            </Link>
-          </div>
+          <Link to="/auth" className="home-get-started">
+            Get Started
+          </Link>
         </nav>
-
-        <section className="hero">
-          <div className="hero-badge">
-            <FaStar />
-            <span>Rated 4.9 by 12,000+ learners</span>
-          </div>
-
-          <h1>
-            Learn Without <span>Limits.</span>
-          </h1>
-
-          <p>
-            One platform for personalized courses, real-time AI help, and
-            gamified challenges — built around how you actually learn.
-          </p>
-
-          <div className="search-box">
-            <input
-              type="search"
-              aria-label="Search courses"
-              placeholder="Search for courses..."
+      )}
+      {/* Content-Header */}
+      <section className="home-intro" aria-label="Introduction">
+        <div className="content-text">
+          <span>
+            Learn Smarter With AI-Driven Education
+          </span>
+        </div>
+      </section>
+      <section className="courses-section popular-courses-section">
+        <div className="course-section-title">
+          <h2>Popular Courses</h2>
+          <Link to="/popular-courses" className="courses-view-all">
+            View All <span aria-hidden="true">→</span>
+          </Link>
+        </div>
+        <div className="content-courses">
+          {popularCourses.map((course) => (
+            <CourseCard
+              course={course}
+              isSaved={savedCourses.includes(course.name)}
+              key={`popular-${course.name}`}
+              onToggleSaved={() => toggleSavedCourse(course.name)}
             />
-            <button type="button" aria-label="Search">
-              <FaSearch />
-            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="courses-section" id="courses">
+        <div className="course-section-title">
+          <h2>Courses</h2>
+          <Link to="/courses" className="courses-view-all">
+            View All <span aria-hidden="true">→</span>
+          </Link>
+        </div>
+        <div className="content-courses">
+          {courses.map((course) => (
+            <CourseCard
+              course={course}
+              isSaved={savedCourses.includes(course.name)}
+              key={course.name}
+              onToggleSaved={() => toggleSavedCourse(course.name)}
+            />
+          ))}
+        </div>
+      </section>
+
+      {showFooter && (
+        <footer className="home-footer" id="about">
+          <div className="home-footer-about">
+            <h2>About Us</h2>
+            <p>
+              EDUNOVA helps high-school students learn through accessible
+              courses, supportive tools, and AI-assisted education.
+            </p>
           </div>
 
-          <div className="hero-tags">
-            <span>Popular:</span>
-            <a href="#courses">React</a>
-            <a href="#courses">Python</a>
-            <a href="#courses">AI Agents</a>
-            <a href="#courses">UI/UX</a>
+          <div className="home-footer-links">
+            <h3>Explore</h3>
+            <a href="#courses">Courses</a>
+            <Link to="/ai-chatbot">AI Chatbot</Link>
+            <Link to="/ranking">Ranking</Link>
           </div>
 
-          <div className="hero-stats">
-            <div className="stat">
-              <h3>120K+</h3>
-              <p>Active Students</p>
-            </div>
-            <div className="stat">
-              <h3>340+</h3>
-              <p>Expert Courses</p>
-            </div>
-            <div className="stat">
-              <h3>98%</h3>
-              <p>Success Rate</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="courses" id="courses">
-          <div className="courses-head">
-            <span className="eyebrow">Explore</span>
-            <h2>Popular Courses</h2>
-            <p>Hand-picked paths trusted by thousands of learners.</p>
+          <div className="home-footer-contact">
+            <h3>Contact</h3>
+            <a href="mailto:support@edunova.com">support@edunova.com</a>
+            <p>Learning without limits.</p>
           </div>
 
-          <div className="course-grid">
-            {courses.map((course, index) => (
-              <Link
-                to="/courses"
-                className="card"
-                key={course.title}
-                style={{ animationDelay: `${index * 0.08}s` }}
-              >
-                {course.tag && (
-                  <span className="card-tag">{course.tag}</span>
-                )}
-
-                <div className="card-icon">{course.icon}</div>
-                <h3>{course.title}</h3>
-                <p>{course.desc}</p>
-
-                <div className="card-link">
-                  <span>Explore course</span>
-                  <FaArrowRight />
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      </div>
-    </div>
+          <p className="home-footer-copyright">
+            © 2026 EDUNOVA. All rights reserved.
+          </p>
+        </footer>
+      )}
+    </main>
   );
 }
 

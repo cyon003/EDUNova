@@ -1,12 +1,16 @@
 import { useState } from "react";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 
-function saveUser(user) {
-  if (!user || typeof user !== "object") {
+function saveLogin(user, token) {
+  if (!user || !token) {
     localStorage.removeItem("user");
+    localStorage.removeItem("token");
     return false;
   }
+
   localStorage.setItem("user", JSON.stringify(user));
+  localStorage.setItem("token", token);
+
   return true;
 }
 
@@ -34,6 +38,8 @@ function AuthCard() {
   const changeMode = (loginMode) => {
     setIsLogin(loginMode);
     setMessage("");
+    setShowPassword(false);
+
     setFormData({
       name: "",
       email: "",
@@ -43,10 +49,13 @@ function AuthCard() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     setMessage("");
     setLoading(true);
 
-    const url = isLogin ? `${API_URL}/login` : `${API_URL}/signup`;
+    const url = isLogin
+      ? `${API_URL}/login`
+      : `${API_URL}/signup`;
 
     const bodyData = isLogin
       ? {
@@ -62,9 +71,11 @@ function AuthCard() {
     try {
       const response = await fetch(url, {
         method: "POST",
+
         headers: {
           "Content-Type": "application/json",
         },
+
         body: JSON.stringify(bodyData),
       });
 
@@ -76,17 +87,36 @@ function AuthCard() {
         return;
       }
 
-      const saved = saveUser(data.user);
+      // Student registration succeeded.
+      // The user must log in after registration.
+      if (!isLogin) {
+        setMessage(data.message);
+        setLoading(false);
+
+        setFormData({
+          name: "",
+          email: "",
+          password: "",
+        });
+
+        return;
+      }
+
+      const saved = saveLogin(data.user, data.token);
 
       if (!saved) {
         setMessage(
-          "Signed in, but no user data was returned. Please try again."
+          "Login succeeded, but user information was not returned."
         );
+
         setLoading(false);
         return;
       }
 
       setMessage(data.message);
+
+      // Keep the current behavior to avoid breaking routes
+      // that may not have been created yet.
       window.location.href = "/";
     } catch (error) {
       console.error(error);
@@ -96,7 +126,11 @@ function AuthCard() {
   };
 
   return (
-    <div className={`signup-card ${isLogin ? "login-mode" : "signup-mode"}`}>
+    <div
+      className={`signup-card ${
+        isLogin ? "login-mode" : "signup-mode"
+      }`}
+    >
       <div className="signup-tabs">
         <button
           type="button"
@@ -105,6 +139,7 @@ function AuthCard() {
         >
           Sign Up
         </button>
+
         <button
           type="button"
           className={isLogin ? "tab active" : "tab"}
@@ -112,19 +147,32 @@ function AuthCard() {
         >
           Log In
         </button>
-        <span className={`tab-indicator ${isLogin ? "right" : "left"}`} />
+
+        <span
+          className={`tab-indicator ${
+            isLogin ? "right" : "left"
+          }`}
+        />
       </div>
 
       <div className="signup-header">
-        <h2>{isLogin ? "Welcome back" : "Create your account"}</h2>
+        <h2>
+          {isLogin
+            ? "Welcome back"
+            : "Create your account"}
+        </h2>
       </div>
 
       <div className="signup-form">
         <form onSubmit={handleSubmit}>
-          <div className="form-content" key={isLogin ? "login" : "signup"}>
+          <div
+            className="form-content"
+            key={isLogin ? "login" : "signup"}
+          >
             {!isLogin && (
               <div className="form-group">
                 <label htmlFor="name">Username</label>
+
                 <input
                   type="text"
                   id="name"
@@ -139,6 +187,7 @@ function AuthCard() {
 
             <div className="form-group">
               <label htmlFor="email">Email</label>
+
               <input
                 type="email"
                 id="email"
@@ -161,21 +210,35 @@ function AuthCard() {
                   placeholder="Enter password"
                   value={formData.password}
                   onChange={handleChange}
+                  minLength="6"
                   required
                 />
 
                 <span
                   className="eye-icon"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() =>
+                    setShowPassword(!showPassword)
+                  }
                   role="button"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  tabIndex="0"
+                  aria-label={
+                    showPassword
+                      ? "Hide password"
+                      : "Show password"
+                  }
                 >
-                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                  {showPassword ? (
+                    <FaEyeSlash />
+                  ) : (
+                    <FaEye />
+                  )}
                 </span>
               </div>
             </div>
 
-            {message && <p className="auth-message">{message}</p>}
+            {message && (
+              <p className="auth-message">{message}</p>
+            )}
 
             <div className="signup-btn-container">
               <button type="submit" disabled={loading}>
@@ -190,7 +253,10 @@ function AuthCard() {
             </div>
 
             <p className="signup-login-link">
-              {isLogin ? "Don't have an account?" : "Already have an account?"}
+              {isLogin
+                ? "Don't have an account?"
+                : "Already have an account?"}
+
               <span onClick={() => changeMode(!isLogin)}>
                 {isLogin ? " Sign Up" : " Login"}
               </span>

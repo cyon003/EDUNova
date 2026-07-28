@@ -23,10 +23,25 @@ const userSchema = new mongoose.Schema(
 
     role: {
       type: String,
+      enum: ["student", "tutor", "admin"],
       default: "student",
     },
+
+    accountStatus: {
+      type: String,
+      enum: ["approved", "suspended"],
+      default: "approved",
+    },
+
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
 module.exports = mongoose.model("User", userSchema);

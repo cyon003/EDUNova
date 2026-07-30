@@ -6,6 +6,29 @@ const availableCourses = [
     level: "All levels",
     duration: "12 weeks",
     description: "Study algebra, geometry, statistics, and problem-solving.",
+    lessons: [
+      {
+        title: "Introduction to Algebra",
+        description: "Learn how variables and expressions are used in algebra.",
+        duration: "12 min",
+        videoUrl:
+          "https://storage.googleapis.com/coverr-main/mp4/Mt_Baker.mp4",
+      },
+      {
+        title: "Understanding Equations",
+        description: "Build and solve simple equations step by step.",
+        duration: "18 min",
+        videoUrl:
+          "https://storage.googleapis.com/coverr-main/mp4/Footboys.mp4",
+      },
+      {
+        title: "Geometry Fundamentals",
+        description: "Explore shapes, angles, area, and perimeter.",
+        duration: "15 min",
+        videoUrl:
+          "https://storage.googleapis.com/coverr-main/mp4/Mt_Baker.mp4",
+      },
+    ],
   },
   {
     slug: "science",

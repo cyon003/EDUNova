@@ -14,6 +14,12 @@ function saveLogin(user, token) {
   return true;
 }
 
+function getRoleHome(role) {
+  if (role === "admin") return "/admin-dashboard";
+  if (role === "tutor") return "/tutor-dashboard";
+  return "/";
+}
+
 function AuthCard() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLogin, setIsLogin] = useState(false);
@@ -115,9 +121,7 @@ function AuthCard() {
 
       setMessage(data.message);
 
-      // Keep the current behavior to avoid breaking routes
-      // that may not have been created yet.
-      window.location.href = "/";
+      window.location.href = getRoleHome(data.user.role);
     } catch (error) {
       console.error(error);
       setMessage("Backend server is not running");

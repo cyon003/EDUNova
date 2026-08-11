@@ -1,11 +1,13 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import AiChatbot from "./pages/AiChatbot";
+import AdminDashboard from "./pages/AdminDashboard";
 import Auth from "./pages/Auth";
 import CourseDetail from "./pages/CourseDetail";
 import Courses from "./pages/Courses";
 import Home from "./pages/Home";
 import Ranking from "./pages/Ranking";
 import StudentDashboard from "./pages/StudentDashboard";
+import TutorDashboard from "./pages/TutorDashboard";
 import PopularCourses from "./pages/PopularCourses";
 import UserHome from "./pages/UserHome";
 
@@ -21,15 +23,70 @@ function getStoredUser() {
   }
 }
 
+function getRoleHome(role) {
+  if (role === "admin") return "/admin-dashboard";
+  if (role === "tutor") return "/tutor-dashboard";
+  return "/";
+}
+
+function RoleRoute({ user, allowedRoles, children }) {
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  if (!allowedRoles.includes(user.role)) {
+    return <Navigate to={getRoleHome(user.role)} replace />;
+  }
+
+  return children;
+}
+
 function App() {
   const user = getStoredUser();
 
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={user ? <UserHome /> : <Home />} />
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/student-dashboard" element={<StudentDashboard />} />
+        <Route
+          path="/"
+          element={
+            user && user.role !== "student" ? (
+              <Navigate to={getRoleHome(user.role)} replace />
+            ) : user ? (
+              <UserHome />
+            ) : (
+              <Home />
+            )
+          }
+        />
+        <Route
+          path="/auth"
+          element={user ? <Navigate to={getRoleHome(user.role)} replace /> : <Auth />}
+        />
+        <Route
+          path="/student-dashboard"
+          element={
+            <RoleRoute user={user} allowedRoles={["student"]}>
+              <StudentDashboard />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="/admin-dashboard"
+          element={
+            <RoleRoute user={user} allowedRoles={["admin"]}>
+              <AdminDashboard />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="/tutor-dashboard"
+          element={
+            <RoleRoute user={user} allowedRoles={["tutor"]}>
+              <TutorDashboard />
+            </RoleRoute>
+          }
+        />
         <Route path="/courses" element={<Courses />} />
         <Route path="/courses/:courseSlug" element={<CourseDetail />} />
         <Route path="/popular-courses" element={<PopularCourses />} />

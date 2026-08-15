@@ -11,11 +11,9 @@ const requireRole = require(
 
 const router = express.Router();
 
-// Every endpoint below requires an admin account.
 router.use(authenticateToken);
 router.use(requireRole("admin"));
 
-// GET ALL TUTORS
 router.get("/tutors", async (req, res) => {
   try {
     const tutors = await User.find({
@@ -36,7 +34,6 @@ router.get("/tutors", async (req, res) => {
   }
 });
 
-// CREATE A TUTOR ACCOUNT
 router.post("/tutors", async (req, res) => {
   try {
     const { name, email, temporaryPassword } = req.body;
@@ -102,7 +99,6 @@ router.post("/tutors", async (req, res) => {
   }
 });
 
-// UPDATE A TUTOR
 router.patch("/tutors/:tutorId", async (req, res) => {
   try {
     const { name, email } = req.body;
@@ -163,7 +159,6 @@ router.patch("/tutors/:tutorId", async (req, res) => {
   }
 });
 
-// RESET A TUTOR PASSWORD
 router.patch(
   "/tutors/:tutorId/reset-password",
   async (req, res) => {
@@ -206,7 +201,6 @@ router.patch(
   }
 );
 
-// SUSPEND A TUTOR
 router.patch(
   "/tutors/:tutorId/suspend",
   async (req, res) => {
@@ -245,7 +239,6 @@ router.patch(
   }
 );
 
-// REACTIVATE A TUTOR
 router.patch(
   "/tutors/:tutorId/activate",
   async (req, res) => {

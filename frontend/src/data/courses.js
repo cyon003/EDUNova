@@ -2,7 +2,9 @@ const availableCourses = [
   {
     slug: "mathematics",
     name: "Mathematics",
+    category: "STEM",
     rating: "4.8",
+    price: 29,
     level: "All levels",
     duration: "12 weeks",
     description: "Study algebra, geometry, statistics, and problem-solving.",
@@ -33,7 +35,9 @@ const availableCourses = [
   {
     slug: "science",
     name: "Science",
+    category: "STEM",
     rating: "4.7",
+    price: 32,
     level: "All levels",
     duration: "14 weeks",
     description: "Explore biology, chemistry, physics, and the natural world.",
@@ -41,7 +45,9 @@ const availableCourses = [
   {
     slug: "english",
     name: "English",
+    category: "Languages",
     rating: "4.9",
+    price: 24,
     level: "All levels",
     duration: "10 weeks",
     description: "Develop reading, writing, grammar, and communication skills.",
@@ -49,7 +55,9 @@ const availableCourses = [
   {
     slug: "social-studies",
     name: "Social Studies",
+    category: "Humanities",
     rating: "4.6",
+    price: 27,
     level: "All levels",
     duration: "12 weeks",
     description: "Learn about society, government, history, and global cultures.",
@@ -57,7 +65,9 @@ const availableCourses = [
   {
     slug: "physical-education",
     name: "Physical Education",
+    category: "Wellness",
     rating: "4.8",
+    price: 19,
     level: "All levels",
     duration: "8 weeks",
     description: "Build fitness, movement skills, teamwork, and healthy habits.",
@@ -65,7 +75,9 @@ const availableCourses = [
   {
     slug: "computer-science",
     name: "Computer Science",
+    category: "STEM",
     rating: "4.9",
+    price: 39,
     level: "Beginner",
     duration: "12 weeks",
     description: "Learn computing concepts, programming, and digital literacy.",
@@ -73,7 +85,9 @@ const availableCourses = [
   {
     slug: "world-history",
     name: "World History",
+    category: "Humanities",
     rating: "4.7",
+    price: 26,
     level: "Intermediate",
     duration: "10 weeks",
     description: "Examine major civilizations, events, and historical changes.",
@@ -81,7 +95,9 @@ const availableCourses = [
   {
     slug: "geography",
     name: "Geography",
+    category: "Humanities",
     rating: "4.6",
+    price: 23,
     level: "Beginner",
     duration: "10 weeks",
     description: "Explore places, environments, populations, and global systems.",
@@ -89,7 +105,9 @@ const availableCourses = [
   {
     slug: "business-studies",
     name: "Business Studies",
+    category: "Business",
     rating: "4.8",
+    price: 34,
     level: "Beginner",
     duration: "12 weeks",
     description: "Understand entrepreneurship, finance, marketing, and management.",
@@ -97,7 +115,9 @@ const availableCourses = [
   {
     slug: "life-skills",
     name: "Life Skills",
+    category: "Wellness",
     rating: "4.7",
+    price: 18,
     level: "All levels",
     duration: "8 weeks",
     description: "Develop communication, planning, decision-making, and wellbeing.",

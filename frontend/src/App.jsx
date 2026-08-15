@@ -8,7 +8,6 @@ import Home from "./pages/Home";
 import Ranking from "./pages/Ranking";
 import StudentDashboard from "./pages/StudentDashboard";
 import TutorDashboard from "./pages/TutorDashboard";
-import PopularCourses from "./pages/PopularCourses";
 import UserHome from "./pages/UserHome";
 
 function getStoredUser() {
@@ -89,7 +88,7 @@ function App() {
         />
         <Route path="/courses" element={<Courses />} />
         <Route path="/courses/:courseSlug" element={<CourseDetail />} />
-        <Route path="/popular-courses" element={<PopularCourses />} />
+        <Route path="/popular-courses" element={<Navigate to="/courses#popular" replace />} />
         <Route path="/ai-chatbot" element={<AiChatbot />} />
         <Route path="/ranking" element={<Ranking />} />
         <Route path="*" element={<Navigate to="/" replace />} />

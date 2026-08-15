@@ -1,0 +1,117 @@
+.language-preference {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.language-trigger {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  color: #a78bfa;
+  font-size: 17px;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(141, 99, 234, 0.25);
+  border-radius: 10px;
+  transition: color 0.25s, border-color 0.25s, background 0.25s;
+  place-items: center;
+}
+
+.language-trigger:hover,
+.language-trigger[aria-expanded="true"] {
+  color: white;
+  background: rgba(141, 99, 234, 0.16);
+  border-color: #8d63ea;
+}
+
+.language-menu {
+  position: absolute;
+  top: calc(100% + 9px);
+  right: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 140px;
+  max-height: 160px;
+  gap: 5px;
+  padding: 7px;
+  overflow-y: auto;
+  background: #151124;
+  border: 1px solid rgba(141, 99, 234, 0.35);
+  border-radius: 12px;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.5);
+  animation: languageMenuIn 0.2s ease both;
+}
+
+.language-search {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 7px;
+  color: #a78bfa;
+  background: #100c1d;
+  border: 1px solid rgba(141, 99, 234, 0.25);
+  border-radius: 7px;
+}
+
+.language-search svg {
+  flex-shrink: 0;
+  font-size: 9px;
+}
+
+.language-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 0;
+  color: white;
+  font: inherit;
+  font-size: 9px;
+  background: transparent;
+  border: 0;
+  outline: none;
+}
+
+.language-empty {
+  padding: 8px 2px;
+  color: #a8afd8;
+  font-size: 9px;
+  text-align: center;
+}
+
+.language-menu::-webkit-scrollbar {
+  width: 4px;
+}
+
+.language-menu::-webkit-scrollbar-thumb {
+  background: #8d63ea;
+  border-radius: 4px;
+}
+
+.language-menu button {
+  padding: 8px 6px;
+  color: #a8afd8;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+}
+
+.language-menu button:hover,
+.language-menu button.active {
+  color: white;
+  background: rgba(141, 99, 234, 0.18);
+  border-color: rgba(141, 99, 234, 0.3);
+}
+
+@keyframes languageMenuIn {
+  from { opacity: 0; transform: translateY(-5px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}

@@ -9,6 +9,7 @@ import {
 } from "react-icons/fa";
 import Home from "./Home";
 import "../styles/UserHome.css";
+import LanguagePreference from "../components/LanguagePreference";
 
 function getStoredUser() {
   try {
@@ -37,6 +38,7 @@ function getInitials(name) {
 function UserHome() {
   const [user] = useState(() => getStoredUser());
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("home");
 
   useEffect(() => {
     if (!user) {
@@ -62,16 +64,52 @@ function UserHome() {
         </a>
 
         <div className="uhome-nav-center">
-          <a href="/" className="active">
+          <a
+            href="/"
+            className={activeTab === "home" ? "active" : undefined}
+            aria-current={activeTab === "home" ? "page" : undefined}
+            onClick={() => setActiveTab("home")}
+            onFocus={() => setActiveTab("home")}
+          >
             Home
           </a>
-          <a href="#courses">Courses</a>
-          <Link to="/ai-chatbot">AI Chatbot</Link>
-          <Link to="/ranking">Ranking</Link>
-          <Link to="/student-dashboard">My Dashboard</Link>
+          <a
+            href="#courses"
+            className={activeTab === "courses" ? "active" : undefined}
+            aria-current={activeTab === "courses" ? "page" : undefined}
+            onClick={() => setActiveTab("courses")}
+            onFocus={() => setActiveTab("courses")}
+          >
+            Courses
+          </a>
+          <Link
+            to="/ai-chatbot"
+            className={activeTab === "chatbot" ? "active" : undefined}
+            onClick={() => setActiveTab("chatbot")}
+            onFocus={() => setActiveTab("chatbot")}
+          >
+            AI Chatbot
+          </Link>
+          <Link
+            to="/ranking"
+            className={activeTab === "ranking" ? "active" : undefined}
+            onClick={() => setActiveTab("ranking")}
+            onFocus={() => setActiveTab("ranking")}
+          >
+            Ranking
+          </Link>
+          <Link
+            to="/student-dashboard"
+            className={activeTab === "dashboard" ? "active" : undefined}
+            onClick={() => setActiveTab("dashboard")}
+            onFocus={() => setActiveTab("dashboard")}
+          >
+            My Dashboard
+          </Link>
         </div>
 
         <div className="uhome-nav-right">
+          <LanguagePreference />
           <label className="uhome-nav-search">
             <FaSearch aria-hidden="true" />
             <input

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   FaBookOpen,
   FaChartLine,
@@ -109,6 +109,8 @@ function CourseCard({ course, isSaved, onToggleSaved }) {
 }
 
 function Home({ navigation = null, showFooter = true }) {
+  const navigate = useNavigate();
+  const [navSearch, setNavSearch] = useState("");
   const [savedCourses, setSavedCourses] = useState(() => {
     try { return JSON.parse(localStorage.getItem("edunova-saved-courses")) || []; } catch { return []; }
   });
@@ -131,12 +133,17 @@ function Home({ navigation = null, showFooter = true }) {
       return updated;
     });
   };
+  const submitCourseSearch = (event) => {
+    event.preventDefault();
+    const query = navSearch.trim();
+    navigate(query ? `/courses?search=${encodeURIComponent(query)}` : "/courses");
+  };
 
   return (
     <main className={`home ${showFooter ? "home--guest" : "home--user"}`} id="top">
       {navigation ?? (
         <nav className="home-nav">
-          <Link to="/" className="home-logo" aria-label="EDUNOVA home">
+          <Link to="/#top" className="home-logo" aria-label="EDUNOVA home">
             <span className="home-brand-icon">
               <FaGraduationCap />
             </span>
@@ -144,24 +151,24 @@ function Home({ navigation = null, showFooter = true }) {
           </Link>
 
           <div className="home-nav-center">
-            <a
-              href="/"
+            <Link
+              to="/#top"
               className={activeTab === "home" ? "active" : undefined}
               aria-current={activeTab === "home" ? "page" : undefined}
               onClick={() => setActiveTab("home")}
               onFocus={() => setActiveTab("home")}
             >
               Home
-            </a>
-            <a
-              href="#courses"
+            </Link>
+            <Link
+              to="/#courses"
               className={activeTab === "courses" ? "active" : undefined}
               aria-current={activeTab === "courses" ? "page" : undefined}
               onClick={() => setActiveTab("courses")}
               onFocus={() => setActiveTab("courses")}
             >
               Courses
-            </a>
+            </Link>
             <Link
               to="/ai-chatbot"
               className={activeTab === "chatbot" ? "active" : undefined}
@@ -171,30 +178,24 @@ function Home({ navigation = null, showFooter = true }) {
               AI Chatbot
             </Link>
             <Link
-              to="/ranking"
-              className={activeTab === "ranking" ? "active" : undefined}
-              onClick={() => setActiveTab("ranking")}
-              onFocus={() => setActiveTab("ranking")}
-            >
-              Ranking
-            </Link>
-            <a
-              href="#about"
+              to="/#about"
               className={activeTab === "about" ? "active" : undefined}
               aria-current={activeTab === "about" ? "page" : undefined}
               onClick={() => setActiveTab("about")}
               onFocus={() => setActiveTab("about")}
             >
               About
-            </a>
-            <label className="home-nav-search">
+            </Link>
+            <form className="home-nav-search" onSubmit={submitCourseSearch}>
               <FaSearch aria-hidden="true" />
               <input
                 type="search"
                 aria-label="Search courses"
                 placeholder="Search"
+                value={navSearch}
+                onChange={(event) => setNavSearch(event.target.value)}
               />
-            </label>
+            </form>
           </div>
           <LanguagePreference />
           <Link to="/auth" className="home-get-started">
@@ -212,7 +213,7 @@ function Home({ navigation = null, showFooter = true }) {
                   <h1>{course.name}</h1>
                   <p>{course.description}</p>
                   <div className="home-carousel-meta"><strong>★ {course.rating}</strong><span>{course.reviews} reviews</span><span>{course.duration}</span></div>
-                  <Link to="/courses" tabIndex={activeSlide === index ? 0 : -1}>Explore course <span aria-hidden="true">→</span></Link>
+                  <Link to={`/courses/${course.slug}`} tabIndex={activeSlide === index ? 0 : -1}>Explore course <span aria-hidden="true">→</span></Link>
                 </div>
                 <div className="home-carousel-visual" aria-hidden="true">
                   <span>{course.name.slice(0, 2).toUpperCase()}</span>
@@ -336,15 +337,14 @@ function Home({ navigation = null, showFooter = true }) {
 
           <div className="home-footer-links">
             <h3>Discover</h3>
-            <a href="#top">Home</a>
-            <a href="#courses">Courses</a>
+            <Link to="/#top">Home</Link>
+            <Link to="/#courses">Courses</Link>
             <Link to="/popular-courses">Popular Courses</Link>
           </div>
 
           <div className="home-footer-links">
             <h3>Learning tools</h3>
             <Link to="/ai-chatbot">AI Chatbot</Link>
-            <Link to="/ranking">Ranking</Link>
             <Link to="/student-dashboard">Student Dashboard</Link>
           </div>
 

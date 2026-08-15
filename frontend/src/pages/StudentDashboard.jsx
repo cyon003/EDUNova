@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   FaBell,
   FaBookOpen,
@@ -32,9 +32,9 @@ import DashboardSearch from "../components/DashboardSearch";
 import availableCourses from "../data/courses";
 
 const courses = [
-  { name: "Mathematics", lesson: "Quadratic Equations", progress: 72, color: "purple" },
-  { name: "Science", lesson: "Forces and Motion", progress: 48, color: "blue" },
-  { name: "English", lesson: "Creative Writing", progress: 86, color: "pink" },
+  { slug: "mathematics", name: "Mathematics", lesson: "Quadratic Equations", progress: 72, color: "purple" },
+  { slug: "science", name: "Science", lesson: "Forces and Motion", progress: 48, color: "blue" },
+  { slug: "english", name: "English", lesson: "Creative Writing", progress: 86, color: "pink" },
 ];
 
 const dailyPlan = [
@@ -64,6 +64,7 @@ function getStoredUser() {
 }
 
 function StudentDashboard() {
+  const navigate = useNavigate();
   const user = getStoredUser();
   const [activeSection, setActiveSection] = useState("dashboard");
   const notesStorageKey = `edunova-notes-${user?.id || "student"}`;
@@ -118,6 +119,10 @@ function StudentDashboard() {
   ];
 
   const openSection = (id) => {
+    if (id === "courses") {
+      navigate("/my-courses");
+      return;
+    }
     setActiveSection(id);
     if (id === "notes") {
       setNotePage("folders");
@@ -126,7 +131,6 @@ function StudentDashboard() {
     }
     const sectionIds = {
       dashboard: "student-dashboard-top",
-      courses: "student-courses",
       performance: "student-performance",
       calendar: "student-calendar",
       saved: "student-saved",
@@ -303,7 +307,7 @@ function StudentDashboard() {
 
         <div className="student-content-grid">
           <section className="student-panel student-course-panel" id="student-courses">
-            <header><div><span>MY COURSES</span><h2>Continue learning</h2></div><Link to="/courses">View all</Link></header>
+            <header><div><span>MY COURSES</span><h2>Continue learning</h2></div><Link to="/my-courses">View all</Link></header>
             <div className="student-course-list">
               {courses.map((course) => (
                 <article className="student-course-row" key={course.name}>
@@ -313,7 +317,7 @@ function StudentDashboard() {
                     <p>Next: {course.lesson}</p>
                     <div className="student-progress"><span style={{ width: `${course.progress}%` }} /></div>
                   </div>
-                  <button type="button" aria-label={`Continue ${course.name}`}><FaPlay /></button>
+                  <Link to={`/courses/${course.slug}`} state={{ from: "/my-courses" }} aria-label={`Continue ${course.name}`}><FaPlay /></Link>
                 </article>
               ))}
             </div>
@@ -332,7 +336,7 @@ function StudentDashboard() {
           </section>
 
           <section className="student-panel student-performance-panel" id="student-performance">
-            <header><div><span>PERFORMANCE</span><h2>Weekly activity</h2></div><Link to="/ranking">Ranking</Link></header>
+            <header><div><span>PERFORMANCE</span><h2>Weekly activity</h2></div><FaChartLine /></header>
             <div className="student-chart" aria-label="Weekly study activity">
               {[45, 72, 54, 88, 65, 38, 76].map((height, index) => (
                 <div key={index}><span style={{ height: `${height}%` }} /><small>{["M", "T", "W", "T", "F", "S", "S"][index]}</small></div>

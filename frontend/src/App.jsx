@@ -5,10 +5,11 @@ import Auth from "./pages/Auth";
 import CourseDetail from "./pages/CourseDetail";
 import Courses from "./pages/Courses";
 import Home from "./pages/Home";
-import Ranking from "./pages/Ranking";
 import StudentDashboard from "./pages/StudentDashboard";
 import TutorDashboard from "./pages/TutorDashboard";
 import UserHome from "./pages/UserHome";
+import MyCourses from "./pages/MyCourses";
+import NavigationManager from "./components/NavigationManager";
 
 function getStoredUser() {
   try {
@@ -45,6 +46,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <NavigationManager />
       <Routes>
         <Route
           path="/"
@@ -71,6 +73,14 @@ function App() {
           }
         />
         <Route
+          path="/my-courses"
+          element={
+            <RoleRoute user={user} allowedRoles={["student"]}>
+              <MyCourses />
+            </RoleRoute>
+          }
+        />
+        <Route
           path="/admin-dashboard"
           element={
             <RoleRoute user={user} allowedRoles={["admin"]}>
@@ -90,7 +100,6 @@ function App() {
         <Route path="/courses/:courseSlug" element={<CourseDetail />} />
         <Route path="/popular-courses" element={<Navigate to="/courses#popular" replace />} />
         <Route path="/ai-chatbot" element={<AiChatbot />} />
-        <Route path="/ranking" element={<Ranking />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

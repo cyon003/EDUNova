@@ -428,7 +428,7 @@
   border-radius: inherit;
 }
 
-.student-course-row > button {
+.student-course-row > a {
   display: grid;
   flex: 0 0 36px;
   height: 36px;
@@ -437,10 +437,11 @@
   background: var(--student-purple);
   border: 0;
   border-radius: 50%;
+  text-decoration: none;
   place-items: center;
 }
 
-.student-course-row > button svg {
+.student-course-row > a svg {
   margin-left: 2px;
   font-size: 11px;
 }

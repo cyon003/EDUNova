@@ -37,7 +37,7 @@ function Courses() {
   const [savedCourses, setSavedCourses] = useState(() => {
     try { return JSON.parse(localStorage.getItem("edunova-saved-courses")) || []; } catch { return []; }
   });
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => new URLSearchParams(window.location.search).get("search") || "");
   const [category, setCategory] = useState("All");
   const [sortBy, setSortBy] = useState("rating");
   const [savedOnly, setSavedOnly] = useState(false);

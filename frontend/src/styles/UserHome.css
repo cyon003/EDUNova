@@ -136,32 +136,6 @@
   box-shadow: 0 0 0 3px rgba(141, 99, 234, 0.2);
 }
 
-.uhome-icon-btn {
-  position: relative;
-  display: grid;
-  flex-shrink: 0;
-  width: 42px;
-  height: 42px;
-  padding: 0;
-  color: #eff0fb;
-  cursor: pointer;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 50%;
-  place-items: center;
-}
-
-.uhome-notification-dot {
-  position: absolute;
-  top: 7px;
-  right: 8px;
-  width: 8px;
-  height: 8px;
-  background: #8d63ea;
-  border-radius: 50%;
-  box-shadow: 0 0 6px #8d63ea;
-}
-
 .uhome-profile-menu {
   position: relative;
 }

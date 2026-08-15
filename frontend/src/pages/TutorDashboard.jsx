@@ -1,5 +1,6 @@
 import { FaBookOpen, FaChartLine, FaSignOutAlt } from "react-icons/fa";
 import "../styles/RoleDashboard.css";
+import MessageBox from "../components/MessageBox";
 
 function getStoredUser() {
   try {
@@ -26,9 +27,12 @@ function TutorDashboard() {
           <h1>Welcome, {user?.name || "Tutor"}</h1>
           <p>Your teaching workspace is ready to customize.</p>
         </div>
-        <button type="button" onClick={handleLogout} className="role-dashboard__logout">
-          <FaSignOutAlt /> Log out
-        </button>
+        <div className="role-dashboard__actions">
+          <MessageBox />
+          <button type="button" onClick={handleLogout} className="role-dashboard__logout">
+            <FaSignOutAlt /> Log out
+          </button>
+        </div>
       </header>
 
       <section className="role-dashboard__grid" aria-label="Tutor tools">

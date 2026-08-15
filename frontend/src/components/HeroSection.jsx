@@ -48,7 +48,6 @@ function HeroSection() {
       </div>
 
       <div className="signup-hero-icon">
-        {/* <FaBrain /> */}
         <AiFillCloud />
       </div>
     </div>

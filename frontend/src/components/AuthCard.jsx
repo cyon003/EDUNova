@@ -93,8 +93,6 @@ function AuthCard() {
         return;
       }
 
-      // Student registration succeeded.
-      // The user must log in after registration.
       if (!isLogin) {
         setMessage(data.message);
         setLoading(false);

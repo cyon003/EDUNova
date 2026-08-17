@@ -1,0 +1,16 @@
+.dashboard-search { position: relative; flex: 1; max-width: 420px; margin-left: auto; }
+.dashboard-search > label { display: flex; align-items: center; gap: 10px; width: 100%; padding: 0 15px; color: #8d63ea; background: #151124; border: 1px solid #302742; border-radius: 12px; transition: border-color 0.2s, box-shadow 0.2s; }
+.dashboard-search > label:focus-within { border-color: #8d63ea; box-shadow: 0 0 0 3px rgba(141, 99, 234, 0.14); }
+.dashboard-search input { width: 100%; min-width: 0; padding: 12px 0; color: white; font: inherit; font-size: 12px; background: transparent; border: 0; outline: none; }
+.dashboard-search input::placeholder { color: #777087; }
+.dashboard-search-results { position: absolute; top: calc(100% + 8px); right: 0; left: 0; z-index: 45; max-height: 430px; padding: 10px; overflow-y: auto; background: #110d20; border: 1px solid #33284d; border-radius: 14px; box-shadow: 0 20px 55px rgba(0, 0, 0, 0.5); }
+.dashboard-search-results section + section { margin-top: 10px; padding-top: 10px; border-top: 1px solid #2b2340; }
+.dashboard-search-results h3 { padding: 6px 8px; color: #827b95; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; }
+.dashboard-search-results section > a, .dashboard-person-result { display: flex; align-items: center; gap: 10px; padding: 9px 8px; color: white; text-decoration: none; border-radius: 9px; }
+.dashboard-search-results section > a:hover { background: rgba(141, 99, 234, 0.15); }
+.dashboard-search-results section > a > span, .dashboard-person-result > span { display: grid; flex: 0 0 34px; height: 34px; color: #ad8cf2; background: rgba(141, 99, 234, 0.14); border-radius: 9px; place-items: center; }
+.dashboard-search-results section div { display: grid; min-width: 0; gap: 3px; }
+.dashboard-search-results strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-search-results small { color: #89829b; font-size: 9px; text-transform: capitalize; }
+.dashboard-search-state { padding: 22px 12px; color: #89829b; font-size: 11px; text-align: center; }
+@media (max-width: 800px) { .student-topbar { flex-wrap: wrap; } .dashboard-search { order: 3; flex-basis: 100%; max-width: none; margin: 0; } }

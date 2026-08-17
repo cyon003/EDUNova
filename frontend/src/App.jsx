@@ -4,11 +4,11 @@ import Auth from "./pages/Auth";
 import CourseDetail from "./pages/CourseDetail";
 import Courses from "./pages/Courses";
 import Home from "./pages/Home";
-import Ranking from "./pages/Ranking";
 import StudentDashboard from "./pages/StudentDashboard";
 import TutorDashboard from "./pages/TutorDashboard";
-import PopularCourses from "./pages/PopularCourses";
 import UserHome from "./pages/UserHome";
+import MyCourses from "./pages/MyCourses";
+import NavigationManager from "./components/NavigationManager";
 
 import AdminOverview from "./pages/AdminOverview";
 import AdminTutors from "./pages/AdminTutors";
@@ -50,6 +50,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <NavigationManager />
       <Routes>
 
         {/* Public */}
@@ -83,6 +84,15 @@ function App() {
           element={
             <RoleRoute user={user} allowedRoles={["student"]}>
               <StudentDashboard />
+            </RoleRoute>
+          }
+        />
+
+        <Route
+          path="/my-courses"
+          element={
+            <RoleRoute user={user} allowedRoles={["student"]}>
+              <MyCourses />
             </RoleRoute>
           }
         />
@@ -155,9 +165,8 @@ function App() {
         {/* Shared */}
         <Route path="/courses" element={<Courses />} />
         <Route path="/courses/:courseSlug" element={<CourseDetail />} />
-        <Route path="/popular-courses" element={<PopularCourses />} />
+        <Route path="/popular-courses" element={<Navigate to="/courses#popular" replace />} />
         <Route path="/ai-chatbot" element={<AiChatbot />} />
-        <Route path="/ranking" element={<Ranking />} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,16 +1,21 @@
 .uhome-nav {
   position: sticky;
-  top: 0;
+  top: 12px;
   z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 80px;
+  width: calc(100% - 32px);
+  max-width: 1560px;
+  min-height: 72px;
   gap: clamp(12px, 2vw, 28px);
-  padding: 10px clamp(18px, 4vw, 60px);
-  background: rgba(15, 10, 2, 0.55);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(14px);
+  margin: 12px auto 0;
+  padding: 9px clamp(14px, 3vw, 34px);
+  background: rgba(21, 17, 36, 0.88);
+  border: 1px solid rgba(141, 99, 234, 0.3);
+  border-radius: 18px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 24px rgba(141, 99, 234, 0.08);
+  backdrop-filter: blur(20px);
 }
 
 .uhome-logo {
@@ -27,10 +32,16 @@
   height: 50px;
   color: white;
   font-size: 22px;
-  background: rgba(176, 119, 6, 0.78);
-  border: 1px solid whitesmoke;
+  background: rgba(125, 86, 217, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.55);
   border-radius: 14px;
   place-items: center;
+  transition: transform 0.35s ease, box-shadow 0.35s ease;
+}
+
+.uhome-logo:hover .uhome-brand-icon {
+  box-shadow: 0 0 24px rgba(141, 99, 234, 0.55);
+  transform: rotate(-8deg) scale(1.06);
 }
 
 .uhome-brand {
@@ -44,39 +55,46 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(12px, 2vw, 28px);
+  gap: 3px;
+  padding: 5px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 13px;
 }
 
 .uhome-nav-center a {
   position: relative;
-  padding-bottom: 6px;
+  padding: 9px clamp(8px, 1vw, 13px);
   color: #a8afd8;
   font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
-  transition: color 0.25s ease;
+  border-radius: 9px;
+  transition: color 0.25s ease, background 0.25s ease;
 }
 
 .uhome-nav-center a::after {
   position: absolute;
-  bottom: 0;
-  left: 0;
+  bottom: 3px;
+  left: 50%;
   width: 0;
   height: 2px;
-  background: #f0a400;
+  background: #8d63ea;
   border-radius: 2px;
   content: "";
-  transition: width 0.25s ease;
+  transition: width 0.25s ease, left 0.25s ease;
 }
 
 .uhome-nav-center a:hover,
 .uhome-nav-center a.active {
-  color: #f0a400;
+  color: white;
+  background: rgba(141, 99, 234, 0.16);
 }
 
 .uhome-nav-center a:hover::after,
 .uhome-nav-center a.active::after {
-  width: 100%;
+  left: 30%;
+  width: 40%;
 }
 
 .uhome-nav-right {
@@ -90,15 +108,15 @@
   align-items: center;
   width: clamp(130px, 14vw, 200px);
   padding: 0 11px;
-  color: #756c5c;
-  background: white;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #a8afd8;
+  background: #151124;
+  border: 1px solid rgba(141, 99, 234, 0.25);
   border-radius: 10px;
 }
 
 .uhome-nav-search svg {
   flex-shrink: 0;
-  color: #b07706;
+  color: #6d4aa0;
   font-size: 14px;
 }
 
@@ -107,40 +125,15 @@
   min-width: 0;
   padding: 9px 0 9px 8px;
   font: inherit;
+  color: white;
   background: transparent;
   border: 0;
   outline: 0;
 }
 
 .uhome-nav-search:focus-within {
-  border-color: #f0a400;
-  box-shadow: 0 0 0 3px rgba(240, 164, 0, 0.2);
-}
-
-.uhome-icon-btn {
-  position: relative;
-  display: grid;
-  flex-shrink: 0;
-  width: 42px;
-  height: 42px;
-  padding: 0;
-  color: #eff0fb;
-  cursor: pointer;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 50%;
-  place-items: center;
-}
-
-.uhome-notification-dot {
-  position: absolute;
-  top: 7px;
-  right: 8px;
-  width: 8px;
-  height: 8px;
-  background: #f0a400;
-  border-radius: 50%;
-  box-shadow: 0 0 6px #f0a400;
+  border-color: #8d63ea;
+  box-shadow: 0 0 0 3px rgba(141, 99, 234, 0.2);
 }
 
 .uhome-profile-menu {
@@ -163,10 +156,10 @@
   display: grid;
   width: 34px;
   height: 34px;
-  color: #241703;
+  color: white;
   font-size: 13px;
   font-weight: 800;
-  background: #f0a400;
+  background: #8d63ea;
   border-radius: 50%;
   place-items: center;
 }
@@ -279,6 +272,9 @@
 
 @media (max-width: 500px) {
   .uhome-nav {
+    top: 6px;
+    width: calc(100% - 12px);
+    margin-top: 6px;
     padding-right: 12px;
     padding-left: 12px;
   }

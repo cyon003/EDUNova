@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
-  FaBell,
   FaChevronDown,
   FaGraduationCap,
   FaSearch,
@@ -9,6 +8,7 @@ import {
 } from "react-icons/fa";
 import Home from "./Home";
 import "../styles/UserHome.css";
+import LanguagePreference from "../components/LanguagePreference";
 
 function getStoredUser() {
   try {
@@ -35,8 +35,11 @@ function getInitials(name) {
 }
 
 function UserHome() {
+  const navigate = useNavigate();
   const [user] = useState(() => getStoredUser());
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("home");
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (!user) {
@@ -49,42 +52,72 @@ function UserHome() {
     localStorage.removeItem("token");
     window.location.href = "/";
   };
+  const submitSearch = (event) => {
+    event.preventDefault();
+    const query = searchQuery.trim();
+    navigate(query ? `/courses?search=${encodeURIComponent(query)}` : "/courses");
+  };
 
   if (!user) return null;
 
   const navigation = (
       <nav className="uhome-nav">
-        <a href="/" className="uhome-logo" aria-label="EDUNOVA Home">
+        <Link to="/#top" className="uhome-logo" aria-label="EDUNOVA Home">
           <span className="uhome-brand-icon">
             <FaGraduationCap />
           </span>
           <span className="uhome-brand">EDUNOVA</span>
-        </a>
+        </Link>
 
         <div className="uhome-nav-center">
-          <a href="/" className="active">
+          <Link
+            to="/#top"
+            className={activeTab === "home" ? "active" : undefined}
+            aria-current={activeTab === "home" ? "page" : undefined}
+            onClick={() => setActiveTab("home")}
+            onFocus={() => setActiveTab("home")}
+          >
             Home
-          </a>
-          <a href="#courses">Courses</a>
-          <Link to="/ai-chatbot">AI Chatbot</Link>
-          <Link to="/ranking">Ranking</Link>
-          <Link to="/student-dashboard">My Dashboard</Link>
+          </Link>
+          <Link
+            to="/#courses"
+            className={activeTab === "courses" ? "active" : undefined}
+            aria-current={activeTab === "courses" ? "page" : undefined}
+            onClick={() => setActiveTab("courses")}
+            onFocus={() => setActiveTab("courses")}
+          >
+            Courses
+          </Link>
+          <Link
+            to="/ai-chatbot"
+            className={activeTab === "chatbot" ? "active" : undefined}
+            onClick={() => setActiveTab("chatbot")}
+            onFocus={() => setActiveTab("chatbot")}
+          >
+            AI Chatbot
+          </Link>
+          <Link
+            to="/student-dashboard"
+            className={activeTab === "dashboard" ? "active" : undefined}
+            onClick={() => setActiveTab("dashboard")}
+            onFocus={() => setActiveTab("dashboard")}
+          >
+            My Dashboard
+          </Link>
         </div>
 
         <div className="uhome-nav-right">
-          <label className="uhome-nav-search">
+          <LanguagePreference />
+          <form className="uhome-nav-search" onSubmit={submitSearch}>
             <FaSearch aria-hidden="true" />
             <input
               type="search"
               aria-label="Search courses"
               placeholder="Search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
             />
-          </label>
-
-          <button className="uhome-icon-btn" type="button" aria-label="Notifications">
-            <FaBell />
-            <span className="uhome-notification-dot" />
-          </button>
+          </form>
 
           <div className="uhome-profile-menu">
             <button
@@ -113,8 +146,8 @@ function UserHome() {
                   </div>
                 </div>
 
-                <a href="#profile">My Profile</a>
-                <a href="#settings">Settings</a>
+                <Link to="/student-dashboard">My Dashboard</Link>
+                <Link to="/my-courses">My Courses</Link>
                 <button type="button" onClick={handleLogout}>
                   <FaSignOutAlt /> Log Out
                 </button>

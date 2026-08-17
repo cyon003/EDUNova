@@ -13,7 +13,6 @@ const normalizeEmail = (email) => {
   return email.toLowerCase().trim();
 };
 
-// PUBLIC STUDENT SIGN UP
 router.post("/signup", async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -45,8 +44,6 @@ router.post("/signup", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Public signup always creates a student.
-    // Never accept a role from the frontend.
     await User.create({
       name: name.trim(),
       email: normalizedEmail,
@@ -69,7 +66,6 @@ router.post("/signup", async (req, res) => {
   }
 });
 
-// LOGIN FOR STUDENT, TUTOR AND ADMIN
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -142,7 +138,6 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// GET CURRENT LOGGED-IN USER
 router.get("/me", authenticateToken, async (req, res) => {
   return res.status(200).json({
     user: {

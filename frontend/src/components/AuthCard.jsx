@@ -113,7 +113,10 @@ function AuthCard() {
 
       setMessage(data.message);
 
-      window.location.href = "/home";
+      const nextPath = new URLSearchParams(window.location.search).get("next");
+      window.location.href = nextPath?.startsWith("/") && !nextPath.startsWith("//")
+        ? nextPath
+        : "/home";
     } catch (error) {
       console.error(error);
       setMessage("Backend server is not running");

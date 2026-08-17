@@ -68,7 +68,9 @@ router.patch("/tutor-applications/:applicationId/review", async (req, res) => {
     application.reviewedAt = new Date();
     application.reviewedBy = req.user._id;
     await application.save();
-    await User.findByIdAndUpdate(application.tutor, { tutorVerificationStatus: status });
+    const userUpdate = { tutorVerificationStatus: status };
+    if (status === "verified") userUpdate.role = "tutor";
+    await User.findByIdAndUpdate(application.tutor, userUpdate);
     await recordAudit(req.user._id, `Tutor application ${status.replace("_", " ")}`, application.legalName);
     await application.populate("tutor", "name email accountStatus tutorVerificationStatus createdAt");
     await application.populate("reviewedBy", "name email");

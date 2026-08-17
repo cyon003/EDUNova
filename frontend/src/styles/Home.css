@@ -172,7 +172,8 @@
   box-shadow: 0 0 0 3px rgba(141, 99, 234, 0.2);
 }
 
-.home-get-started {
+.home-get-started,
+.home-become-tutor {
   flex-shrink: 0;
   padding: 10px clamp(12px, 1.5vw, 22px);
   color: whitesmoke;
@@ -184,6 +185,19 @@
   border-radius: 11px;
   transition: 0.35s ease, box-shadow 0.35s ease,
     transform 0.35s ease;
+}
+
+.home-become-tutor {
+  color: #d8ccff;
+  background: transparent;
+  border-color: rgba(167, 139, 250, 0.65);
+}
+
+.home-become-tutor:hover {
+  color: white;
+  background: rgba(125, 86, 217, 0.22);
+  border-color: #a78bfa;
+  transform: translateY(-2px);
 }
 
 .home-get-started:hover {
@@ -242,11 +256,16 @@
   .home-get-started {
     padding: 9px 10px;
   }
+
+  .home-become-tutor {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .home-brand-icon,
-  .home-get-started {
+  .home-get-started,
+  .home-become-tutor {
     transition: none;
   }
 }

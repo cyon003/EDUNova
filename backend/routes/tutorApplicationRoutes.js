@@ -6,7 +6,7 @@ const requireRole = require("../middleware/roleMiddleware");
 
 const router = express.Router();
 router.use(authenticateToken);
-router.use(requireRole("tutor"));
+router.use(requireRole("student", "tutor"));
 
 const editableFields = ["legalName", "profilePhotoUrl", "bio", "subjects", "educationLevel", "degree", "fieldOfStudy", "institution", "graduationYear", "teachingExperienceYears", "professionalExperience", "certifications", "portfolioUrl", "linkedInUrl", "identityDocumentUrl", "credentialDocumentUrls"];
 const cleanList = (value) => Array.isArray(value) ? [...new Set(value.map((item) => String(item).trim()).filter(Boolean))] : [];

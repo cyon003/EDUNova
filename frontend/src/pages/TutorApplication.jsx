@@ -51,7 +51,7 @@ export default function TutorApplication() {
   if (loading) return <main className="tutor-application-page"><p>Loading application...</p></main>;
 
   return <main className="tutor-application-page">
-    <header className="tutor-application-header"><Link to="/tutor-dashboard"><FaChevronLeft /> Dashboard</Link><div><span>TUTOR VERIFICATION</span><h1>Your teaching profile</h1><p>Provide information that helps EDUNOVA confirm your identity and subject expertise.</p></div><span className={`tutor-application-status status-${status}`}>{status.replace("_", " ")}</span></header>
+    <header className="tutor-application-header"><Link to="/home"><FaChevronLeft /> Home</Link><div><span>TUTOR VERIFICATION</span><h1>Your teaching profile</h1><p>Provide information that helps EDUNOVA confirm your identity and subject expertise.</p></div><span className={`tutor-application-status status-${status}`}>{status.replace("_", " ")}</span></header>
     {decisionReason && <section className="tutor-application-feedback"><strong>Admin feedback</strong><p>{decisionReason}</p></section>}
     {message && <p className="tutor-application-message">{message}</p>}
     <div className="tutor-application-layout">

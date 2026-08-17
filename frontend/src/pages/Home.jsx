@@ -203,6 +203,9 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
             </form>
           </div>
           <LanguagePreference />
+          <Link to="/auth?next=/tutor-application" className="home-become-tutor">
+            Become a Tutor
+          </Link>
           <Link to="/auth" className="home-get-started">
             Get Started
           </Link>

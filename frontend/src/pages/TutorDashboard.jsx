@@ -90,23 +90,8 @@ const deadlines = [
   },
 ];
 
-function getStoredUser() {
-  try {
-    const rawUser = localStorage.getItem("user");
-
-    if (!rawUser) {
-      return null;
-    }
-
-    return JSON.parse(rawUser);
-  } catch {
-    return null;
-  }
-}
-
 function TutorDashboard() {
   const navigate = useNavigate();
-  const user = getStoredUser();
 
   const openTutorCourses = () => {
     navigate("/tutor-courses");
@@ -149,8 +134,6 @@ function TutorDashboard() {
           <strong>EDUNOVA</strong>
         </div>
 
-        <p className="tutor-role">Tutor Portal</p>
-
         <nav
           className="tutor-navigation"
           aria-label="Tutor navigation"
@@ -161,7 +144,7 @@ function TutorDashboard() {
             onClick={() => navigate("/tutor-dashboard")}
           >
             <FaHome />
-            <span>Dashboard</span>
+            <span>Overview</span>
           </button>
 
           <button
@@ -233,22 +216,6 @@ function TutorDashboard() {
 
       <div className="tutor-main">
         <header className="tutor-header">
-          <div>
-            <p className="tutor-eyebrow">
-              TUTOR DASHBOARD
-            </p>
-
-            <h1>
-              Welcome,{" "}
-              {user?.name?.split(" ")[0] || "Tutor"}
-            </h1>
-
-            <p>
-              Manage your teaching content and assigned
-              students.
-            </p>
-          </div>
-
           <div className="tutor-header-actions">
             <MessageBox />
 

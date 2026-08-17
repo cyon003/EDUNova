@@ -34,6 +34,7 @@ function CourseList({ courseItems, savedCourses, onToggleSaved }) {
 }
 
 function Courses() {
+  const [catalogCourses, setCatalogCourses] = useState(availableCourses);
   const [savedCourses, setSavedCourses] = useState(() => {
     try { return JSON.parse(localStorage.getItem("edunova-saved-courses")) || []; } catch { return []; }
   });
@@ -43,15 +44,30 @@ function Courses() {
   const [savedOnly, setSavedOnly] = useState(false);
   const [showLearningPathBar, setShowLearningPathBar] = useState(false);
   const [learningPathsVisible, setLearningPathsVisible] = useState(false);
-  const popularCourses = [...availableCourses]
+  const popularCourses = [...catalogCourses]
     .sort((first, second) => Number(second.rating) - Number(first.rating))
     .slice(0, 4);
-  const categories = ["All", ...new Set(availableCourses.map((course) => course.category))];
-  const filteredCourses = availableCourses
+  const categories = ["All", ...new Set(catalogCourses.map((course) => course.category))];
+  const filteredCourses = catalogCourses
     .filter((course) => category === "All" || course.category === category)
     .filter((course) => !savedOnly || savedCourses.includes(course.slug))
     .filter((course) => `${course.name} ${course.description} ${course.category}`.toLowerCase().includes(searchQuery.trim().toLowerCase()))
     .sort((first, second) => sortBy === "name" ? first.name.localeCompare(second.name) : Number(second.rating) - Number(first.rating));
+
+  useEffect(() => {
+    let active = true;
+    fetch("http://localhost:5050/api/courses")
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Catalog unavailable")))
+      .then((courses) => {
+        if (!active) return;
+        setCatalogCourses(courses.map((course) => ({
+          ...availableCourses.find((item) => item.slug === course.slug),
+          ...course,
+        })));
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     const sectionId = window.location.hash.slice(1);
@@ -111,7 +127,7 @@ function Courses() {
           </div>
           <div className="courses-header-summary">
             <span><FaBookOpen /></span>
-            <div><strong>{availableCourses.length}</strong><small>courses to explore</small></div>
+            <div><strong>{catalogCourses.length}</strong><small>courses to explore</small></div>
           </div>
         </div>
       </header>
@@ -143,7 +159,7 @@ function Courses() {
       <section className="course-collection" id="available">
         <header>
           <div><span><FaBookOpen /></span><div><small>FULL CATALOG</small><h2>Available Courses</h2><p>Explore every subject and find the right course for your goals.</p></div></div>
-          <strong>{availableCourses.length} courses</strong>
+          <strong>{catalogCourses.length} courses</strong>
         </header>
         <div className="course-results-summary"><span>{filteredCourses.length} {filteredCourses.length === 1 ? "course" : "courses"}</span>{(searchQuery || category !== "All" || savedOnly) && <button type="button" onClick={() => { setSearchQuery(""); setCategory("All"); setSavedOnly(false); }}>Clear filters</button>}</div>
         {filteredCourses.length ? <CourseList courseItems={filteredCourses} savedCourses={savedCourses} onToggleSaved={toggleSaved} /> : <div className="course-empty-results"><FaSearch /><h3>No courses found</h3><p>Try another search or clear your filters.</p></div>}

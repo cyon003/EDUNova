@@ -17,6 +17,8 @@ import AdminStudents from "./pages/AdminStudents";
 import AdminCourses from "./pages/AdminCourses";
 import AdminReports from "./pages/AdminReports";
 import AdminSettings from "./pages/AdminSettings";
+import AdminTutorApplications from "./pages/AdminTutorApplications";
+import TutorApplication from "./pages/TutorApplication";
 
 function getStoredUser() {
   try {
@@ -30,17 +32,11 @@ function getStoredUser() {
   }
 }
 
-function getRoleHome(role) {
-  if (role === "admin") return "/admin-dashboard";
-  if (role === "tutor") return "/tutor-dashboard";
-  return "/";
-}
-
 function RoleRoute({ user, allowedRoles, children }) {
   if (!user) return <Navigate to="/auth" replace />;
 
   if (!allowedRoles.includes(user.role)) {
-    return <Navigate to={getRoleHome(user.role)} replace />;
+    return <Navigate to="/home" replace />;
   }
 
   return children;
@@ -58,10 +54,8 @@ function App() {
         <Route
           path="/"
           element={
-            user && user.role !== "student" ? (
-              <Navigate to={getRoleHome(user.role)} replace />
-            ) : user ? (
-              <UserHome />
+            user ? (
+              <Navigate to="/home" replace />
             ) : (
               <Home />
             )
@@ -72,7 +66,7 @@ function App() {
           path="/auth"
           element={
             user ? (
-              <Navigate to={getRoleHome(user.role)} replace />
+              <Navigate to="/home" replace />
             ) : (
               <Auth />
             )
@@ -80,6 +74,16 @@ function App() {
         />
 
         {/* Student */}
+        <Route
+          path="/home"
+          element={
+            <RoleRoute user={user} allowedRoles={["student", "admin", "tutor"]}>
+              <UserHome />
+            </RoleRoute>
+          }
+        />
+        <Route path="/student-home" element={<Navigate to="/home" replace />} />
+
         <Route
           path="/student-dashboard"
           element={
@@ -107,6 +111,14 @@ function App() {
             </RoleRoute>
           }
         />
+        <Route
+          path="/tutor-application"
+          element={
+            <RoleRoute user={user} allowedRoles={["tutor"]}>
+              <TutorApplication />
+            </RoleRoute>
+          }
+        />
 
         {/* Admin */}
         <Route
@@ -123,6 +135,14 @@ function App() {
           element={
             <RoleRoute user={user} allowedRoles={["admin"]}>
               <AdminTutors />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="/admin-dashboard/tutor-applications"
+          element={
+            <RoleRoute user={user} allowedRoles={["admin"]}>
+              <AdminTutorApplications />
             </RoleRoute>
           }
         />

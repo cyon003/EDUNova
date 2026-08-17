@@ -4,9 +4,16 @@ const Course = require("../models/Course");
 
 const router = express.Router();
 
+const publiclyVisible = {
+  $or: [
+    { moderationStatus: "published" },
+    { moderationStatus: { $exists: false } },
+  ],
+};
+
 router.get("/", async (req, res) => {
   try {
-    const courses = await Course.find().sort({
+    const courses = await Course.find(publiclyVisible).sort({
       rating: -1,
       name: 1,
     });
@@ -25,6 +32,7 @@ router.get("/:slug", async (req, res) => {
   try {
     const course = await Course.findOne({
       slug: req.params.slug.toLowerCase(),
+      ...publiclyVisible,
     });
 
     if (!course) {

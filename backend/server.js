@@ -10,6 +10,9 @@ const messageRoutes = require("./routes/messageRoutes");
 const searchRoutes = require("./routes/searchRoutes");
 const enrollmentRoutes = require("./routes/enrollmentRoutes");
 const noteRoutes = require("./routes/noteRoutes");
+const reportRoutes = require("./routes/reportRoutes");
+const announcementRoutes = require("./routes/announcementRoutes");
+const tutorApplicationRoutes = require("./routes/tutorApplicationRoutes");
 
 const app = express();
 
@@ -30,6 +33,9 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/enrollments", enrollmentRoutes);
 app.use("/api/notes", noteRoutes);
+app.use("/api/reports", reportRoutes);
+app.use("/api/announcements", announcementRoutes);
+app.use("/api/tutor-application", tutorApplicationRoutes);
 
 app.get("/", (req, res) => {
   res.send("EduNova backend is running");

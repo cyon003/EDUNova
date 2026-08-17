@@ -1,4 +1,5 @@
-import { FaBookOpen, FaChartLine, FaSignOutAlt } from "react-icons/fa";
+import { FaBookOpen, FaChartLine, FaIdCard, FaSignOutAlt } from "react-icons/fa";
+import { Link } from "react-router-dom";
 import "../styles/RoleDashboard.css";
 import MessageBox from "../components/MessageBox";
 
@@ -36,6 +37,11 @@ function TutorDashboard() {
       </header>
 
       <section className="role-dashboard__grid" aria-label="Tutor tools">
+        <Link to="/tutor-application" className="role-dashboard__card role-dashboard__card-link">
+          <FaIdCard />
+          <h2>Tutor verification</h2>
+          <p>Complete your education, experience, and credential application.</p>
+        </Link>
         <article className="role-dashboard__card">
           <FaBookOpen />
           <h2>My courses</h2>

@@ -1,271 +1,130 @@
-import { useState } from "react";
-import { FaSearch, FaPlus, FaEye, FaEdit, FaKey, FaBan, FaCheck } from "react-icons/fa";
+import { useEffect, useState } from "react";
+import { FaBan, FaCheck, FaEdit, FaKey, FaPlus, FaSearch, FaTrash } from "react-icons/fa";
 import AdminLayout from "../components/AdminLayout";
+import AdminListControls from "../components/AdminListControls";
+import { adminApi, formatAdminDate } from "../utils/adminApi";
 import "../styles/AdminLayout.css";
 
-const INIT_TUTORS = [
-  { id:1, name:"James Okafor",  email:"james@edunova.com",  avatar:"JO", courses:3, students:166, status:"active",    joined:"Jan 12, 2024" },
-  { id:2, name:"Sara Müller",   email:"sara@edunova.com",   avatar:"SM", courses:2, students:98,  status:"active",    joined:"Feb 3, 2024"  },
-  { id:3, name:"Lena Park",     email:"lena@edunova.com",   avatar:"LP", courses:1, students:40,  status:"pending",   joined:"Mar 20, 2024" },
-  { id:4, name:"David Kim",     email:"david@edunova.com",  avatar:"DK", courses:4, students:210, status:"active",    joined:"Nov 5, 2023"  },
-  { id:5, name:"Aisha Nwosu",   email:"aisha@edunova.com",  avatar:"AN", courses:0, students:0,   status:"suspended", joined:"Apr 1, 2024"  },
-  { id:6, name:"Marco Rossi",   email:"marco@edunova.com",  avatar:"MR", courses:2, students:87,  status:"active",    joined:"Dec 10, 2023" },
-];
-
-const INIT_FORM = { name:"", email:"", password:"" };
-
 export default function AdminTutors() {
-  const [tutors,   setTutors]   = useState(INIT_TUTORS);
-  const [search,   setSearch]   = useState("");
-  const [filter,   setFilter]   = useState("all");
-  const [modal,    setModal]    = useState(null);
-  const [selected, setSelected] = useState(null);
-  const [form,     setForm]     = useState(INIT_FORM);
-  const [editForm, setEditForm] = useState({ name:"", email:"" });
-  const [tempPass, setTempPass] = useState("");
-
-  const filtered = tutors.filter(t => {
-    const mSearch = t.name.toLowerCase().includes(search.toLowerCase()) ||
-                    t.email.toLowerCase().includes(search.toLowerCase());
-    const mFilter = filter === "all" || t.status === filter;
-    return mSearch && mFilter;
-  });
-
-  const openCreate  = ()  => { setForm(INIT_FORM); setModal("create"); };
-  const openView    = (t) => { setSelected(t); setModal("view"); };
-  const openEdit    = (t) => { setSelected(t); setEditForm({ name:t.name, email:t.email }); setModal("edit"); };
-  const openReset   = (t) => { setSelected(t); setTempPass(""); setModal("reset"); };
-  const openConfirm = (t) => { setSelected(t); setModal("confirm"); };
-
-  const handleCreate = () => {
-    if (!form.name || !form.email) return;
-    setTutors(p => [{
-      id: Date.now(),
-      name: form.name, email: form.email,
-      avatar: form.name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase(),
-      courses:0, students:0, status:"active",
-      joined: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})
-    }, ...p]);
-    setModal(null);
+  const [tutors, setTutors] = useState([]);
+  const [search, setSearch] = useState("");
+  const [message, setMessage] = useState("");
+  const [showAddTutor, setShowAddTutor] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [newTutor, setNewTutor] = useState({ name: "", email: "", temporaryPassword: "" });
+  const [visibleCount, setVisibleCount] = useState(5);
+  const load = async () => {
+    try { setTutors(await adminApi("/tutors")); setMessage(""); }
+    catch (error) { setMessage(error.message); }
   };
 
-  const handleEdit = () => {
-    if (!editForm.name || !editForm.email) return;
-    setTutors(p => p.map(t => t.id === selected.id ? {
-      ...t, name:editForm.name, email:editForm.email,
-      avatar: editForm.name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase(),
-    } : t));
-    setModal(null);
-  };
+  useEffect(() => {
+    adminApi("/tutors").then(setTutors).catch((error) => setMessage(error.message));
+  }, []);
 
-  const handleToggle = () => {
-    setTutors(p => p.map(t => t.id===selected.id
-      ? {...t, status: t.status==="active"?"suspended":"active"} : t));
-    setModal(null);
+  const closeAddTutor = () => {
+    if (creating) return;
+    setShowAddTutor(false);
+    setFormError("");
+    setNewTutor({ name: "", email: "", temporaryPassword: "" });
   };
+  const createTutor = async (event) => {
+    event.preventDefault();
+    if (!newTutor.name.trim() || !newTutor.email.trim() || !newTutor.temporaryPassword) {
+      setFormError("Complete all fields before creating the tutor.");
+      return;
+    }
+    if (newTutor.temporaryPassword.length < 6) {
+      setFormError("The temporary password must contain at least 6 characters.");
+      return;
+    }
+    setCreating(true);
+    setFormError("");
+    try {
+      await adminApi("/tutors", { method: "POST", body: JSON.stringify({ ...newTutor, name: newTutor.name.trim(), email: newTutor.email.trim() }) });
+      await load();
+      setShowAddTutor(false);
+      setNewTutor({ name: "", email: "", temporaryPassword: "" });
+      setMessage("Tutor account created successfully.");
+    } catch (error) { setFormError(error.message); }
+    finally { setCreating(false); }
+  };
+  const editTutor = async (tutor) => {
+    const name = window.prompt("Tutor name", tutor.name); if (!name) return;
+    const email = window.prompt("Tutor email", tutor.email); if (!email) return;
+    try { await adminApi(`/tutors/${tutor._id || tutor.id}`, { method: "PATCH", body: JSON.stringify({ name, email }) }); await load(); }
+    catch (error) { setMessage(error.message); }
+  };
+  const resetPassword = async (tutor) => {
+    const newPassword = window.prompt(`New temporary password for ${tutor.name}`); if (!newPassword) return;
+    try { await adminApi(`/tutors/${tutor._id || tutor.id}/reset-password`, { method: "PATCH", body: JSON.stringify({ newPassword }) }); setMessage("Password reset successfully"); }
+    catch (error) { setMessage(error.message); }
+  };
+  const toggleStatus = async (tutor) => {
+    const action = tutor.accountStatus === "suspended" ? "activate" : "suspend";
+    try { await adminApi(`/tutors/${tutor._id || tutor.id}/${action}`, { method: "PATCH" }); await load(); }
+    catch (error) { setMessage(error.message); }
+  };
+  const removeTutor = async (tutor) => {
+    if (!window.confirm(`Permanently remove ${tutor.name}? Their assigned courses will become unassigned.`)) return;
+    try { await adminApi(`/tutors/${tutor._id || tutor.id}`, { method: "DELETE" }); await load(); }
+    catch (error) { setMessage(error.message); }
+  };
+  const filtered = tutors.filter((tutor) => `${tutor.name} ${tutor.email}`.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <AdminLayout title="Tutor Management" subtitle="Create, edit, suspend and manage tutor accounts.">
-
-      {/* Stats */}
-      <div className="adm-stats-grid" style={{gridTemplateColumns:"repeat(3,1fr)"}}>
-        {[
-          { label:"Total Tutors",     value: tutors.length,                                   color:"#f0a400" },
-          { label:"Active Tutors",    value: tutors.filter(t=>t.status==="active").length,    color:"#34D399" },
-          { label:"Suspended Tutors", value: tutors.filter(t=>t.status==="suspended").length, color:"#F87171" },
-        ].map(s=>(
-          <div className="adm-stat-card" key={s.label} style={{"--accent":s.color}}>
-            <div>
-              <div className="adm-stat-value" style={{color:s.color}}>{s.value}</div>
-              <div className="adm-stat-label">{s.label}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
+    <AdminLayout title="Tutor Management">
+      {message && <div className="adm-card">{message}</div>}
       <div className="adm-card">
-        <div className="adm-card-hdr">
-          <span className="adm-card-title">All Tutors</span>
-          <button className="adm-btn adm-btn-primary" onClick={openCreate}><FaPlus/> Create Tutor</button>
-        </div>
-
-        <div className="adm-search-row">
-          <div className="adm-search-box">
-            <FaSearch className="adm-search-icon"/>
-            <input placeholder="Search by name or email…" value={search} onChange={e=>setSearch(e.target.value)}/>
-          </div>
-          <select className="adm-select" value={filter} onChange={e=>setFilter(e.target.value)}>
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="suspended">Suspended</option>
-            <option value="pending">Pending</option>
-          </select>
-        </div>
-
+        <div className="adm-card-hdr"><span className="adm-card-title">All Tutors</span><button className="adm-btn adm-btn-primary" onClick={() => setShowAddTutor(true)}><FaPlus /> Add Tutor</button></div>
+        <div className="adm-search-row"><label className="adm-search-box"><FaSearch /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tutors" /></label></div>
         <table className="adm-table">
-          <thead>
-            <tr><th>Tutor</th><th>Courses</th><th>Students</th><th>Joined</th><th>Status</th><th>Actions</th></tr>
-          </thead>
-          <tbody>
-            {filtered.map(t=>(
-              <tr key={t.id}>
-                <td>
-                  <div className="adm-user-cell">
-                    <div className="adm-cell-avatar">{t.avatar}</div>
-                    <div>
-                      <div className="adm-cell-name">{t.name}</div>
-                      <div className="adm-cell-email">{t.email}</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="adm-muted">{t.courses}</td>
-                <td className="adm-muted">{t.students}</td>
-                <td className="adm-muted">{t.joined}</td>
-                <td><span className={`adm-status-pill pill-${t.status}`}>{t.status}</span></td>
-                <td>
-                  <div style={{display:"flex",gap:6}}>
-                    <button className="adm-btn adm-btn-secondary adm-btn-sm" onClick={()=>openView(t)} title="View"><FaEye/></button>
-                    <button className="adm-btn adm-btn-secondary adm-btn-sm" onClick={()=>openEdit(t)} title="Edit"><FaEdit/></button>
-                    <button className="adm-btn adm-btn-secondary adm-btn-sm" onClick={()=>openReset(t)} title="Reset Password"><FaKey/></button>
-                    <button
-                      className={`adm-btn adm-btn-sm ${t.status==="active"?"adm-btn-danger":"adm-btn-success"}`}
-                      onClick={()=>openConfirm(t)}
-                    >
-                      {t.status==="active"?<FaBan/>:<FaCheck/>}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {filtered.length===0&&(
-              <tr><td colSpan="6" style={{textAlign:"center",padding:32,color:"rgba(255,255,255,0.3)"}}>No tutors found.</td></tr>
-            )}
-          </tbody>
+          <thead><tr><th>Tutor</th><th>Verification</th><th>Account</th><th>Last Login</th><th>Created</th><th>Actions</th></tr></thead>
+          <tbody>{filtered.slice(0, visibleCount).map((tutor) => (
+            <tr key={tutor._id || tutor.id}>
+              <td><strong>{tutor.name}</strong><div className="adm-muted">{tutor.email}</div></td>
+              <td><span className={`adm-status-pill pill-${tutor.tutorVerificationStatus || "incomplete"}`}>{(tutor.tutorVerificationStatus || "incomplete").replace("_", " ")}</span></td>
+              <td><span className={`adm-status-pill ${tutor.accountStatus === "suspended" ? "pill-suspended" : "pill-active"}`}>{tutor.accountStatus}</span></td>
+              <td className="adm-muted">{tutor.lastLoginAt ? formatAdminDate(tutor.lastLoginAt) : "Never"}</td>
+              <td className="adm-muted">{formatAdminDate(tutor.createdAt)}</td>
+              <td><div style={{ display: "flex", gap: 6 }}>
+                <button className="adm-btn adm-btn-secondary adm-btn-sm" aria-label={`Edit ${tutor.name}`} onClick={() => editTutor(tutor)}><FaEdit /></button>
+                <button className="adm-btn adm-btn-secondary adm-btn-sm" aria-label={`Reset ${tutor.name}'s password`} onClick={() => resetPassword(tutor)}><FaKey /></button>
+                <button className={`adm-btn adm-btn-sm ${tutor.accountStatus === "suspended" ? "adm-btn-success" : "adm-btn-danger"}`} aria-label={`${tutor.accountStatus === "suspended" ? "Reactivate" : "Suspend"} ${tutor.name}`} onClick={() => toggleStatus(tutor)}>{tutor.accountStatus === "suspended" ? <FaCheck /> : <FaBan />}</button>
+                {tutor.accountStatus === "suspended" && <button className="adm-btn adm-btn-danger adm-btn-sm" aria-label={`Remove ${tutor.name}`} title="Remove account permanently" onClick={() => removeTutor(tutor)}><FaTrash /></button>}
+              </div></td>
+            </tr>
+          ))}</tbody>
         </table>
+        <AdminListControls total={filtered.length} visible={visibleCount} onChange={setVisibleCount} />
       </div>
 
-      {/* CREATE */}
-      {modal==="create"&&(
-        <div className="adm-modal-overlay" onClick={()=>setModal(null)}>
-          <div className="adm-modal" onClick={e=>e.stopPropagation()}>
-            <div className="adm-modal-title">Create Tutor Account</div>
-            <div className="adm-field">
-              <label className="adm-label">Full Name</label>
-              <input className="adm-input" placeholder="e.g. James Okafor" value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))}/>
-            </div>
-            <div className="adm-field">
-              <label className="adm-label">Email Address</label>
-              <input className="adm-input" type="email" placeholder="tutor@edunova.com" value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))}/>
-            </div>
-            <div className="adm-field">
-              <label className="adm-label">Temporary Password</label>
-              <input className="adm-input" type="password" placeholder="Min 8 characters" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))}/>
-              <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",marginTop:4}}>Tutor must change this on first login.</div>
-            </div>
+      {showAddTutor && (
+        <div className="adm-modal-overlay" role="presentation" onMouseDown={closeAddTutor}>
+          <form className="adm-modal" role="dialog" aria-modal="true" aria-labelledby="add-tutor-title" onSubmit={createTutor} onMouseDown={(event) => event.stopPropagation()}>
+            <h2 className="adm-modal-title" id="add-tutor-title">Add a New Tutor</h2>
+            <p className="adm-modal-description">Create a tutor account and provide them with a temporary password.</p>
+            {formError && <div className="adm-form-error">{formError}</div>}
+            <label className="adm-field">
+              <span className="adm-label">Full name</span>
+              <input className="adm-input" autoFocus value={newTutor.name} onChange={(event) => setNewTutor({ ...newTutor, name: event.target.value })} placeholder="Enter tutor name" />
+            </label>
+            <label className="adm-field">
+              <span className="adm-label">Email address</span>
+              <input className="adm-input" type="email" value={newTutor.email} onChange={(event) => setNewTutor({ ...newTutor, email: event.target.value })} placeholder="tutor@example.com" />
+            </label>
+            <label className="adm-field">
+              <span className="adm-label">Temporary password</span>
+              <input className="adm-input" type="password" minLength="6" value={newTutor.temporaryPassword} onChange={(event) => setNewTutor({ ...newTutor, temporaryPassword: event.target.value })} placeholder="At least 6 characters" />
+            </label>
             <div className="adm-modal-footer">
-              <button className="adm-btn adm-btn-secondary" onClick={()=>setModal(null)}>Cancel</button>
-              <button className="adm-btn adm-btn-primary" onClick={handleCreate}>Create Account</button>
+              <button className="adm-btn adm-btn-secondary" type="button" disabled={creating} onClick={closeAddTutor}>Cancel</button>
+              <button className="adm-btn adm-btn-primary" type="submit" disabled={creating}>{creating ? "Creating..." : "Create Tutor"}</button>
             </div>
-          </div>
+          </form>
         </div>
       )}
-
-      {/* EDIT */}
-      {modal==="edit"&&selected&&(
-        <div className="adm-modal-overlay" onClick={()=>setModal(null)}>
-          <div className="adm-modal" onClick={e=>e.stopPropagation()}>
-            <div className="adm-modal-title">Edit Tutor — {selected.name}</div>
-            <div className="adm-field">
-              <label className="adm-label">Full Name</label>
-              <input className="adm-input" value={editForm.name} onChange={e=>setEditForm(p=>({...p,name:e.target.value}))}/>
-            </div>
-            <div className="adm-field">
-              <label className="adm-label">Email Address</label>
-              <input className="adm-input" type="email" value={editForm.email} onChange={e=>setEditForm(p=>({...p,email:e.target.value}))}/>
-            </div>
-            <div style={{fontSize:12,color:"rgba(255,255,255,0.35)",padding:"10px 14px",background:"rgba(255,255,255,0.04)",borderRadius:10,marginBottom:4}}>
-              ⚠ To change the password, use the Reset Password option instead.
-            </div>
-            <div className="adm-modal-footer">
-              <button className="adm-btn adm-btn-secondary" onClick={()=>setModal(null)}>Cancel</button>
-              <button className="adm-btn adm-btn-primary" onClick={handleEdit}>Save Changes</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* VIEW */}
-      {modal==="view"&&selected&&(
-        <div className="adm-modal-overlay" onClick={()=>setModal(null)}>
-          <div className="adm-modal" onClick={e=>e.stopPropagation()}>
-            <div className="adm-modal-title">Tutor Profile</div>
-            <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:20,padding:16,background:"rgba(255,255,255,0.05)",borderRadius:12,border:"1px solid rgba(255,255,255,0.08)"}}>
-              <div className="adm-cell-avatar" style={{width:52,height:52,fontSize:18}}>{selected.avatar}</div>
-              <div>
-                <div style={{fontSize:18,fontWeight:800,color:"#eff0fb"}}>{selected.name}</div>
-                <div style={{fontSize:13,color:"rgba(255,255,255,0.4)"}}>{selected.email}</div>
-                <span className={`adm-status-pill pill-${selected.status}`} style={{marginTop:6,display:"inline-block"}}>{selected.status}</span>
-              </div>
-            </div>
-            {[["Joined",selected.joined],["Courses Assigned",selected.courses],["Total Students",selected.students]].map(([l,v])=>(
-              <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
-                <span style={{fontSize:13,color:"rgba(255,255,255,0.5)",fontWeight:600}}>{l}</span>
-                <span style={{fontSize:13,fontWeight:700,color:"#eff0fb"}}>{v}</span>
-              </div>
-            ))}
-            <div className="adm-modal-footer">
-              <button className="adm-btn adm-btn-secondary" onClick={()=>setModal(null)}>Close</button>
-              <button className="adm-btn adm-btn-primary" onClick={()=>openEdit(selected)}>Edit Info</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* RESET */}
-      {modal==="reset"&&selected&&(
-        <div className="adm-modal-overlay" onClick={()=>setModal(null)}>
-          <div className="adm-modal" onClick={e=>e.stopPropagation()}>
-            <div className="adm-modal-title">Reset Password — {selected.name}</div>
-            <p style={{fontSize:14,color:"rgba(255,255,255,0.5)",marginBottom:20,lineHeight:1.6}}>
-              Generate a temporary password. The tutor must change it on next login. Passwords are never stored in plain text.
-            </p>
-            {tempPass
-              ? <div style={{background:"rgba(240,164,0,0.08)",border:"1px solid rgba(240,164,0,0.3)",borderRadius:12,padding:"16px 20px",textAlign:"center",marginBottom:16}}>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Temporary Password</div>
-                  <div style={{fontSize:22,fontWeight:800,letterSpacing:4,color:"#f0a400"}}>{tempPass}</div>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",marginTop:8}}>Copy this now — it won't be shown again.</div>
-                </div>
-              : <button className="adm-btn adm-btn-primary" style={{width:"100%",justifyContent:"center"}}
-                  onClick={()=>setTempPass(Math.random().toString(36).slice(-8).toUpperCase())}>
-                  <FaKey/> Generate Temporary Password
-                </button>
-            }
-            <div className="adm-modal-footer">
-              <button className="adm-btn adm-btn-secondary" onClick={()=>setModal(null)}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CONFIRM SUSPEND/REACTIVATE */}
-      {modal==="confirm"&&selected&&(
-        <div className="adm-modal-overlay" onClick={()=>setModal(null)}>
-          <div className="adm-modal" onClick={e=>e.stopPropagation()}>
-            <div className="adm-modal-title">{selected.status==="active"?"Suspend Tutor":"Reactivate Tutor"}</div>
-            <div className="adm-confirm">
-              <p>Are you sure you want to <strong>{selected.status==="active"?"suspend":"reactivate"}</strong> <strong>{selected.name}</strong>?</p>
-              <p style={{marginTop:8}}>{selected.status==="active"?"They will lose platform access immediately.":"They will regain full tutor access."}</p>
-            </div>
-            <div className="adm-modal-footer">
-              <button className="adm-btn adm-btn-secondary" onClick={()=>setModal(null)}>Cancel</button>
-              <button className={`adm-btn ${selected.status==="active"?"adm-btn-danger":"adm-btn-success"}`} onClick={handleToggle}>
-                {selected.status==="active"?"Yes, Suspend":"Yes, Reactivate"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </AdminLayout>
   );
 }

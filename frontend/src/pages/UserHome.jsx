@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   FaChevronDown,
+  FaBullhorn,
   FaGraduationCap,
   FaSearch,
   FaSignOutAlt,
+  FaTimes,
 } from "react-icons/fa";
 import Home from "./Home";
 import "../styles/UserHome.css";
@@ -34,18 +36,38 @@ function getInitials(name) {
     .toUpperCase();
 }
 
+function getDashboardPath(role) {
+  if (role === "admin") return "/admin-dashboard";
+  if (role === "tutor") return "/tutor-dashboard";
+  return "/student-dashboard";
+}
+
 function UserHome() {
   const navigate = useNavigate();
   const [user] = useState(() => getStoredUser());
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("home");
   const [searchQuery, setSearchQuery] = useState("");
+  const [announcements, setAnnouncements] = useState([]);
+  const [dismissedAnnouncements, setDismissedAnnouncements] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(`edunova-dismissed-announcements-${user?.id || "user"}`)) || []; }
+    catch { return []; }
+  });
 
   useEffect(() => {
     if (!user) {
       window.location.href = "/auth";
     }
   }, [user]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    fetch("http://localhost:5050/api/announcements", { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load announcements")))
+      .then(setAnnouncements)
+      .catch(() => {});
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem("user");
@@ -60,9 +82,19 @@ function UserHome() {
 
   if (!user) return null;
 
+  const dashboardPath = getDashboardPath(user.role);
+  const visibleAnnouncements = announcements.filter((item) => !dismissedAnnouncements.includes(item._id));
+  const activeAnnouncement = visibleAnnouncements[0];
+  const dismissAnnouncement = (id) => {
+    const updated = [...dismissedAnnouncements, id];
+    setDismissedAnnouncements(updated);
+    localStorage.setItem(`edunova-dismissed-announcements-${user?.id || "user"}`, JSON.stringify(updated));
+  };
+
   const navigation = (
+    <>
       <nav className="uhome-nav">
-        <Link to="/#top" className="uhome-logo" aria-label="EDUNOVA Home">
+        <Link to="/home#top" className="uhome-logo" aria-label="EDUNOVA Home">
           <span className="uhome-brand-icon">
             <FaGraduationCap />
           </span>
@@ -71,7 +103,7 @@ function UserHome() {
 
         <div className="uhome-nav-center">
           <Link
-            to="/#top"
+            to="/home#top"
             className={activeTab === "home" ? "active" : undefined}
             aria-current={activeTab === "home" ? "page" : undefined}
             onClick={() => setActiveTab("home")}
@@ -80,7 +112,7 @@ function UserHome() {
             Home
           </Link>
           <Link
-            to="/#courses"
+            to="/home#courses"
             className={activeTab === "courses" ? "active" : undefined}
             aria-current={activeTab === "courses" ? "page" : undefined}
             onClick={() => setActiveTab("courses")}
@@ -97,7 +129,7 @@ function UserHome() {
             AI Chatbot
           </Link>
           <Link
-            to="/student-dashboard"
+            to={dashboardPath}
             className={activeTab === "dashboard" ? "active" : undefined}
             onClick={() => setActiveTab("dashboard")}
             onFocus={() => setActiveTab("dashboard")}
@@ -146,8 +178,8 @@ function UserHome() {
                   </div>
                 </div>
 
-                <Link to="/student-dashboard">My Dashboard</Link>
-                <Link to="/my-courses">My Courses</Link>
+                <Link to={dashboardPath}>My Dashboard</Link>
+                {user.role === "student" && <Link to="/my-courses">My Courses</Link>}
                 <button type="button" onClick={handleLogout}>
                   <FaSignOutAlt /> Log Out
                 </button>
@@ -156,9 +188,11 @@ function UserHome() {
           </div>
         </div>
       </nav>
+      {activeAnnouncement && <aside className="uhome-announcement" aria-live="polite"><span className="uhome-announcement-icon"><FaBullhorn /></span><div><strong>Announcement</strong><p>{activeAnnouncement.title}</p></div>{visibleAnnouncements.length > 1 && <small>{visibleAnnouncements.length} new</small>}<button type="button" aria-label="Dismiss announcement" onClick={() => dismissAnnouncement(activeAnnouncement._id)}><FaTimes /></button></aside>}
+    </>
   );
 
-  return <Home navigation={navigation} showFooter={false} />;
+  return <Home navigation={navigation} showFooter={false} dashboardPath={dashboardPath} />;
 }
 
 export default UserHome;

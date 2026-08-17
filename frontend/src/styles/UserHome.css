@@ -18,6 +18,76 @@
   backdrop-filter: blur(20px);
 }
 
+.uhome-announcement {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  width: calc(100% - 32px);
+  max-width: 1560px;
+  gap: 12px;
+  margin: 10px auto 0;
+  padding: 11px 14px;
+  color: #eff0fb;
+  background: #151124;
+  border: 1px solid rgba(141, 99, 234, 0.28);
+  border-radius: 12px;
+}
+
+.uhome-announcement-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  color: #c4b5fd;
+  background: rgba(141, 99, 234, 0.14);
+  border-radius: 8px;
+  place-items: center;
+}
+
+.uhome-announcement strong,
+.uhome-announcement p {
+  display: block;
+  margin: 0;
+}
+
+.uhome-announcement strong {
+  color: #a78bfa;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.uhome-announcement p {
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.uhome-announcement > small {
+  padding: 4px 8px;
+  color: #c4b5fd;
+  background: rgba(141, 99, 234, 0.12);
+  border-radius: 999px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.uhome-announcement > button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: #a8afd8;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  place-items: center;
+}
+
+.uhome-announcement > button:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.07);
+}
+
 .uhome-logo {
   display: flex;
   flex-shrink: 0;
@@ -278,6 +348,13 @@
     padding-right: 12px;
     padding-left: 12px;
   }
+
+  .uhome-announcement {
+    width: calc(100% - 12px);
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .uhome-announcement > small { display: none; }
 
   .uhome-nav-center {
     gap: 10px;

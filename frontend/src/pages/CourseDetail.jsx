@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FaBookOpen, FaBrain, FaCartPlus, FaCheck, FaChevronLeft, FaClock, FaLightbulb, FaLock, FaPlay, FaSave, FaShoppingBag, FaSignal, FaStar, FaTimes, FaTrophy } from "react-icons/fa";
+import { FaBookOpen, FaBrain, FaCartPlus, FaCheck, FaChevronLeft, FaClock, FaFlag, FaLightbulb, FaLock, FaPlay, FaSave, FaShoppingBag, FaSignal, FaStar, FaTimes, FaTrophy } from "react-icons/fa";
 import { Link, useLocation, useParams } from "react-router-dom";
 import mathematicsImage from "../assets/images/mathematic.jpeg";
 import availableCourses from "../data/courses";
@@ -195,6 +195,10 @@ function CourseDetail() {
       return Array.isArray(storedMissions) ? storedMissions : [];
     } catch { return []; }
   });
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportForm, setReportForm] = useState({ type: "Course content", priority: "medium", detail: "" });
+  const [reportMessage, setReportMessage] = useState("");
+  const [reporting, setReporting] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -311,6 +315,25 @@ function CourseDetail() {
     localStorage.setItem(missionProgressKey, JSON.stringify(updated));
     saveProgress(completedLessons, updated);
   };
+  const submitReport = async (event) => {
+    event.preventDefault();
+    const token = localStorage.getItem("token");
+    if (!token) { window.location.href = "/auth"; return; }
+    setReporting(true);
+    setReportMessage("");
+    try {
+      const response = await fetch("http://localhost:5050/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...reportForm, courseSlug: course.slug }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Unable to submit report");
+      setReportMessage("Report submitted. An administrator will review it.");
+      setReportForm({ type: "Course content", priority: "medium", detail: "" });
+    } catch (error) { setReportMessage(error.message); }
+    finally { setReporting(false); }
+  };
 
   return (
     <main className="course-detail-page">
@@ -345,12 +368,14 @@ function CourseDetail() {
 
             <div className="course-enrollment-note"><FaCheck /> Learn at your own pace with lifetime access</div>
             {enrollmentMessage && <p className="course-enrollment-status">{enrollmentMessage}</p>}
+            <button type="button" className="course-report-button" onClick={() => { setReportOpen(true); setReportMessage(""); }}><FaFlag /> Report an Issue</button>
           </div>
         </article>
 
         <CourseLessons course={course} enrolled={enrolled} completedLessons={completedLessons} onToggleLesson={toggleLesson} />
         {enrolled && <CourseMissions course={course} completedLessonCount={completedLessons.length} completedMissions={completedMissions} onCompleteMission={completeMission} />}
       </div>
+      {reportOpen && <div className="course-report-overlay" role="presentation" onMouseDown={() => setReportOpen(false)}><form className="course-report-modal" role="dialog" aria-modal="true" aria-labelledby="course-report-title" onSubmit={submitReport} onMouseDown={(event) => event.stopPropagation()}><header><div><small>HELP US IMPROVE</small><h2 id="course-report-title">Report an Issue</h2><p>Your report about {course.name} will be sent to the administrator.</p></div><button type="button" aria-label="Close report form" onClick={() => setReportOpen(false)}><FaTimes /></button></header>{reportMessage && <p className="course-report-message">{reportMessage}</p>}<label><span>Issue type</span><select value={reportForm.type} onChange={(event) => setReportForm({ ...reportForm, type: event.target.value })}><option>Course content</option><option>Incorrect information</option><option>Video or technical problem</option><option>Inappropriate content</option><option>Other</option></select></label><label><span>Priority</span><select value={reportForm.priority} onChange={(event) => setReportForm({ ...reportForm, priority: event.target.value })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select></label><label><span>What happened?</span><textarea minLength="10" required value={reportForm.detail} onChange={(event) => setReportForm({ ...reportForm, detail: event.target.value })} placeholder="Describe the problem clearly so the admin can investigate it." /></label><footer><button type="button" onClick={() => setReportOpen(false)}>Cancel</button><button type="submit" disabled={reporting || reportForm.detail.trim().length < 10}>{reporting ? "Submitting..." : "Submit Report"}</button></footer></form></div>}
     </main>
   );
 }

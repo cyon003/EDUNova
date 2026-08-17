@@ -1,6 +1,7 @@
 const express = require("express");
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
+const PlatformSetting = require("../models/PlatformSetting");
 const authenticateToken = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
 
@@ -25,6 +26,14 @@ router.post("/:slug", async (req, res) => {
   try {
     const course = await Course.findOne({ slug: req.params.slug.toLowerCase() });
     if (!course) return res.status(404).json({ message: "Course not found" });
+    const settings = await PlatformSetting.findOne({ key: "platform" }).lean();
+    if (settings?.allowSelfEnroll === false) return res.status(403).json({ message: "Self-enrollment is currently disabled" });
+    if (settings?.approvalRequired !== false && course.moderationStatus && course.moderationStatus !== "published") return res.status(403).json({ message: "This course is not approved for enrollment" });
+    const existingEnrollment = await Enrollment.findOne({ student: req.user._id, course: course._id });
+    if (!existingEnrollment && settings?.maxEnrollment) {
+      const enrollmentCount = await Enrollment.countDocuments({ course: course._id });
+      if (enrollmentCount >= settings.maxEnrollment) return res.status(409).json({ message: "This course has reached its enrollment limit" });
+    }
 
     const enrollment = await Enrollment.findOneAndUpdate(
       { student: req.user._id, course: course._id },

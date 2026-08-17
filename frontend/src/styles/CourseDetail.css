@@ -141,6 +141,28 @@
 .course-mission-result > div strong { font-size: 11px; }
 .course-mission-result > div span { color: #a8afd8; font-size: 9px; }
 
+.course-report-button { display: inline-flex; align-items: center; gap: 7px; margin-top: 16px; padding: 0; color: #a8afd8; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; background: transparent; border: 0; }
+.course-report-button:hover { color: #a78bfa; }
+.course-report-overlay { position: fixed; inset: 0; z-index: 200; display: grid; padding: 18px; background: rgba(0, 0, 0, 0.84); backdrop-filter: blur(10px); place-items: center; }
+.course-report-modal { width: min(560px, 100%); max-height: calc(100vh - 36px); padding: 26px; overflow-y: auto; background: #151124; border: 1px solid rgba(141, 99, 234, 0.45); border-radius: 20px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.65); }
+.course-report-modal header { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
+.course-report-modal header small { color: #a78bfa; font-size: 8px; font-weight: 800; letter-spacing: 0.14em; }
+.course-report-modal h2 { margin: 5px 0; font-size: 28px; }
+.course-report-modal header p { margin: 0; color: #a8afd8; font-size: 11px; }
+.course-report-modal header > button { width: 38px; height: 38px; flex: 0 0 auto; color: #a8afd8; cursor: pointer; background: #100c1d; border: 1px solid #282139; border-radius: 10px; }
+.course-report-modal label { display: grid; gap: 7px; margin-top: 15px; }
+.course-report-modal label > span { color: #c8c1d7; font-size: 10px; font-weight: 800; }
+.course-report-modal select,
+.course-report-modal textarea { width: 100%; padding: 12px; color: white; font: inherit; font-size: 11px; background: #100c1d; border: 1px solid #34294a; border-radius: 10px; outline: none; }
+.course-report-modal textarea { min-height: 130px; line-height: 1.6; resize: vertical; }
+.course-report-modal select:focus,
+.course-report-modal textarea:focus { border-color: #8d63ea; }
+.course-report-modal footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.course-report-modal footer button { padding: 10px 15px; color: white; font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; background: transparent; border: 1px solid #49366e; border-radius: 9px; }
+.course-report-modal footer button[type="submit"] { background: #8d63ea; }
+.course-report-modal footer button:disabled { opacity: 0.5; cursor: not-allowed; }
+.course-report-message { padding: 10px 12px; color: #cbb8f8; font-size: 10px; background: rgba(141, 99, 234, 0.12); border-radius: 9px; }
+
 @media (max-width: 800px) {
   .course-detail-card, .course-lesson, .course-mission-workspace { grid-template-columns: 1fr; }
   .course-mission-grid { grid-template-columns: 1fr; }

@@ -108,7 +108,7 @@ function CourseCard({ course, isSaved, onToggleSaved }) {
   );
 }
 
-function Home({ navigation = null, showFooter = true }) {
+function Home({ navigation = null, showFooter = true, dashboardPath = "/student-dashboard" }) {
   const navigate = useNavigate();
   const [navSearch, setNavSearch] = useState("");
   const [savedCourses, setSavedCourses] = useState(() => {
@@ -323,7 +323,7 @@ function Home({ navigation = null, showFooter = true }) {
         </div>
         <div className="home-final-actions">
           <Link to="/courses">Explore courses</Link>
-          <Link to={showFooter ? "/auth" : "/student-dashboard"}>{showFooter ? "Get started" : "My dashboard"}</Link>
+          <Link to={showFooter ? "/auth" : dashboardPath}>{showFooter ? "Get started" : "My dashboard"}</Link>
         </div>
       </section>
 

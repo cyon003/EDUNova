@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   FaBell,
@@ -31,22 +31,10 @@ import MessageBox from "../components/MessageBox";
 import DashboardSearch from "../components/DashboardSearch";
 import availableCourses from "../data/courses";
 
-const courses = [
-  { slug: "mathematics", name: "Mathematics", lesson: "Quadratic Equations", progress: 72, color: "purple" },
-  { slug: "science", name: "Science", lesson: "Forces and Motion", progress: 48, color: "blue" },
-  { slug: "english", name: "English", lesson: "Creative Writing", progress: 86, color: "pink" },
-];
-
 const dailyPlan = [
   { id: "math", title: "Complete Quadratic Equations", detail: "Mathematics · 25 min" },
   { id: "science", title: "Review Forces and Motion", detail: "Science · 20 min" },
   { id: "english", title: "Review creative writing notes", detail: "English · 15 min" },
-];
-
-const recentActivity = [
-  { title: "Quadratic Equations", detail: "Lesson watched · 18 min ago", icon: FaPlay },
-  { title: "Forces and Motion", detail: "Note updated · Yesterday", icon: FaStickyNote },
-  { title: "Mathematics help", detail: "AI conversation · 2 days ago", icon: FaBrain },
 ];
 
 const summarizedNotes = [
@@ -63,6 +51,26 @@ function getStoredUser() {
   }
 }
 
+function normalizePersonalNote(note, database = false) {
+  return {
+    id: note._id || note.id,
+    title: note.title,
+    body: note.body,
+    course: note.course?.name || note.course || "Personal",
+    courseSlug: note.course?.slug || note.courseSlug || "",
+    lessonIndex: Number.isInteger(note.lessonIndex) ? note.lessonIndex : null,
+    lessonTitle: note.lessonTitle || "",
+    createdAt: note.createdAt || note.updatedAt || new Date().toISOString(),
+    updatedAt: note.updatedAt || new Date().toISOString(),
+    database,
+  };
+}
+
+function formatNoteTimestamp(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value || "Recently") : new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(date);
+}
+
 function StudentDashboard() {
   const navigate = useNavigate();
   const user = getStoredUser();
@@ -70,15 +78,16 @@ function StudentDashboard() {
   const notesStorageKey = `edunova-notes-${user?.id || "student"}`;
   const [notes, setNotes] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem(notesStorageKey)) || [];
+      const storedNotes = JSON.parse(localStorage.getItem(notesStorageKey));
+      return Array.isArray(storedNotes) ? storedNotes.map((note) => normalizePersonalNote(note)) : [];
     } catch {
       return [];
     }
   });
   const [noteId, setNoteId] = useState(null);
   const [noteTitle, setNoteTitle] = useState("");
-  const [noteCourse, setNoteCourse] = useState(courses[0].name);
   const [noteBody, setNoteBody] = useState("");
+  const [noteStatus, setNoteStatus] = useState("");
   const [notesOpen, setNotesOpen] = useState(false);
   const [notePage, setNotePage] = useState("folders");
   const [noteType, setNoteType] = useState("summaries");
@@ -88,6 +97,8 @@ function StudentDashboard() {
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
   const [completedPlan, setCompletedPlan] = useState([]);
+  const [continueDestination, setContinueDestination] = useState("/my-courses");
+  const [learningStats, setLearningStats] = useState({ activeCourses: 0, studySeconds: 0, completedLessons: 0, completedCourses: 0, streak: 0, recentActivities: [], courses: [] });
   const [goals, setGoals] = useState([
     { id: "lessons", label: "Complete lessons", current: 3, target: 5 },
     { id: "hours", label: "Study hours", current: 4, target: 7 },
@@ -96,11 +107,132 @@ function StudentDashboard() {
     try { return JSON.parse(localStorage.getItem("edunova-saved-courses")) || []; } catch { return []; }
   })();
   const savedCourseItems = availableCourses.filter((course) => savedCourseSlugs.includes(course.slug));
-  const noteFolders = ["All Notes", ...courses.map((course) => course.name)];
+  const noteFolders = ["All Notes", ...availableCourses.map((course) => course.name)];
   const activeNotes = noteType === "summaries" ? summarizedNotes : notes;
   const visibleNotes = activeNotes.filter((note) => (noteFolder === "All Notes" || note.course === noteFolder) && `${note.course} ${note.title} ${note.body}`.toLowerCase().includes(noteSearch.trim().toLowerCase()));
   const selectedSummary = summarizedNotes.find((note) => note.id === selectedSummaryId) || summarizedNotes[0];
   const selectedManualNote = notes.find((note) => note.id === noteId);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const getNextLessonLink = (slug, completedLessons = [], currentLessonIndex) => {
+      const course = availableCourses.find((item) => item.slug === slug);
+      const lessonCount = course?.lessons?.length || 0;
+      if (!lessonCount) return `/courses/${slug}`;
+      const savedIndex = Number.isInteger(currentLessonIndex) ? currentLessonIndex : Array.from({ length: lessonCount }, (_, index) => index).find((index) => !completedLessons.includes(index)) ?? 0;
+      return `/courses/${slug}/learn/${Math.min(savedIndex, lessonCount - 1) + 1}`;
+    };
+    const loadContinueDestination = async () => {
+      const token = localStorage.getItem("token");
+      if (token) {
+        try {
+          const response = await fetch("http://localhost:5050/api/enrollments/me", {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          });
+          if (response.ok) {
+            const enrollments = await response.json();
+            const activeEnrollment = enrollments.find((item) => item.course?.slug);
+            if (activeEnrollment) {
+              setContinueDestination(getNextLessonLink(activeEnrollment.course.slug, activeEnrollment.completedLessons || [], activeEnrollment.currentLessonIndex));
+              return;
+            }
+          }
+        } catch (error) {
+          if (error.name === "AbortError") return;
+        }
+      }
+      try {
+        const storedCourses = JSON.parse(localStorage.getItem("edunova-enrolled-courses"));
+        const enrolledSlugs = Array.isArray(storedCourses) ? storedCourses : [];
+        const slug = enrolledSlugs[enrolledSlugs.length - 1];
+        if (!slug) return;
+        const storedLessons = JSON.parse(localStorage.getItem(`edunova-lesson-progress-${slug}`));
+        const storedLessonIndex = Number.parseInt(localStorage.getItem(`edunova-current-lesson-${slug}`) || "0", 10);
+        setContinueDestination(getNextLessonLink(slug, Array.isArray(storedLessons) ? storedLessons : [], Number.isNaN(storedLessonIndex) ? 0 : storedLessonIndex));
+      } catch {
+        setContinueDestination("/my-courses");
+      }
+    };
+    loadContinueDestination();
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const buildStats = (enrollments) => {
+      const studyDates = new Set(enrollments.flatMap((item) => item.studyDates || []));
+      const cursor = new Date();
+      const today = cursor.toLocaleDateString("en-CA");
+      if (!studyDates.has(today)) cursor.setDate(cursor.getDate() - 1);
+      let streak = 0;
+      while (studyDates.has(cursor.toLocaleDateString("en-CA"))) {
+        streak += 1;
+        cursor.setDate(cursor.getDate() - 1);
+      }
+      const courseProgress = enrollments.map((item, index) => {
+        const catalogCourse = availableCourses.find((course) => course.slug === item.course?.slug) || item.course || {};
+        const lessonCount = catalogCourse.lessons?.length || 0;
+        const completedCount = item.completedLessons?.length || 0;
+        const progress = lessonCount ? Math.min(Math.round(completedCount / lessonCount * 100), 100) : 0;
+        const currentLessonIndex = Math.min(item.currentLessonIndex || 0, Math.max(lessonCount - 1, 0));
+        return { slug: catalogCourse.slug, name: catalogCourse.name, lesson: catalogCourse.lessons?.[currentLessonIndex]?.title || "Lessons coming soon", lessonCount, completedCount, progress, currentLessonIndex, color: ["purple", "blue", "pink"][index % 3] };
+      });
+      const recentActivities = enrollments.flatMap((item) => (item.recentActivity || []).map((activity) => ({ ...activity, courseName: item.course?.name || "Course" }))).sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt)).slice(0, 5);
+      setLearningStats({
+        activeCourses: courseProgress.filter((item) => !item.lessonCount || item.completedCount < item.lessonCount).length,
+        studySeconds: enrollments.reduce((total, item) => total + (item.studySeconds || 0), 0),
+        completedLessons: courseProgress.reduce((total, item) => total + item.completedCount, 0),
+        completedCourses: courseProgress.filter((item) => item.lessonCount > 0 && item.completedCount >= item.lessonCount).length,
+        streak,
+        recentActivities,
+        courses: courseProgress,
+      });
+    };
+    const loadStats = async () => {
+      const token = localStorage.getItem("token");
+      try {
+        if (!token) throw new Error("No account session");
+        const response = await fetch("http://localhost:5050/api/enrollments/me", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
+        if (!response.ok) throw new Error("Unable to load progress");
+        buildStats(await response.json());
+      } catch (error) {
+        if (error.name === "AbortError") return;
+        const storedCourses = JSON.parse(localStorage.getItem("edunova-enrolled-courses") || "[]");
+        const slugs = Array.isArray(storedCourses) ? storedCourses : [];
+        buildStats(slugs.map((slug) => ({
+          course: availableCourses.find((course) => course.slug === slug),
+          completedLessons: JSON.parse(localStorage.getItem(`edunova-lesson-progress-${slug}`) || "[]"),
+          studySeconds: Number.parseInt(localStorage.getItem(`edunova-study-seconds-${slug}`) || "0", 10) || 0,
+          studyDates: JSON.parse(localStorage.getItem(`edunova-study-dates-${slug}`) || "[]"),
+          recentActivity: JSON.parse(localStorage.getItem(`edunova-recent-activity-${slug}`) || "[]"),
+        })));
+      }
+    };
+    loadStats();
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadNotes = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      try {
+        const response = await fetch("http://localhost:5050/api/notes", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
+        if (!response.ok) throw new Error("Unable to load notes");
+        const databaseNotes = (await response.json()).map((note) => normalizePersonalNote(note, true));
+        const storedNotes = JSON.parse(localStorage.getItem(notesStorageKey));
+        const localNotes = Array.isArray(storedNotes) ? storedNotes.map((note) => normalizePersonalNote(note)) : [];
+        setNotes([...databaseNotes, ...localNotes]);
+        setNoteStatus("");
+      } catch (error) {
+        if (error.name !== "AbortError") setNoteStatus("Notes are currently saved on this device.");
+      }
+    };
+    loadNotes();
+    return () => controller.abort();
+  }, [notesStorageKey]);
 
   const handleLogout = () => {
     localStorage.removeItem("user");
@@ -147,8 +279,8 @@ function StudentDashboard() {
     setNotePage("editor");
     setNoteId(null);
     setNoteTitle("");
-    setNoteCourse("Personal");
     setNoteBody("");
+    setNoteStatus("");
   };
 
   const switchNoteType = (type) => {
@@ -160,33 +292,45 @@ function StudentDashboard() {
 
   const saveNotes = (updatedNotes) => {
     setNotes(updatedNotes);
-    localStorage.setItem(notesStorageKey, JSON.stringify(updatedNotes));
+    localStorage.setItem(notesStorageKey, JSON.stringify(updatedNotes.filter((note) => !note.database)));
   };
 
-  const handleSaveNote = (event) => {
+  const handleSaveNote = async (event) => {
     event.preventDefault();
     if (!noteTitle.trim() || !noteBody.trim()) return;
-
-    const savedNote = {
-      id: noteId || Date.now(),
-      title: noteTitle.trim(),
-      course: noteCourse,
-      body: noteBody.trim(),
-      updatedAt: new Date().toLocaleDateString(),
-    };
-    const updatedNotes = noteId
-      ? notes.map((note) => note.id === noteId ? savedNote : note)
-      : [savedNote, ...notes];
-
-    saveNotes(updatedNotes);
-    resetNote();
+    const existingNote = notes.find((note) => note.id === noteId);
+    const payload = { title: noteTitle.trim(), body: noteBody.trim(), courseSlug: null, lessonIndex: null, lessonTitle: "" };
+    const token = localStorage.getItem("token");
+    setNoteStatus("Saving note...");
+    try {
+      if (!token) throw new Error("Backend unavailable");
+      const response = await fetch(existingNote?.database ? `http://localhost:5050/api/notes/${noteId}` : "http://localhost:5050/api/notes", {
+        method: existingNote?.database ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Unable to save note");
+      const savedNote = normalizePersonalNote(data, true);
+      saveNotes(existingNote ? notes.map((note) => note.id === noteId ? savedNote : note) : [savedNote, ...notes]);
+      setNoteId(savedNote.id);
+      setNotePage("detail");
+      setNoteStatus("Saved to your account");
+    } catch (error) {
+      const now = new Date().toISOString();
+      const savedNote = normalizePersonalNote({ id: existingNote?.id || `local-${now}`, title: payload.title, body: payload.body, course: "Personal", courseSlug: "", lessonIndex: null, lessonTitle: "", createdAt: existingNote?.createdAt || now, updatedAt: now });
+      saveNotes(existingNote ? notes.map((note) => note.id === noteId ? savedNote : note) : [savedNote, ...notes]);
+      setNoteId(savedNote.id);
+      setNotePage("detail");
+      setNoteStatus(error.message === "Backend unavailable" ? "Saved on this device" : `${error.message}. Saved on this device.`);
+    }
   };
 
   const editNote = (note) => {
     setNoteId(note.id);
     setNoteTitle(note.title);
-    setNoteCourse(note.course);
     setNoteBody(note.body);
+    setNoteStatus("");
     setNotePage("editor");
   };
 
@@ -195,18 +339,34 @@ function StudentDashboard() {
     setNotePage("detail");
   };
 
+  const cancelNoteEditor = () => {
+    setNoteStatus("");
+    setNotePage(noteId ? "detail" : "list");
+  };
+
 
   const viewSummary = (note) => {
     setSelectedSummaryId(note.id);
     setNotePage("detail");
   };
 
-  const deleteNote = (id) => {
-    saveNotes(notes.filter((note) => note.id !== id));
+  const deleteNote = async (id) => {
+    const note = notes.find((item) => item.id === id);
+    if (note?.database) {
+      try {
+        const response = await fetch(`http://localhost:5050/api/notes/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+        if (!response.ok) throw new Error("Unable to delete note");
+      } catch (error) {
+        setNoteStatus(error.message);
+        return;
+      }
+    }
+    saveNotes(notes.filter((item) => item.id !== id));
     if (noteId === id) {
       setNoteId(null);
       setNotePage("list");
     }
+    setNoteStatus("Note deleted");
   };
 
   const togglePlanItem = (id) => {
@@ -255,7 +415,7 @@ function StudentDashboard() {
       <div className="student-main" id="student-dashboard-top">
         <header className="student-topbar">
           <div>
-            <p>Friday, August 14</p>
+            <p>{new Intl.DateTimeFormat("en", { weekday: "long", month: "long", day: "numeric" }).format(new Date())}</p>
             <h1>Welcome back, {user?.name?.split(" ")[0] || "Student"}!</h1>
           </div>
           <DashboardSearch />
@@ -279,16 +439,16 @@ function StudentDashboard() {
             <span>KEEP LEARNING</span>
             <h2>You’re making great progress</h2>
             <p>Complete today’s lesson to keep your seven-day learning streak alive.</p>
-            <Link to="/courses">Continue learning <FaChevronRight /></Link>
+            <Link to={continueDestination} state={{ from: "/student-dashboard" }}>Continue learning <FaChevronRight /></Link>
           </div>
-          <div className="student-streak"><FaFire /><strong>7</strong><span>day streak</span></div>
+          <div className="student-streak"><FaFire /><strong>{learningStats.streak}</strong><span>day streak</span></div>
         </section>
 
         <section className="student-stats" aria-label="Learning summary">
-          <article><span><FaBookOpen /></span><div><strong>3</strong><p>Active courses</p></div></article>
-          <article><span><FaClock /></span><div><strong>18.5h</strong><p>Learning time</p></div></article>
-          <article><span><FaCheckCircle /></span><div><strong>24</strong><p>Lessons completed</p></div></article>
-          <article><span><FaTrophy /></span><div><strong>1,280</strong><p>Points earned</p></div></article>
+          <article><span><FaBookOpen /></span><div><strong>{learningStats.activeCourses}</strong><p>Active courses</p></div></article>
+          <article><span><FaClock /></span><div><strong>{learningStats.studySeconds >= 3600 ? `${(learningStats.studySeconds / 3600).toFixed(1)}h` : `${Math.floor(learningStats.studySeconds / 60)}m`}</strong><p>Learning time</p></div></article>
+          <article><span><FaCheckCircle /></span><div><strong>{learningStats.completedLessons}</strong><p>Lessons completed</p></div></article>
+          <article><span><FaTrophy /></span><div><strong>{learningStats.completedCourses}</strong><p>Courses completed</p></div></article>
         </section>
 
         <div className="student-priority-grid">
@@ -309,7 +469,7 @@ function StudentDashboard() {
           <section className="student-panel student-course-panel" id="student-courses">
             <header><div><span>MY COURSES</span><h2>Continue learning</h2></div><Link to="/my-courses">View all</Link></header>
             <div className="student-course-list">
-              {courses.map((course) => (
+              {learningStats.courses.length ? learningStats.courses.map((course) => (
                 <article className="student-course-row" key={course.name}>
                   <div className={`student-course-icon ${course.color}`}><FaBookOpen /></div>
                   <div className="student-course-info">
@@ -317,9 +477,9 @@ function StudentDashboard() {
                     <p>Next: {course.lesson}</p>
                     <div className="student-progress"><span style={{ width: `${course.progress}%` }} /></div>
                   </div>
-                  <Link to={`/courses/${course.slug}`} state={{ from: "/my-courses" }} aria-label={`Continue ${course.name}`}><FaPlay /></Link>
+                  <Link to={course.lessonCount ? `/courses/${course.slug}/learn/${course.currentLessonIndex + 1}` : `/courses/${course.slug}`} aria-label={`Continue ${course.name}`}><FaPlay /></Link>
                 </article>
-              ))}
+              )) : <div className="student-saved-empty"><p>Enroll in a course to start tracking your progress.</p><Link to="/courses">Explore courses</Link></div>}
             </div>
           </section>
 
@@ -347,7 +507,7 @@ function StudentDashboard() {
 
           <section className="student-panel student-recent-panel">
             <header><div><span>CONTINUE WHERE YOU LEFT OFF</span><h2>Recent activity</h2></div><FaHistory /></header>
-            <div className="student-recent-list">{recentActivity.map(({ title, detail, icon: Icon }) => <article key={title}><span><Icon /></span><div><strong>{title}</strong><small>{detail}</small></div></article>)}</div>
+            <div className="student-recent-list">{learningStats.recentActivities.length ? learningStats.recentActivities.map((activity, index) => <article key={`${activity.createdAt}-${index}`}><span>{activity.activityType === "lesson_completed" ? <FaCheckCircle /> : <FaPlay />}</span><div><strong>{activity.lessonTitle}</strong><small>{activity.activityType === "lesson_completed" ? "Lesson completed" : "Lesson opened"} · {activity.courseName}</small></div></article>) : <article><span><FaHistory /></span><div><strong>No learning activity yet</strong><small>Open a lesson to begin tracking progress.</small></div></article>}</div>
           </section>
 
           <section className="student-panel student-saved-panel" id="student-saved">
@@ -385,6 +545,7 @@ function StudentDashboard() {
             <section className="student-notepad student-notes-page" role="dialog" aria-modal="true" aria-labelledby="student-notes-title">
               <header className="student-notes-toolbar">
                 <div>{notePage !== "folders" && <button type="button" onClick={() => setNotePage(notePage === "list" ? "folders" : "list")} aria-label="Go back"><FaChevronRight /></button>}<strong id="student-notes-title">{notePage === "folders" ? "My Notes" : noteType === "summaries" ? "Summaries" : "Notes"}</strong></div>
+                {noteStatus && <small className="student-note-status">{noteStatus}</small>}
                 <button type="button" onClick={() => setNotesOpen(false)} aria-label="Close notes"><FaTimes /></button>
               </header>
               <div className="student-notes-workspace">
@@ -403,14 +564,14 @@ function StudentDashboard() {
                   <div className="student-note-browser-heading"><strong>{noteType === "summaries" ? noteFolder : "All Notes"}</strong><small>{visibleNotes.length} {visibleNotes.length === 1 ? "note" : "notes"}</small></div>
                   <div className="student-saved-notes">
                     {visibleNotes.length === 0 ? <div className="student-notes-empty"><FaStickyNote /><p>{noteType === "summaries" ? "Your lesson summaries will appear here." : "Create your first personal note."}</p></div> : visibleNotes.map((note) => (
-                      <article key={note.id}><button type="button" onClick={() => noteType === "summaries" ? viewSummary(note) : viewManualNote(note)}><span>{note.course}</span><strong>{note.title}</strong><p>{note.body}</p><small>{noteType === "summaries" ? "Read summary" : `Updated ${note.updatedAt}`}</small></button></article>
+                      <article key={note.id}><button type="button" onClick={() => noteType === "summaries" ? viewSummary(note) : viewManualNote(note)}><span>{note.course}{note.lessonTitle ? ` · ${note.lessonTitle}` : ""}</span><strong>{note.title}</strong><p>{note.body}</p><small>{noteType === "summaries" ? "Read summary" : `Updated ${formatNoteTimestamp(note.updatedAt)}`}</small></button></article>
                     ))}
                   </div>
                 </div>}
 
-                {notePage === "detail" && (noteType === "summaries" ? <article className="student-summary-reader"><span>COURSE SUMMARY</span><small>{selectedSummary.course}</small><h3>{selectedSummary.title}</h3><div className="student-summary-divider" /><p>{selectedSummary.body}</p><footer><FaBrain /> Generated from the completed lesson · Read only</footer></article> : selectedManualNote && <article className="student-summary-reader student-manual-reader"><span>PERSONAL NOTE</span><h3>{selectedManualNote.title}</h3><div className="student-summary-divider" /><p>{selectedManualNote.body}</p><footer><small>Updated {selectedManualNote.updatedAt}</small><div><button type="button" onClick={() => editNote(selectedManualNote)}>Edit note</button><button type="button" onClick={() => deleteNote(selectedManualNote.id)}><FaTrash /> Delete</button></div></footer></article>)}
+                {notePage === "detail" && (noteType === "summaries" ? <article className="student-summary-reader"><span>COURSE SUMMARY</span><small>{selectedSummary.course}</small><h3>{selectedSummary.title}</h3><div className="student-summary-divider" /><p>{selectedSummary.body}</p><footer><FaBrain /> Generated from the completed lesson · Read only</footer></article> : selectedManualNote && <article className="student-summary-reader student-manual-reader"><span>PERSONAL NOTE</span><small>{selectedManualNote.course}{selectedManualNote.lessonTitle ? ` · ${selectedManualNote.lessonTitle}` : ""}</small><h3>{selectedManualNote.title}</h3><div className="student-summary-divider" /><p>{selectedManualNote.body}</p><footer><small>Created {formatNoteTimestamp(selectedManualNote.createdAt)} · Updated {formatNoteTimestamp(selectedManualNote.updatedAt)}</small><div><button type="button" onClick={() => editNote(selectedManualNote)}>Edit note</button><button type="button" onClick={() => deleteNote(selectedManualNote.id)}><FaTrash /> Delete</button></div></footer></article>)}
 
-                {notePage === "editor" && <form className="student-note-editor" onSubmit={handleSaveNote}><label>Note title<input value={noteTitle} onChange={(event) => setNoteTitle(event.target.value)} placeholder="Give your note a title" required autoFocus /></label><label>Note<textarea value={noteBody} onChange={(event) => setNoteBody(event.target.value)} placeholder="Write your ideas, questions, or lesson notes..." required /></label><button type="submit"><FaSave /> {noteId ? "Update note" : "Save note"}</button></form>}
+                {notePage === "editor" && <form className="student-note-editor" onSubmit={handleSaveNote}><label>Note title<input value={noteTitle} onChange={(event) => setNoteTitle(event.target.value)} placeholder="Give your note a title" required autoFocus /></label><label>Note<textarea value={noteBody} onChange={(event) => setNoteBody(event.target.value)} placeholder="Write your ideas, questions, or lesson notes..." required /></label><div className="student-note-editor-actions"><button type="button" onClick={cancelNoteEditor}>Cancel</button><button type="submit"><FaSave /> {noteId ? "Update note" : "Save note"}</button></div></form>}
               </div>
             </section>
           </div>}

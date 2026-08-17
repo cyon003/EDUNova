@@ -38,6 +38,28 @@ const userSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+
+    lastLoginAt: {
+      type: Date,
+      default: null,
+    },
+
+    loginAttempts: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    loginLockedUntil: {
+      type: Date,
+      default: null,
+    },
+
+    tutorVerificationStatus: {
+      type: String,
+      enum: ["incomplete", "pending_review", "verified", "needs_changes", "rejected", "suspended"],
+      default: "incomplete",
+    },
   },
   {
     timestamps: true,

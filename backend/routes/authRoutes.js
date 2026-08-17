@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 const User = require("../models/User");
+const PlatformSetting = require("../models/PlatformSetting");
 const authenticateToken = require(
   "../middleware/authMiddleware"
 );
@@ -88,12 +89,25 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    const settings = await PlatformSetting.findOne({ key: "platform" }).lean();
+    const maxLoginAttempts = settings?.maxLoginAttempts || 5;
+    const sessionTimeout = settings?.sessionTimeout || 30;
+    if (user.loginLockedUntil && user.loginLockedUntil > new Date()) {
+      return res.status(429).json({ message: "Too many failed login attempts. Try again later." });
+    }
+
     const passwordMatches = await bcrypt.compare(
       password,
       user.password
     );
 
     if (!passwordMatches) {
+      user.loginAttempts = (user.loginAttempts || 0) + 1;
+      if (user.loginAttempts >= maxLoginAttempts) {
+        user.loginLockedUntil = new Date(Date.now() + 5 * 60 * 1000);
+        user.loginAttempts = 0;
+      }
+      await user.save();
       return res.status(400).json({
         message: "Invalid email or password",
       });
@@ -106,6 +120,11 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    user.lastLoginAt = new Date();
+    user.loginAttempts = 0;
+    user.loginLockedUntil = null;
+    await user.save();
+
     const token = jwt.sign(
       {
         id: user._id,
@@ -113,7 +132,7 @@ router.post("/login", async (req, res) => {
       },
       process.env.JWT_SECRET,
       {
-        expiresIn: "7d",
+        expiresIn: `${sessionTimeout}m`,
       }
     );
 

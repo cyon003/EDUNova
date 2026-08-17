@@ -87,6 +87,7 @@ const courses = [
 ].map((course) => ({
   ...course,
   category: "General Education",
+  moderationStatus: "published",
 }));
 
 async function seedCourses() {

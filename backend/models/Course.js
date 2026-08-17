@@ -41,6 +41,12 @@ const courseSchema = new mongoose.Schema(
       min: 0,
       max: 5,
     },
+    tutor: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    moderationStatus: {
+      type: String,
+      enum: ["pending", "published", "unpublished", "rejected", "archived"],
+      default: "pending",
+    },
     lessons: [
       {
         title: {

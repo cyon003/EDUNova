@@ -1,9 +1,47 @@
 import { useEffect, useState } from "react";
-import { FaBookOpen, FaBrain, FaCartPlus, FaCheck, FaChevronLeft, FaClock, FaLightbulb, FaLock, FaPlay, FaSave, FaShoppingBag, FaSignal, FaStar, FaTimes, FaTrophy } from "react-icons/fa";
+import { FaBookOpen, FaBrain, FaCartPlus, FaCheck, FaChevronLeft, FaClock, FaFlag, FaLightbulb, FaLock, FaPlay, FaSave, FaShoppingBag, FaSignal, FaStar, FaTimes, FaTrophy } from "react-icons/fa";
 import { Link, useLocation, useParams } from "react-router-dom";
 import mathematicsImage from "../assets/images/mathematic.jpeg";
 import availableCourses from "../data/courses";
+import confusionTraining from "../data/confusionTraining";
 import "../styles/CourseDetail.css";
+
+function UnderstandingCheck({ course, lesson }) {
+  const [answer, setAnswer] = useState("");
+  const [feedback, setFeedback] = useState(null);
+  const training = confusionTraining[course.slug]?.[lesson.title];
+
+  if (!training) return null;
+
+  const checkUnderstanding = (event) => {
+    event.preventDefault();
+    const normalizedAnswer = answer.trim().toLowerCase();
+    if (!normalizedAnswer) return;
+    const misconception = training.misconceptions.find((item) => item.patterns.some((pattern) => normalizedAnswer.includes(pattern)));
+    const understoodConcepts = training.concepts.filter((concept) => normalizedAnswer.includes(concept));
+    const missingConcepts = training.concepts.filter((concept) => !understoodConcepts.includes(concept));
+    setFeedback({
+      misconception: misconception?.feedback,
+      understood: understoodConcepts,
+      missing: missingConcepts,
+      question: training.question,
+    });
+  };
+
+  return <section className="understanding-check" aria-label={`Check understanding for ${lesson.title}`}>
+    <header><span><FaBrain /></span><div><small>AI UNDERSTANDING CHECK</small><h4>Explain what you learned</h4></div></header>
+    <p>Write two or three sentences. Your response will be checked for important ideas and common misunderstandings.</p>
+    <form onSubmit={checkUnderstanding}>
+      <textarea value={answer} onChange={(event) => { setAnswer(event.target.value); setFeedback(null); }} placeholder={`What did you understand about ${lesson.title}?`} rows="4" />
+      <button type="submit" disabled={!answer.trim()}><FaBrain /> Check my understanding</button>
+    </form>
+    {feedback && <div className="understanding-feedback" aria-live="polite">
+      {feedback.misconception ? <article className="needs-review"><strong>Possible confusion</strong><p>{feedback.misconception}</p></article> : <article><strong>{feedback.understood.length ? "Good understanding" : "Add more detail"}</strong><p>{feedback.understood.length ? `You connected: ${feedback.understood.join(", ")}.` : "Your explanation does not yet mention the lesson’s main concepts."}</p></article>}
+      {feedback.missing.length > 0 && <article><strong>Ideas to include</strong><p>{feedback.missing.join(" · ")}</p></article>}
+      <article><strong>Try this next</strong><p>{feedback.question}</p></article>
+    </div>}
+  </section>;
+}
 
 function CourseLessons({ course, enrolled, completedLessons, onToggleLesson }) {
   const lessons = course.lessons ?? [];
@@ -26,6 +64,7 @@ function CourseLessons({ course, enrolled, completedLessons, onToggleLesson }) {
           {lessons.map((lesson, index) => (
             <li
               className="course-lesson"
+              id={`lesson-${index + 1}`}
               key={`${course.slug}-${lesson.title}`}
             >
               <span className="course-lesson-number">{String(index + 1).padStart(2, "0")}</span>
@@ -41,6 +80,8 @@ function CourseLessons({ course, enrolled, completedLessons, onToggleLesson }) {
                 <h3>{lesson.title}</h3>
                 <p>{lesson.description}</p>
                 <small><FaClock /> {lesson.duration}</small>
+                {enrolled && <Link className="lesson-player-link" to={`/courses/${course.slug}/learn/${index + 1}`}><FaPlay /> Open lesson</Link>}
+                {enrolled && <UnderstandingCheck course={course} lesson={lesson} />}
                 {enrolled && <button type="button" className={completedLessons.includes(index) ? "lesson-complete-button completed" : "lesson-complete-button"} onClick={() => onToggleLesson(index)}><FaCheck /> {completedLessons.includes(index) ? "Completed" : "Mark complete"}</button>}
               </div>
             </li>
@@ -127,21 +168,37 @@ function CourseDetail() {
   const { courseSlug } = useParams();
   const course = availableCourses.find((item) => item.slug === courseSlug);
   const [cartCourses, setCartCourses] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("edunova-cart")) || []; } catch { return []; }
+    try {
+      const storedCourses = JSON.parse(localStorage.getItem("edunova-cart"));
+      return Array.isArray(storedCourses) ? storedCourses : [];
+    } catch { return []; }
   });
   const [enrolledCourses, setEnrolledCourses] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("edunova-enrolled-courses")) || []; } catch { return []; }
+    try {
+      const storedCourses = JSON.parse(localStorage.getItem("edunova-enrolled-courses"));
+      return Array.isArray(storedCourses) ? storedCourses : [];
+    } catch { return []; }
   });
   const [enrolling, setEnrolling] = useState(false);
   const [enrollmentMessage, setEnrollmentMessage] = useState("");
   const lessonProgressKey = `edunova-lesson-progress-${courseSlug}`;
   const missionProgressKey = `edunova-mission-progress-${courseSlug}`;
   const [completedLessons, setCompletedLessons] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(lessonProgressKey)) || []; } catch { return []; }
+    try {
+      const storedLessons = JSON.parse(localStorage.getItem(lessonProgressKey));
+      return Array.isArray(storedLessons) ? storedLessons : [];
+    } catch { return []; }
   });
   const [completedMissions, setCompletedMissions] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(missionProgressKey)) || []; } catch { return []; }
+    try {
+      const storedMissions = JSON.parse(localStorage.getItem(missionProgressKey));
+      return Array.isArray(storedMissions) ? storedMissions : [];
+    } catch { return []; }
   });
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportForm, setReportForm] = useState({ type: "Course content", priority: "medium", detail: "" });
+  const [reportMessage, setReportMessage] = useState("");
+  const [reporting, setReporting] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -152,7 +209,30 @@ function CourseDetail() {
         const response = await fetch("http://localhost:5050/api/enrollments/me", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
         if (!response.ok) return;
         const enrollments = await response.json();
-        const enrollment = enrollments.find((item) => item.course?.slug === courseSlug);
+        let enrollment = enrollments.find((item) => item.course?.slug === courseSlug);
+        if (!enrollment && enrolledCourses.includes(courseSlug)) {
+          const syncResponse = await fetch(`http://localhost:5050/api/enrollments/${courseSlug}`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          });
+          if (syncResponse.ok) {
+            enrollment = await syncResponse.json();
+            const storedLessons = JSON.parse(localStorage.getItem(lessonProgressKey));
+            const storedMissions = JSON.parse(localStorage.getItem(missionProgressKey));
+            const localLessons = Array.isArray(storedLessons) ? storedLessons : [];
+            const localMissions = Array.isArray(storedMissions) ? storedMissions : [];
+            if (localLessons.length || localMissions.length) {
+              const progressResponse = await fetch(`http://localhost:5050/api/enrollments/${courseSlug}/progress`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ completedLessons: localLessons, completedMissions: localMissions }),
+                signal: controller.signal,
+              });
+              if (progressResponse.ok) enrollment = await progressResponse.json();
+            }
+          }
+        }
         if (!enrollment) return;
         setEnrolledCourses((current) => current.includes(courseSlug) ? current : [...current, courseSlug]);
         setCompletedLessons(enrollment.completedLessons || []);
@@ -163,7 +243,7 @@ function CourseDetail() {
     };
     loadEnrollment();
     return () => controller.abort();
-  }, [courseSlug]);
+  }, [courseSlug, enrolledCourses, lessonProgressKey, missionProgressKey]);
 
   if (!course) {
     return (
@@ -211,7 +291,13 @@ function CourseDetail() {
     const token = localStorage.getItem("token");
     if (!token) return;
     try {
-      await fetch(`http://localhost:5050/api/enrollments/${course.slug}/progress`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ completedLessons: lessonItems, completedMissions: missionItems }) });
+      const options = { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ completedLessons: lessonItems, completedMissions: missionItems }) };
+      let response = await fetch(`http://localhost:5050/api/enrollments/${course.slug}/progress`, options);
+      if (response.status === 404 && enrolled) {
+        const enrollmentResponse = await fetch(`http://localhost:5050/api/enrollments/${course.slug}`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+        if (enrollmentResponse.ok) response = await fetch(`http://localhost:5050/api/enrollments/${course.slug}/progress`, options);
+      }
+      if (!response.ok) throw new Error("Unable to synchronize course progress");
     } catch (error) {
       console.error("Save course progress error:", error);
     }
@@ -228,6 +314,25 @@ function CourseDetail() {
     setCompletedMissions(updated);
     localStorage.setItem(missionProgressKey, JSON.stringify(updated));
     saveProgress(completedLessons, updated);
+  };
+  const submitReport = async (event) => {
+    event.preventDefault();
+    const token = localStorage.getItem("token");
+    if (!token) { window.location.href = "/auth"; return; }
+    setReporting(true);
+    setReportMessage("");
+    try {
+      const response = await fetch("http://localhost:5050/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...reportForm, courseSlug: course.slug }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Unable to submit report");
+      setReportMessage("Report submitted. An administrator will review it.");
+      setReportForm({ type: "Course content", priority: "medium", detail: "" });
+    } catch (error) { setReportMessage(error.message); }
+    finally { setReporting(false); }
   };
 
   return (
@@ -263,12 +368,14 @@ function CourseDetail() {
 
             <div className="course-enrollment-note"><FaCheck /> Learn at your own pace with lifetime access</div>
             {enrollmentMessage && <p className="course-enrollment-status">{enrollmentMessage}</p>}
+            <button type="button" className="course-report-button" onClick={() => { setReportOpen(true); setReportMessage(""); }}><FaFlag /> Report an Issue</button>
           </div>
         </article>
 
         <CourseLessons course={course} enrolled={enrolled} completedLessons={completedLessons} onToggleLesson={toggleLesson} />
         {enrolled && <CourseMissions course={course} completedLessonCount={completedLessons.length} completedMissions={completedMissions} onCompleteMission={completeMission} />}
       </div>
+      {reportOpen && <div className="course-report-overlay" role="presentation" onMouseDown={() => setReportOpen(false)}><form className="course-report-modal" role="dialog" aria-modal="true" aria-labelledby="course-report-title" onSubmit={submitReport} onMouseDown={(event) => event.stopPropagation()}><header><div><small>HELP US IMPROVE</small><h2 id="course-report-title">Report an Issue</h2><p>Your report about {course.name} will be sent to the administrator.</p></div><button type="button" aria-label="Close report form" onClick={() => setReportOpen(false)}><FaTimes /></button></header>{reportMessage && <p className="course-report-message">{reportMessage}</p>}<label><span>Issue type</span><select value={reportForm.type} onChange={(event) => setReportForm({ ...reportForm, type: event.target.value })}><option>Course content</option><option>Incorrect information</option><option>Video or technical problem</option><option>Inappropriate content</option><option>Other</option></select></label><label><span>Priority</span><select value={reportForm.priority} onChange={(event) => setReportForm({ ...reportForm, priority: event.target.value })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select></label><label><span>What happened?</span><textarea minLength="10" required value={reportForm.detail} onChange={(event) => setReportForm({ ...reportForm, detail: event.target.value })} placeholder="Describe the problem clearly so the admin can investigate it." /></label><footer><button type="button" onClick={() => setReportOpen(false)}>Cancel</button><button type="submit" disabled={reporting || reportForm.detail.trim().length < 10}>{reporting ? "Submitting..." : "Submit Report"}</button></footer></form></div>}
     </main>
   );
 }

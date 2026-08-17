@@ -50,7 +50,7 @@
 .course-lessons-heading h2 { margin: 9px 0; font-size: clamp(28px, 4vw, 43px); }
 .course-lessons-heading p { color: #a8afd8; font-size: 14px; line-height: 1.65; }
 .course-lesson-list { display: grid; gap: 16px; margin: 28px 0 0; padding: 0; list-style: none; }
-.course-lesson { position: relative; display: grid; grid-template-columns: 235px minmax(0, 1fr); min-height: 160px; overflow: hidden; background: linear-gradient(110deg, #151124, #100c1d); border: 1px solid rgba(141, 99, 234, 0.18); border-radius: 17px; transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s; }
+.course-lesson { position: relative; display: grid; grid-template-columns: 235px minmax(0, 1fr); min-height: 160px; overflow: hidden; scroll-margin-top: 24px; background: linear-gradient(110deg, #151124, #100c1d); border: 1px solid rgba(141, 99, 234, 0.18); border-radius: 17px; transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s; }
 .course-lesson:hover { border-color: #8d63ea; box-shadow: 0 14px 35px rgba(141, 99, 234, 0.14); transform: translateY(-3px); }
 .course-lesson-number { position: absolute; top: 12px; right: 18px; color: rgba(167, 139, 250, 0.13); font-size: 46px; font-weight: 900; }
 .course-lesson-video { position: relative; z-index: 1; background: #000; }
@@ -60,8 +60,24 @@
 .course-lesson-info h3 { margin: 7px 0; font-size: 19px; }
 .course-lesson-info p, .course-lessons-empty p { color: #a8afd8; font-size: 13px; line-height: 1.55; }
 .course-lesson-info small { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; color: #a78bfa; font-size: 10px; font-weight: 700; }
+.lesson-player-link { display: inline-flex; align-items: center; gap: 6px; margin: 10px 0 0 12px; padding: 7px 10px; color: white; font-size: 9px; font-weight: 800; text-decoration: none; background: #8d63ea; border-radius: 8px; }
 .lesson-complete-button { display: flex; align-items: center; gap: 6px; width: fit-content; margin-top: 12px; padding: 7px 10px; color: #a8afd8; font: inherit; font-size: 9px; font-weight: 700; cursor: pointer; background: transparent; border: 1px solid rgba(141, 99, 234, 0.35); border-radius: 8px; }
 .lesson-complete-button:hover, .lesson-complete-button.completed { color: white; background: rgba(141, 99, 234, 0.2); border-color: #8d63ea; }
+.understanding-check { margin-top: 17px; padding: 15px; background: #0c0917; border: 1px solid rgba(141, 99, 234, 0.28); border-radius: 13px; }
+.understanding-check > header { display: flex; align-items: center; gap: 10px; }
+.understanding-check > header > span { display: grid; width: 34px; height: 34px; flex: 0 0 34px; color: white; background: #8d63ea; border-radius: 10px; place-items: center; }
+.understanding-check header small { color: #a78bfa; font-size: 8px; font-weight: 800; letter-spacing: 0.12em; }
+.understanding-check h4 { margin: 2px 0 0; color: white; font-size: 15px; }
+.understanding-check > p { margin: 10px 0; color: #a8afd8; font-size: 11px; line-height: 1.55; }
+.understanding-check textarea { width: 100%; resize: vertical; padding: 11px; color: white; font: inherit; font-size: 11px; line-height: 1.5; background: #151124; border: 1px solid rgba(141, 99, 234, 0.28); border-radius: 9px; outline: none; }
+.understanding-check textarea:focus { border-color: #8d63ea; box-shadow: 0 0 0 3px rgba(141, 99, 234, 0.14); }
+.understanding-check form button { display: flex; align-items: center; gap: 7px; margin-top: 9px; padding: 9px 12px; color: white; font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; background: #8d63ea; border: 0; border-radius: 8px; }
+.understanding-check form button:disabled { cursor: not-allowed; opacity: 0.45; }
+.understanding-feedback { display: grid; gap: 7px; margin-top: 12px; }
+.understanding-feedback article { padding: 10px 12px; background: #151124; border-left: 3px solid #8d63ea; border-radius: 7px; }
+.understanding-feedback article.needs-review { border-left-color: #a78bfa; }
+.understanding-feedback strong { color: white; font-size: 10px; }
+.understanding-feedback article p { margin: 3px 0 0; color: #a8afd8; font-size: 10px; line-height: 1.5; }
 .course-lessons-empty { margin-top: 28px; padding: 50px 30px; text-align: center; background: #151124; border: 1px dashed rgba(141, 99, 234, 0.38); border-radius: 18px; }
 .course-lessons-empty h3 { margin-bottom: 8px; }
 

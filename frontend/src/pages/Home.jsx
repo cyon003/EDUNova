@@ -112,7 +112,12 @@ function Home({ navigation = null, showFooter = true }) {
   const navigate = useNavigate();
   const [navSearch, setNavSearch] = useState("");
   const [savedCourses, setSavedCourses] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("edunova-saved-courses")) || []; } catch { return []; }
+    try {
+      const storedCourses = JSON.parse(localStorage.getItem("edunova-saved-courses"));
+      return Array.isArray(storedCourses) ? storedCourses : [];
+    } catch {
+      return [];
+    }
   });
   const [activeTab, setActiveTab] = useState("home");
   const [activeSlide, setActiveSlide] = useState(0);

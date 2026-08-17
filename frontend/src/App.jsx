@@ -9,6 +9,7 @@ import StudentDashboard from "./pages/StudentDashboard";
 import TutorDashboard from "./pages/TutorDashboard";
 import UserHome from "./pages/UserHome";
 import MyCourses from "./pages/MyCourses";
+import LessonPlayer from "./pages/LessonPlayer";
 import NavigationManager from "./components/NavigationManager";
 
 function getStoredUser() {
@@ -98,6 +99,14 @@ function App() {
         />
         <Route path="/courses" element={<Courses />} />
         <Route path="/courses/:courseSlug" element={<CourseDetail />} />
+        <Route
+          path="/courses/:courseSlug/learn/:lessonNumber?"
+          element={
+            <RoleRoute user={user} allowedRoles={["student"]}>
+              <LessonPlayer />
+            </RoleRoute>
+          }
+        />
         <Route path="/popular-courses" element={<Navigate to="/courses#popular" replace />} />
         <Route path="/ai-chatbot" element={<AiChatbot />} />
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -918,9 +918,10 @@
   resize: vertical;
 }
 
-.student-note-editor > button {
-  justify-self: end;
-}
+.student-note-editor > .student-note-editor-actions { display: flex; grid-template-columns: none; justify-content: flex-end; gap: 9px; }
+.student-note-editor-actions button { display: inline-flex; align-items: center; gap: 7px; padding: 10px 15px; color: white; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; border-radius: 9px; }
+.student-note-editor-actions button { color: #a8afd8; background: #151124; border: 1px solid #39304e; }
+.student-note-editor-actions button:hover { color: white; border-color: #8d63ea; }
 
 .student-summary-reader {
   min-width: 0;
@@ -987,6 +988,7 @@
 
 .student-notes-toolbar > div { display: flex; align-items: center; gap: 12px; }
 .student-notes-toolbar strong { font-size: 16px; }
+.student-note-status { margin-left: auto; color: #a985ef; font-size: 9px; font-weight: 700; }
 .student-notes-toolbar button { display: grid; width: 38px; height: 38px; padding: 0; color: #a8afd8; font: inherit; cursor: pointer; background: #100c1d; border: 1px solid #39304e; border-radius: 10px; place-items: center; }
 .student-notes-toolbar button:hover { color: white; border-color: #8d63ea; }
 .student-notes-toolbar > div button svg { transform: rotate(180deg); }

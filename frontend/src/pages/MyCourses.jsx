@@ -23,7 +23,11 @@ function MyCourses() {
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || "Unable to load courses");
-        setEnrollments(data);
+        const localSlugs = JSON.parse(localStorage.getItem("edunova-enrolled-courses")) || [];
+        const syncedSlugs = new Set(data.map((item) => item.course?.slug));
+        const localOnly = localSlugs.map((slug) => ({ _id: `local-${slug}`, course: availableCourses.find((course) => course.slug === slug), completedLessons: JSON.parse(localStorage.getItem(`edunova-lesson-progress-${slug}`)) || [], completedMissions: JSON.parse(localStorage.getItem(`edunova-mission-progress-${slug}`)) || [] })).filter((item) => item.course && !syncedSlugs.has(item.course.slug));
+        setEnrollments([...data, ...localOnly]);
+        setOffline(localOnly.length > 0);
       } catch (requestError) {
         if (requestError.name !== "AbortError") {
           try {
@@ -48,7 +52,8 @@ function MyCourses() {
     const totalLessons = mergedCourse.lessons.length;
     const completed = enrollment.completedLessons?.length || 0;
     const progress = totalLessons ? Math.min(Math.round(completed / totalLessons * 100), 100) : 0;
-    return { ...mergedCourse, enrollmentId: enrollment._id, completed, totalLessons, progress };
+    const completionStatus = totalLessons > 0 && progress === 100 ? "Completed" : progress > 0 ? "In progress" : "Not started";
+    return { ...mergedCourse, enrollmentId: enrollment._id, completed, totalLessons, progress, completionStatus, currentLessonIndex: enrollment.currentLessonIndex || 0 };
   }), [enrollments]);
 
   const filteredCourses = courses.filter((course) => `${course.name} ${course.category}`.toLowerCase().includes(query.trim().toLowerCase())).filter((course) => status === "All" || (status === "Completed" ? course.progress === 100 : course.progress < 100));
@@ -66,7 +71,7 @@ function MyCourses() {
 
     {!loading && !error && filteredCourses.length > 0 && <section className="my-courses-grid">{filteredCourses.map((course) => <article key={course.enrollmentId}>
       <div className="my-course-image"><img src={mathematicsImage} alt="" /><span>{course.category}</span><b>{course.progress}%</b></div>
-      <div className="my-course-content"><small>{course.level} · {course.duration}</small><h2>{course.name}</h2><p>{course.description}</p><div className="my-course-progress"><div><span>Course progress</span><strong>{course.completed}/{course.totalLessons} lessons</strong></div><i><b style={{ width: `${course.progress}%` }} /></i></div><div className="my-course-actions"><span><FaClock /> Last opened recently</span><Link to={`/courses/${course.slug}`} state={{ from: "/my-courses" }}><FaPlay /> {course.progress ? "Continue" : "Start Course"}<FaChevronRight /></Link></div></div>
+      <div className="my-course-content"><small>{course.level} · {course.duration}</small><h2>{course.name}</h2><p>{course.description}</p><div className="my-course-progress"><div><span>{course.completionStatus}</span><strong>{course.completed}/{course.totalLessons} lessons</strong></div><i><b style={{ width: `${course.progress}%` }} /></i></div><div className="my-course-actions"><span><FaClock /> {course.progress}% complete</span><Link to={course.totalLessons ? `/courses/${course.slug}/learn/${course.currentLessonIndex + 1}` : `/courses/${course.slug}`}><FaPlay /> {course.progress === 100 ? "Review Course" : course.progress ? "Continue" : "Start Course"}<FaChevronRight /></Link></div></div>
     </article>)}</section>}
   </main>;
 }

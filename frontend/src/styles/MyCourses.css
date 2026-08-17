@@ -3,7 +3,8 @@
 .my-courses-brand { display: flex; align-items: center; gap: 10px; color: white; text-decoration: none; }
 .my-courses-brand span { display: grid; width: 39px; height: 39px; background: #8d63ea; border-radius: 11px; place-items: center; }
 .my-courses-brand strong { font-size: 16px; letter-spacing: 0.08em; }
-.my-courses-topbar > a:last-child { color: #a8afd8; font-size: 11px; font-weight: 700; text-decoration: none; }
+.my-courses-topbar > a:last-child { padding: 11px 16px; color: white; font-size: 11px; font-weight: 800; text-decoration: none; background: rgba(141, 99, 234, 0.18); border: 1px solid #8d63ea; border-radius: 10px; box-shadow: 0 7px 20px rgba(141, 99, 234, 0.14); transition: background 0.2s, box-shadow 0.2s, transform 0.2s; }
+.my-courses-topbar > a:last-child:hover { background: #8d63ea; box-shadow: 0 10px 26px rgba(141, 99, 234, 0.3); transform: translateY(-1px); }
 .my-courses-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; max-width: 1380px; min-height: 265px; gap: 30px; margin: 30px auto 18px; padding: clamp(35px, 6vw, 65px); background: radial-gradient(circle at 86% 15%, rgba(167, 139, 250, 0.25), transparent 25%), linear-gradient(125deg, #151124, #382469); border: 1px solid #49366f; border-radius: 24px; }
 .my-courses-hero > div > span { color: #a78bfa; font-size: 9px; font-weight: 800; letter-spacing: 0.16em; }
 .my-courses-hero h1 { margin: 8px 0; font-size: clamp(40px, 6vw, 67px); }

@@ -43,13 +43,30 @@ router.patch("/:slug/progress", async (req, res) => {
     const course = await Course.findOne({ slug: req.params.slug.toLowerCase() });
     if (!course) return res.status(404).json({ message: "Course not found" });
 
-    const update = { lastAccessedAt: new Date() };
-    if (Array.isArray(req.body.completedLessons)) update.completedLessons = [...new Set(req.body.completedLessons.filter((item) => Number.isInteger(item) && item >= 0))];
-    if (Array.isArray(req.body.completedMissions)) update.completedMissions = [...new Set(req.body.completedMissions.filter((item) => typeof item === "string"))];
+    const setFields = { lastAccessedAt: new Date() };
+    if (Array.isArray(req.body.completedLessons)) setFields.completedLessons = [...new Set(req.body.completedLessons.filter((item) => Number.isInteger(item) && item >= 0))];
+    if (Array.isArray(req.body.completedMissions)) setFields.completedMissions = [...new Set(req.body.completedMissions.filter((item) => typeof item === "string"))];
+    if (Number.isInteger(req.body.currentLessonIndex) && req.body.currentLessonIndex >= 0) setFields.currentLessonIndex = req.body.currentLessonIndex;
+    const videoLessonIndex = req.body.videoPosition?.lessonIndex;
+    const videoSeconds = req.body.videoPosition?.seconds;
+    if (Number.isInteger(videoLessonIndex) && videoLessonIndex >= 0 && Number.isFinite(videoSeconds) && videoSeconds >= 0) {
+      setFields[`videoPositions.${videoLessonIndex}`] = videoSeconds;
+    }
+    const update = { $set: setFields };
+    const studiedSeconds = Math.min(Math.max(Math.round(Number(req.body.studiedSeconds) || 0), 0), 3600);
+    if (studiedSeconds > 0) {
+      update.$inc = { studySeconds: studiedSeconds };
+      const studyDate = String(req.body.studyDate || "");
+      if (/^\d{4}-\d{2}-\d{2}$/.test(studyDate)) update.$addToSet = { studyDates: studyDate };
+    }
+    const activity = req.body.activity;
+    if (["lesson_opened", "lesson_completed"].includes(activity?.activityType) && Number.isInteger(activity.lessonIndex) && activity.lessonIndex >= 0 && typeof activity.lessonTitle === "string" && activity.lessonTitle.trim()) {
+      update.$push = { recentActivity: { $each: [{ activityType: activity.activityType, lessonIndex: activity.lessonIndex, lessonTitle: activity.lessonTitle.trim(), createdAt: new Date() }], $slice: -50 } };
+    }
 
     const enrollment = await Enrollment.findOneAndUpdate(
       { student: req.user._id, course: course._id },
-      { $set: update },
+      update,
       { new: true, runValidators: true }
     ).populate("course");
     if (!enrollment) return res.status(404).json({ message: "Enroll in this course first" });

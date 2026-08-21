@@ -242,6 +242,7 @@
   .home-get-started {
     padding: 9px 10px;
   }
+
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -633,6 +634,7 @@
 
 
 .home-learning-journey {
+  position: relative;
   padding: clamp(65px, 8vw, 110px) clamp(20px, 6vw, 90px);
   background: #000;
 }

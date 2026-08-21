@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { FaBookOpen, FaBrain, FaCartPlus, FaCheck, FaChevronLeft, FaClock, FaFlag, FaLightbulb, FaLock, FaPlay, FaSave, FaShoppingBag, FaSignal, FaStar, FaTimes, FaTrophy } from "react-icons/fa";
 import { Link, useLocation, useParams } from "react-router-dom";
 import mathematicsImage from "../assets/images/mathematic.jpeg";
-import availableCourses from "../data/courses";
 import confusionTraining from "../data/confusionTraining";
+import { courseDuration, courseThumbnail, getPublicCourse } from "../utils/courseApi";
 import "../styles/CourseDetail.css";
 
 function UnderstandingCheck({ course, lesson }) {
@@ -166,7 +166,9 @@ function CourseMissions({ course, completedLessonCount, completedMissions, onCom
 function CourseDetail() {
   const location = useLocation();
   const { courseSlug } = useParams();
-  const course = availableCourses.find((item) => item.slug === courseSlug);
+  const [course, setCourse] = useState(null);
+  const [courseLoading, setCourseLoading] = useState(true);
+  const [courseError, setCourseError] = useState("");
   const [cartCourses, setCartCourses] = useState(() => {
     try {
       const storedCourses = JSON.parse(localStorage.getItem("edunova-cart"));
@@ -199,6 +201,15 @@ function CourseDetail() {
   const [reportForm, setReportForm] = useState({ type: "Course content", priority: "medium", detail: "" });
   const [reportMessage, setReportMessage] = useState("");
   const [reporting, setReporting] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getPublicCourse(courseSlug, controller.signal)
+      .then(setCourse)
+      .catch((error) => { if (error.name !== "AbortError") setCourseError(error.message); })
+      .finally(() => { if (!controller.signal.aborted) setCourseLoading(false); });
+    return () => controller.abort();
+  }, [courseSlug]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -245,11 +256,16 @@ function CourseDetail() {
     return () => controller.abort();
   }, [courseSlug, enrolledCourses, lessonProgressKey, missionProgressKey]);
 
+  if (courseLoading) {
+    return <main className="course-detail-page"><h1>Loading course...</h1></main>;
+  }
+
   if (!course) {
     return (
       <main className="course-detail-page">
-        <h1>Course not found</h1>
-        <Link to="/courses">← Back to Courses</Link>
+        <h1>{courseError || "Course not found"}</h1>
+        <p>This course may be awaiting approval or is no longer public.</p>
+        <Link to="/home">Return home</Link>
       </main>
     );
   }
@@ -337,14 +353,14 @@ function CourseDetail() {
 
   return (
     <main className="course-detail-page">
-      <Link to={location.state?.from || "/courses"} className="course-detail-back" aria-label={location.state?.from === "/my-courses" ? "Back to my courses" : "Back to courses"}>
+      <Link to={location.state?.from || "/home"} className="course-detail-back" aria-label={location.state?.from === "/my-courses" ? "Back to my courses" : "Back to home"}>
         <FaChevronLeft />
       </Link>
 
       <div className="course-detail-layout">
         <article className="course-detail-card">
           <div className="course-detail-image">
-            <img src={mathematicsImage} alt={`${course.name} course`} />
+            <img src={courseThumbnail(course, mathematicsImage)} alt={`${course.name} course`} />
             <span><FaPlay /> Preview course</span>
           </div>
 
@@ -354,13 +370,13 @@ function CourseDetail() {
             <p>{course.description}</p>
 
             <div className="course-detail-highlights">
-              <span><FaStar /><strong>{course.rating}</strong> rating</span>
+              <span><FaStar /><strong>{course.rating || 0}</strong> rating</span>
               <span><FaSignal /><strong>{course.level}</strong></span>
-              <span><FaClock /><strong>{course.duration}</strong></span>
+              <span><FaClock /><strong>{courseDuration(course)}</strong></span>
               <span><FaBookOpen /><strong>{course.lessons?.length ?? 0}</strong> lessons</span>
             </div>
 
-            <div className="course-detail-price"><span>Course price</span><strong>${course.price}</strong></div>
+            <div className="course-detail-price"><span>Course price</span><strong>{Number(course.price) > 0 ? `$${course.price}` : "Free"}</strong></div>
             <div className="course-detail-purchase">
               <button type="button" className={`course-cart-button ${inCart ? "in-cart" : ""}`} onClick={toggleCart}><FaCartPlus /> {inCart ? "Added to Cart" : "Add to Cart"}</button>
               <button type="button" className="course-buy-button" onClick={enrollCourse} disabled={enrolling || enrolled}><FaShoppingBag /> {enrolling ? "Enrolling..." : enrolled ? "Enrolled" : "Buy Now"}</button>

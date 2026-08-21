@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { FaBell, FaBookOpen, FaChartBar, FaChalkboardTeacher, FaCog, FaFileAlt, FaIdCard, FaSignOutAlt, FaUsers } from "react-icons/fa";
+import { FaBell, FaBookOpen, FaChartBar, FaChalkboardTeacher, FaCog, FaFileAlt, FaGraduationCap, FaHome, FaIdCard, FaSignOutAlt, FaUsers } from "react-icons/fa";
 import { adminApi, formatAdminDate } from "../utils/adminApi";
 import "../styles/AdminLayout.css";
 
@@ -10,6 +10,7 @@ function getStoredUser() {
 }
 
 const NAV = [
+  { icon: <FaHome />, label: "Home", to: "/home" },
   { icon: <FaChartBar />, label: "Overview", to: "/admin-dashboard" },
   { icon: <FaChalkboardTeacher />, label: "Tutors", to: "/admin-dashboard/tutors" },
   { icon: <FaIdCard />, label: "Applications", to: "/admin-dashboard/tutor-applications" },
@@ -54,7 +55,7 @@ export default function AdminLayout({ children, title, subtitle }) {
   return (
     <div className="adm-shell">
       <aside className="adm-sidebar">
-        <div className="adm-logo"><span className="adm-edu">EDU</span><span className="adm-nova">NOVA</span></div>
+        <Link className="adm-logo" to="/home" aria-label="EDUNOVA home"><span className="adm-logo-mark"><FaGraduationCap /></span><strong>EDUNOVA</strong></Link>
         <nav className="adm-nav">
           {NAV.map((item) => <Link key={item.label} to={item.to} className={`adm-nav-item ${location.pathname === item.to ? "adm-nav-active" : ""}`}><span className="adm-nav-icon">{item.icon}</span>{item.label}</Link>)}
         </nav>
@@ -74,10 +75,10 @@ export default function AdminLayout({ children, title, subtitle }) {
             </button>
             {notificationsOpen && (
               <section className="adm-notif-panel">
-                <header><div><strong>Notifications</strong><small>New account registrations</small></div><span>{notifications.length}</span></header>
+                <header><div><strong>Notifications</strong><small>Applications and new accounts</small></div><span>{notifications.length}</span></header>
                 <div className="adm-notif-list">
-                  {notifications.map((item) => <Link to={item.role === "tutor" ? "/admin-dashboard/tutors" : "/admin-dashboard/students"} className="adm-notif-item" key={item.id} onClick={() => setNotificationsOpen(false)}><span className="adm-notif-avatar">{item.detail.charAt(0).toUpperCase()}</span><span><strong>{item.title}</strong><small>{item.detail}</small><time>{formatAdminDate(item.createdAt)}</time></span></Link>)}
-                  {!notifications.length && <p className="adm-empty">No signup notifications yet.</p>}
+                  {notifications.map((item) => <Link to={item.type === "tutor_application" ? "/admin-dashboard/tutor-applications" : item.role === "tutor" ? "/admin-dashboard/tutors" : "/admin-dashboard/students"} className="adm-notif-item" key={`${item.type}-${item.id}`} onClick={() => setNotificationsOpen(false)}><span className="adm-notif-avatar">{item.detail.charAt(0).toUpperCase()}</span><span><strong>{item.title}</strong><small>{item.detail}</small><time>{formatAdminDate(item.createdAt)}</time></span></Link>)}
+                  {!notifications.length && <p className="adm-empty">No notifications yet.</p>}
                 </div>
               </section>
             )}

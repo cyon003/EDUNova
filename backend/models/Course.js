@@ -41,12 +41,15 @@ const courseSchema = new mongoose.Schema(
       min: 0,
       max: 5,
     },
+    thumbnail: { type: String, default: "", trim: true },
     tutor: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     moderationStatus: {
       type: String,
       enum: ["pending", "published", "unpublished", "rejected", "archived"],
-      default: "pending",
+      default: "unpublished",
     },
+    reviewFeedback: { type: String, default: "", trim: true },
+    reviewedAt: { type: Date, default: null },
     lessons: [
       {
         title: {
@@ -66,9 +69,16 @@ const courseSchema = new mongoose.Schema(
         },
         videoUrl: {
           type: String,
-          required: true,
+          default: "",
           trim: true,
         },
+        resources: [{
+          originalName: { type: String, required: true, trim: true },
+          storedName: { type: String, required: true, trim: true },
+          mimeType: { type: String, required: true, trim: true },
+          size: { type: Number, required: true, min: 0 },
+          url: { type: String, required: true, trim: true },
+        }],
       },
     ],
   },

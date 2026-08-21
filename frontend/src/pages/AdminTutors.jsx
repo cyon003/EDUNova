@@ -84,7 +84,7 @@ export default function AdminTutors() {
           <tbody>{filtered.slice(0, visibleCount).map((tutor) => (
             <tr key={tutor._id || tutor.id}>
               <td><strong>{tutor.name}</strong><div className="adm-muted">{tutor.email}</div></td>
-              <td><span className={`adm-status-pill pill-${tutor.tutorVerificationStatus || "incomplete"}`}>{(tutor.tutorVerificationStatus || "incomplete").replace("_", " ")}</span></td>
+              <td><span className={`adm-status-pill pill-${(tutor.tutorVerificationStatus || "DRAFT").toLowerCase()}`}>{(tutor.tutorVerificationStatus || "DRAFT").toLowerCase().replaceAll("_", " ")}</span></td>
               <td><span className={`adm-status-pill ${tutor.accountStatus === "suspended" ? "pill-suspended" : "pill-active"}`}>{tutor.accountStatus}</span></td>
               <td className="adm-muted">{tutor.lastLoginAt ? formatAdminDate(tutor.lastLoginAt) : "Never"}</td>
               <td className="adm-muted">{formatAdminDate(tutor.createdAt)}</td>

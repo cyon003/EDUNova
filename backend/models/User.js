@@ -57,8 +57,16 @@ const userSchema = new mongoose.Schema(
 
     tutorVerificationStatus: {
       type: String,
-      enum: ["incomplete", "pending_review", "verified", "needs_changes", "rejected", "suspended"],
-      default: "incomplete",
+      enum: ["DRAFT", "UNDER_REVIEW", "MORE_INFORMATION_NEEDED", "APPROVED", "REJECTED", "incomplete", "pending_review", "verified", "needs_changes", "rejected", "suspended"],
+      default: "DRAFT",
+    },
+    tutorProfile: {
+      photoUrl: { type: String, default: "", trim: true },
+      phoneNumber: { type: String, default: "", trim: true },
+      bio: { type: String, default: "", trim: true },
+      expertise: { type: String, default: "", trim: true },
+      education: { type: String, default: "", trim: true },
+      teachingExperience: { type: String, default: "", trim: true },
     },
   },
   {

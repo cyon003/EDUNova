@@ -16,12 +16,14 @@ import {
   FaHeart,
   FaHome,
   FaHistory,
+  FaIdCard,
   FaPlus,
   FaPlay,
   FaSave,
   FaSearch,
   FaSignOutAlt,
   FaStickyNote,
+  FaThLarge,
   FaTimes,
   FaTrash,
   FaTrophy,
@@ -29,7 +31,7 @@ import {
 import "../styles/StudentDashboard.css";
 import MessageBox from "../components/MessageBox";
 import DashboardSearch from "../components/DashboardSearch";
-import availableCourses from "../data/courses";
+import { getPublicCourses } from "../utils/courseApi";
 
 const dailyPlan = [
   { id: "math", title: "Complete Quadratic Equations", detail: "Mathematics · 25 min" },
@@ -98,6 +100,7 @@ function StudentDashboard() {
   const [notificationsRead, setNotificationsRead] = useState(false);
   const [completedPlan, setCompletedPlan] = useState([]);
   const [continueDestination, setContinueDestination] = useState("/my-courses");
+  const [publicCourses, setPublicCourses] = useState([]);
   const [learningStats, setLearningStats] = useState({ activeCourses: 0, studySeconds: 0, completedLessons: 0, completedCourses: 0, streak: 0, recentActivities: [], courses: [] });
   const [goals, setGoals] = useState([
     { id: "lessons", label: "Complete lessons", current: 3, target: 5 },
@@ -106,8 +109,8 @@ function StudentDashboard() {
   const savedCourseSlugs = (() => {
     try { return JSON.parse(localStorage.getItem("edunova-saved-courses")) || []; } catch { return []; }
   })();
-  const savedCourseItems = availableCourses.filter((course) => savedCourseSlugs.includes(course.slug));
-  const noteFolders = ["All Notes", ...availableCourses.map((course) => course.name)];
+  const savedCourseItems = publicCourses.filter((course) => savedCourseSlugs.includes(course.slug));
+  const noteFolders = ["All Notes", ...new Set([...learningStats.courses.map((course) => course.name), ...notes.map((note) => note.course)].filter(Boolean))];
   const activeNotes = noteType === "summaries" ? summarizedNotes : notes;
   const visibleNotes = activeNotes.filter((note) => (noteFolder === "All Notes" || note.course === noteFolder) && `${note.course} ${note.title} ${note.body}`.toLowerCase().includes(noteSearch.trim().toLowerCase()));
   const selectedSummary = summarizedNotes.find((note) => note.id === selectedSummaryId) || summarizedNotes[0];
@@ -115,9 +118,16 @@ function StudentDashboard() {
 
   useEffect(() => {
     const controller = new AbortController();
-    const getNextLessonLink = (slug, completedLessons = [], currentLessonIndex) => {
-      const course = availableCourses.find((item) => item.slug === slug);
+    getPublicCourses(controller.signal).then(setPublicCourses).catch(() => {});
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const getNextLessonLink = (course, completedLessons = [], currentLessonIndex) => {
+      const slug = course?.slug;
       const lessonCount = course?.lessons?.length || 0;
+      if (!slug) return "/my-courses";
       if (!lessonCount) return `/courses/${slug}`;
       const savedIndex = Number.isInteger(currentLessonIndex) ? currentLessonIndex : Array.from({ length: lessonCount }, (_, index) => index).find((index) => !completedLessons.includes(index)) ?? 0;
       return `/courses/${slug}/learn/${Math.min(savedIndex, lessonCount - 1) + 1}`;
@@ -134,7 +144,7 @@ function StudentDashboard() {
             const enrollments = await response.json();
             const activeEnrollment = enrollments.find((item) => item.course?.slug);
             if (activeEnrollment) {
-              setContinueDestination(getNextLessonLink(activeEnrollment.course.slug, activeEnrollment.completedLessons || [], activeEnrollment.currentLessonIndex));
+              setContinueDestination(getNextLessonLink(activeEnrollment.course, activeEnrollment.completedLessons || [], activeEnrollment.currentLessonIndex));
               return;
             }
           }
@@ -142,17 +152,7 @@ function StudentDashboard() {
           if (error.name === "AbortError") return;
         }
       }
-      try {
-        const storedCourses = JSON.parse(localStorage.getItem("edunova-enrolled-courses"));
-        const enrolledSlugs = Array.isArray(storedCourses) ? storedCourses : [];
-        const slug = enrolledSlugs[enrolledSlugs.length - 1];
-        if (!slug) return;
-        const storedLessons = JSON.parse(localStorage.getItem(`edunova-lesson-progress-${slug}`));
-        const storedLessonIndex = Number.parseInt(localStorage.getItem(`edunova-current-lesson-${slug}`) || "0", 10);
-        setContinueDestination(getNextLessonLink(slug, Array.isArray(storedLessons) ? storedLessons : [], Number.isNaN(storedLessonIndex) ? 0 : storedLessonIndex));
-      } catch {
-        setContinueDestination("/my-courses");
-      }
+      setContinueDestination("/my-courses");
     };
     loadContinueDestination();
     return () => controller.abort();
@@ -171,7 +171,7 @@ function StudentDashboard() {
         cursor.setDate(cursor.getDate() - 1);
       }
       const courseProgress = enrollments.map((item, index) => {
-        const catalogCourse = availableCourses.find((course) => course.slug === item.course?.slug) || item.course || {};
+        const catalogCourse = item.course || {};
         const lessonCount = catalogCourse.lessons?.length || 0;
         const completedCount = item.completedLessons?.length || 0;
         const progress = lessonCount ? Math.min(Math.round(completedCount / lessonCount * 100), 100) : 0;
@@ -198,15 +198,7 @@ function StudentDashboard() {
         buildStats(await response.json());
       } catch (error) {
         if (error.name === "AbortError") return;
-        const storedCourses = JSON.parse(localStorage.getItem("edunova-enrolled-courses") || "[]");
-        const slugs = Array.isArray(storedCourses) ? storedCourses : [];
-        buildStats(slugs.map((slug) => ({
-          course: availableCourses.find((course) => course.slug === slug),
-          completedLessons: JSON.parse(localStorage.getItem(`edunova-lesson-progress-${slug}`) || "[]"),
-          studySeconds: Number.parseInt(localStorage.getItem(`edunova-study-seconds-${slug}`) || "0", 10) || 0,
-          studyDates: JSON.parse(localStorage.getItem(`edunova-study-dates-${slug}`) || "[]"),
-          recentActivity: JSON.parse(localStorage.getItem(`edunova-recent-activity-${slug}`) || "[]"),
-        })));
+        buildStats([]);
       }
     };
     loadStats();
@@ -241,18 +233,28 @@ function StudentDashboard() {
   };
 
   const navItems = [
-    { id: "dashboard", label: "My Dashboard", icon: FaHome },
+    { id: "home", label: "Home", icon: FaHome },
+    { id: "dashboard", label: "My Dashboard", icon: FaThLarge },
     { id: "courses", label: "My Courses", icon: FaBookOpen },
     { id: "performance", label: "Performance", icon: FaChartLine },
     { id: "calendar", label: "Calendar", icon: FaCalendarAlt },
     { id: "notes", label: "My Notes", icon: FaStickyNote },
+    { id: "tutor-applications", label: "Tutor Applications", icon: FaIdCard },
     { id: "saved", label: "Saved Courses", icon: FaHeart },
     { id: "achievements", label: "Achievements", icon: FaTrophy },
   ];
 
   const openSection = (id) => {
+    if (id === "home") {
+      navigate("/home");
+      return;
+    }
     if (id === "courses") {
       navigate("/my-courses");
+      return;
+    }
+    if (id === "tutor-applications") {
+      navigate("/my-tutor-applications");
       return;
     }
     setActiveSection(id);

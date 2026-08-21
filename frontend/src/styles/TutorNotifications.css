@@ -1,0 +1,32 @@
+.tutor-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tutor-header-actions .tutor-notification-wrap {
+  margin: 0;
+}
+
+.tutor-header-actions .tutor-notification-panel {
+  right: 0;
+  left: auto;
+}
+
+@media (max-width: 650px) {
+  .tutor-sidebar nav {
+    grid-template-columns: repeat(6, 1fr);
+  }
+  .tutor-header-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .tutor-notification-panel {
+    position: fixed;
+    top: 74px;
+    right: 14px;
+    left: 14px;
+    width: auto;
+  }
+}

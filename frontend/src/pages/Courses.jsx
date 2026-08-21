@@ -2,30 +2,30 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { FaBookOpen, FaCompass, FaFire, FaGraduationCap, FaHeart, FaLaptopCode, FaRegHeart, FaRobot, FaSearch, FaStar } from "react-icons/fa";
 import mathematicsImage from "../assets/images/mathematic.jpeg";
-import availableCourses from "../data/courses";
+import { courseDuration, courseThumbnail, getPublicCourses } from "../utils/courseApi";
 import "../styles/Courses.css";
 
 function CourseList({ courseItems, savedCourses, onToggleSaved }) {
   return (
     <ul className="available-course-list">
       {courseItems.map((course) => (
-        <li className="available-course-item" key={course.name}>
+        <li className="available-course-item" key={course._id || course.slug}>
           <div className="available-course-image">
-            <img src={mathematicsImage} alt={`${course.name} course`} />
+            <img src={courseThumbnail(course, mathematicsImage)} alt={`${course.name} course`} />
             <span className="available-course-level">{course.level}</span>
             <button type="button" className="available-course-save" aria-label={`${savedCourses.includes(course.slug) ? "Remove" : "Save"} ${course.name}`} aria-pressed={savedCourses.includes(course.slug)} onClick={() => onToggleSaved(course.slug)}>
               {savedCourses.includes(course.slug) ? <FaHeart /> : <FaRegHeart />}
             </button>
           </div>
           <div className="available-course-content">
-            <div className="available-course-labels"><span className="available-course-category">{course.category}</span><strong>${course.price}</strong></div>
+            <div className="available-course-labels"><span className="available-course-category">{course.category}</span><strong>{Number(course.price) > 0 ? `$${course.price}` : "Free"}</strong></div>
             <h2>{course.name}</h2>
             <p className="available-course-description">{course.description}</p>
             <div className="available-course-meta">
               <p className="available-course-rating"><FaStar /> {course.rating}</p>
-              <span>{course.duration}</span>
+              <span>{courseDuration(course)}</span>
             </div>
-            <Link to={`/courses/${course.slug}`} className="course-details-link">Start Learning</Link>
+            <Link to={`/courses/${course.slug}`} state={{ from: "/courses" }} className="course-details-link">View course</Link>
           </div>
         </li>
       ))}
@@ -34,7 +34,9 @@ function CourseList({ courseItems, savedCourses, onToggleSaved }) {
 }
 
 function Courses() {
-  const [catalogCourses, setCatalogCourses] = useState(availableCourses);
+  const [catalogCourses, setCatalogCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [savedCourses, setSavedCourses] = useState(() => {
     try { return JSON.parse(localStorage.getItem("edunova-saved-courses")) || []; } catch { return []; }
   });
@@ -56,16 +58,13 @@ function Courses() {
 
   useEffect(() => {
     let active = true;
-    fetch("http://localhost:5050/api/courses")
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Catalog unavailable")))
+    getPublicCourses()
       .then((courses) => {
         if (!active) return;
-        setCatalogCourses(courses.map((course) => ({
-          ...availableCourses.find((item) => item.slug === course.slug),
-          ...course,
-        })));
+        setCatalogCourses(courses);
       })
-      .catch(() => {});
+      .catch((error) => { if (active) setLoadError(error.message); })
+      .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
 
@@ -143,27 +142,31 @@ function Courses() {
         </div>
       </div>
 
-      <section className="course-collection popular-course-collection" id="popular">
+      {loading && <div className="course-empty-results"><FaBookOpen /><h3>Loading approved courses</h3></div>}
+      {!loading && loadError && <div className="course-empty-results"><FaBookOpen /><h3>Courses are unavailable</h3><p>{loadError}</p></div>}
+      {!loading && !loadError && catalogCourses.length === 0 && <div className="course-empty-results"><FaBookOpen /><h3>No approved courses yet</h3><p>New tutor courses will appear here after admin approval.</p></div>}
+
+      {!loading && !loadError && catalogCourses.length > 0 && <section className="course-collection popular-course-collection" id="popular">
         <header>
           <div><span><FaFire /></span><div><small>STUDENT FAVORITES</small><h2>Popular Courses</h2><p>Highly rated courses learners are enjoying right now.</p></div></div>
           <strong>Top {popularCourses.length}</strong>
         </header>
         <CourseList courseItems={popularCourses} savedCourses={savedCourses} onToggleSaved={toggleSaved} />
-      </section>
+      </section>}
 
       <section className="course-match-panel" id="course-ai-recommendation">
         <div><span><FaRobot /></span><div><small>PERSONALIZED GUIDANCE</small><h2>Not sure where to begin?</h2><p>Tell the AI assistant what you want to learn and get a course recommendation.</p></div></div>
         <Link to="/ai-chatbot">Ask AI</Link>
       </section>
 
-      <section className="course-collection" id="available">
+      {!loading && !loadError && catalogCourses.length > 0 && <section className="course-collection" id="available">
         <header>
           <div><span><FaBookOpen /></span><div><small>FULL CATALOG</small><h2>Available Courses</h2><p>Explore every subject and find the right course for your goals.</p></div></div>
           <strong>{catalogCourses.length} courses</strong>
         </header>
         <div className="course-results-summary"><span>{filteredCourses.length} {filteredCourses.length === 1 ? "course" : "courses"}</span>{(searchQuery || category !== "All" || savedOnly) && <button type="button" onClick={() => { setSearchQuery(""); setCategory("All"); setSavedOnly(false); }}>Clear filters</button>}</div>
         {filteredCourses.length ? <CourseList courseItems={filteredCourses} savedCourses={savedCourses} onToggleSaved={toggleSaved} /> : <div className="course-empty-results"><FaSearch /><h3>No courses found</h3><p>Try another search or clear your filters.</p></div>}
-      </section>
+      </section>}
 
       <section className={`learning-paths ${learningPathsVisible ? "visible" : ""}`} id="learning-paths" aria-labelledby="learning-paths-title">
         <header>
@@ -176,21 +179,21 @@ function Courses() {
             <span>ACADEMIC GROWTH</span>
             <h3>Improve school performance</h3>
             <p>Strengthen the core subjects used across your studies.</p>
-            <div><Link to="/courses/mathematics">Mathematics</Link><Link to="/courses/science">Science</Link><Link to="/courses/english">English</Link></div>
+            <div><Link to="/courses?search=Mathematics">Mathematics</Link><Link to="/courses?search=Science">Science</Link><Link to="/courses?search=English">English</Link></div>
           </article>
           <article>
             <div className="learning-path-icon"><FaLaptopCode /></div>
             <span>DIGITAL FUTURE</span>
             <h3>Build technology skills</h3>
             <p>Develop digital confidence and practical problem-solving skills.</p>
-            <div><Link to="/courses/computer-science">Computer Science</Link><Link to="/courses/mathematics">Mathematics</Link></div>
+            <div><Link to="/courses?search=Computer%20Science">Computer Science</Link><Link to="/courses?search=Mathematics">Mathematics</Link></div>
           </article>
           <article>
             <div className="learning-path-icon"><FaCompass /></div>
             <span>REAL-WORLD SKILLS</span>
             <h3>Prepare for life and work</h3>
             <p>Build communication, business, and decision-making abilities.</p>
-            <div><Link to="/courses/life-skills">Life Skills</Link><Link to="/courses/business-studies">Business Studies</Link></div>
+            <div><Link to="/courses?search=Life%20Skills">Life Skills</Link><Link to="/courses?search=Business%20Studies">Business Studies</Link></div>
           </article>
         </div>
       </section>

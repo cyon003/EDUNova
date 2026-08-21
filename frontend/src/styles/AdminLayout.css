@@ -48,15 +48,16 @@
 .adm-logo {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 19px;
+  gap: 12px;
+  color: #fff;
+  font-size: 20px;
   font-weight: 800;
   padding-left: 8px;
   margin-bottom: 32px;
   text-decoration: none;
 }
-.adm-edu  { color: #eff0fb; }
-.adm-nova { color: #a78bfa; }
+.adm-logo-mark { display: grid; width: 46px; height: 46px; flex: 0 0 auto; place-items: center; color: #fff; font-size: 20px; background: #8d63ea; border-radius: 12px; }
+.adm-logo strong { color: #fff; letter-spacing: 0.02em; }
 
 .adm-nav { display: flex; flex-direction: column; gap: 3px; flex: 1; }
 
@@ -256,6 +257,20 @@
   flex-wrap: wrap;
   gap: 0.4rem;
 }
+.adm-course-actions { flex-wrap: nowrap; align-items: center; white-space: nowrap; }
+.adm-course-description { display: -webkit-box; max-width: 260px; margin-top: 0.3rem; overflow: hidden; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.adm-approved-action { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.55rem; color: #6ee7b7; font-size: 0.72rem; font-weight: 750; }
+.adm-course-preview-cover { display: grid; width: 100%; height: min(34vh, 330px); margin-top: 1.35rem; overflow: hidden; place-items: center; color: #9e94ad; background: linear-gradient(135deg,#211633,#3b275b); border-radius: 15px; }
+.adm-course-preview-cover img { width: 100%; height: 100%; object-fit: cover; }
+.adm-course-view > h3 { margin: 1.5rem 0 0.8rem; }
+.adm-confirm-dialog { width: min(430px,100%); padding: 1.8rem; color: #f7f3ff; background: #151020; border: 1px solid #49366e; border-radius: 18px; box-shadow: 0 28px 80px rgba(0,0,0,.5); }
+.adm-confirm-dialog h2 { margin: 0 0 0.7rem; }
+.adm-confirm-dialog p { color: #c5bdd1; line-height: 1.55; }
+.adm-confirm-dialog small { color: #92899f; }
+.adm-confirm-dialog footer { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.5rem; }
+.adm-rejection-field { display: grid; gap: 0.5rem; margin-top: 1.1rem; color: #d8d0e4; font-size: 0.78rem; font-weight: 700; }
+.adm-rejection-field textarea { min-height: 125px; box-sizing: border-box; padding: 0.85rem; resize: vertical; color: #f8f5fc; font: inherit; font-weight: 400; line-height: 1.5; background: #0d0917; border: 1px solid #49366e; border-radius: 10px; outline: none; }
+.adm-rejection-field textarea:focus { border-color: #8d63ea; box-shadow: 0 0 0 3px rgba(141,99,234,.12); }
 
 .adm-activity-controls {
   display: flex;
@@ -522,6 +537,11 @@
 .pill-pending_review { background: rgba(251,191,36,0.15); color: #FBBF24; }
 .pill-verified    { background: rgba(52,211,153,0.15); color: #34D399; }
 .pill-needs_changes { background: rgba(141,99,234,0.15); color: #a78bfa; }
+.pill-draft { background: rgba(255,255,255,0.08); color: var(--adm-t1); }
+.pill-under_review { background: rgba(251,191,36,0.15); color: #FBBF24; }
+.pill-approved { background: rgba(52,211,153,0.15); color: #34D399; }
+.pill-more_information_needed { background: rgba(141,99,234,0.15); color: #a78bfa; }
+.pill-rejected { background: rgba(248,113,113,0.15); color: #F87171; }
 
 .adm-tutor-review-grid {
   display: grid;
@@ -537,6 +557,66 @@
 .adm-evidence-links { display: grid; gap: .55rem; margin-bottom: 1.25rem; }
 .adm-evidence-links a { display: flex; align-items: center; gap: .55rem; padding: .75rem; color: #cbb8f8; font-size: 11px; text-decoration: none; background: rgba(141,99,234,.08); border: 1px solid rgba(141,99,234,.22); border-radius: 9px; }
 .adm-review-reason { min-height: 120px; resize: vertical; }
+
+.adm-application-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 1.25rem 0;
+}
+
+.adm-application-status-row small { color: var(--adm-t2); }
+
+.adm-application-section {
+  margin-bottom: 1rem;
+  padding: 1.35rem;
+  border: 1px solid #302442;
+  border-radius: 15px;
+  background: #100c1d;
+}
+
+.adm-application-section h3 {
+  margin: 0 0 1rem;
+  color: #f5f2fc;
+  font-size: 1rem;
+}
+
+.adm-application-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .85rem;
+}
+
+.adm-application-fields > div {
+  min-width: 0;
+  padding: .85rem 1rem;
+  border: 1px solid #35294a;
+  border-radius: 9px;
+  background: #171225;
+}
+
+.adm-application-fields > div.full { grid-column: 1 / -1; }
+.adm-application-fields small,
+.adm-application-fields strong { display: block; }
+.adm-application-fields small { margin-bottom: .4rem; color: var(--adm-t2); font-size: 10px; font-weight: 700; }
+.adm-application-fields strong { color: #ece8f4; font-size: 13px; overflow-wrap: anywhere; }
+.adm-application-fields p,
+.adm-application-answer { margin: 0; color: #c9c2d7; font-size: 12px; line-height: 1.65; white-space: pre-wrap; }
+
+.adm-application-documents {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+
+.adm-application-documents .adm-btn { justify-content: center; }
+.adm-application-confirmation { margin-top: 1rem; color: #aaa1c2; font-size: 11px; }
+.adm-application-decision { margin-top: 1.25rem; }
+
+@media (max-width: 700px) {
+  .adm-application-fields,
+  .adm-application-documents { grid-template-columns: 1fr; }
+  .adm-application-fields > div.full { grid-column: auto; }
+}
 
 .adm-report-filters {
   display: grid;

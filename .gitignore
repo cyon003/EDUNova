@@ -17,3 +17,6 @@ frontend/.env
 # Build files
 dist/
 build/
+
+# User uploads
+backend/uploads/

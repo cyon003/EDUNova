@@ -114,9 +114,14 @@ function AuthCard() {
       setMessage(data.message);
 
       const nextPath = new URLSearchParams(window.location.search).get("next");
+      const roleLanding = data.user.role === "admin"
+        ? "/admin-dashboard"
+        : data.user.role === "tutor"
+          ? "/tutor-dashboard"
+          : "/home";
       window.location.href = nextPath?.startsWith("/") && !nextPath.startsWith("//")
         ? nextPath
-        : "/home";
+        : roleLanding;
     } catch (error) {
       console.error(error);
       setMessage("Backend server is not running");

@@ -4,12 +4,7 @@ const Course = require("../models/Course");
 
 const router = express.Router();
 
-const publiclyVisible = {
-  $or: [
-    { moderationStatus: "published" },
-    { moderationStatus: { $exists: false } },
-  ],
-};
+const publiclyVisible = { moderationStatus: "published" };
 
 router.get("/", async (req, res) => {
   try {

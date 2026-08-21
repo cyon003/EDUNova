@@ -17,7 +17,7 @@ router.get("/", async (req, res) => {
       User.find({ name: search, role: { $in: ["student", "tutor"] }, accountStatus: "approved" })
         .select("name role")
         .limit(8),
-      Course.find({ $or: [{ name: search }, { category: search }, { description: search }] })
+      Course.find({ moderationStatus: "published", $or: [{ name: search }, { category: search }, { description: search }] })
         .select("name slug category")
         .limit(8),
     ]);

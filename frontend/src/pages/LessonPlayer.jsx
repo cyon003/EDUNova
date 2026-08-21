@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FaArrowLeft, FaBookOpen, FaCheck, FaChevronLeft, FaChevronRight, FaClock, FaGraduationCap, FaPlay } from "react-icons/fa";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import availableCourses from "../data/courses";
 import "../styles/LessonPlayer.css";
 
 function readArray(key) {
@@ -28,7 +27,8 @@ function LessonPlayer() {
   const videoRef = useRef(null);
   const lastLocalSave = useRef(0);
   const playStartedAt = useRef(null);
-  const course = useMemo(() => availableCourses.find((item) => item.slug === courseSlug), [courseSlug]);
+  const [course, setCourse] = useState(null);
+  const [courseLoading, setCourseLoading] = useState(true);
   const lessons = course?.lessons || [];
   const savedLessonIndex = Number.parseInt(localStorage.getItem(`edunova-current-lesson-${courseSlug}`) || "0", 10);
   const requestedIndex = Math.max(Number.parseInt(lessonNumber || String((Number.isNaN(savedLessonIndex) ? 0 : savedLessonIndex) + 1), 10) - 1, 0);
@@ -94,13 +94,14 @@ function LessonPlayer() {
     const controller = new AbortController();
     const loadEnrollment = async () => {
       const token = localStorage.getItem("token");
-      if (!token) return;
+      if (!token) { setCourseLoading(false); return; }
       try {
         const response = await fetch("http://localhost:5050/api/enrollments/me", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
         if (!response.ok) return;
         const enrollments = await response.json();
         const enrollment = enrollments.find((item) => item.course?.slug === courseSlug);
         if (!enrollment) return;
+        setCourse(enrollment.course);
         setCompletedLessons(enrollment.completedLessons || []);
         const positions = enrollment.videoPositions || {};
         setVideoPositions((current) => ({ ...current, ...positions }));
@@ -108,7 +109,7 @@ function LessonPlayer() {
         localStorage.setItem(positionsKey, JSON.stringify({ ...readObject(positionsKey), ...positions }));
       } catch (error) {
         if (error.name !== "AbortError") setSyncMessage("Using saved progress from this device");
-      }
+      } finally { if (!controller.signal.aborted) setCourseLoading(false); }
     };
     loadEnrollment();
     return () => controller.abort();
@@ -130,7 +131,8 @@ function LessonPlayer() {
     navigate(`/courses/${courseSlug}/learn/${index + 1}`);
   };
 
-  if (!course) return <main className="lesson-player-state"><h1>Course not found</h1><Link to="/my-courses">Return to My Courses</Link></main>;
+  if (courseLoading) return <main className="lesson-player-state"><h1>Loading lesson...</h1></main>;
+  if (!course) return <main className="lesson-player-state"><h1>Course unavailable</h1><p>You can only open lessons from a course enrolled in your account.</p><Link to="/my-courses">Return to My Courses</Link></main>;
   if (!lesson) return <main className="lesson-player-state"><FaBookOpen /><h1>No lessons available yet</h1><p>This course does not have lesson videos.</p><Link to={`/courses/${courseSlug}`}>View course details</Link></main>;
 
   const progress = Math.round(completedLessons.length / lessons.length * 100);

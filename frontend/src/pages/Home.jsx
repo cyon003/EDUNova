@@ -15,65 +15,14 @@ import {
 import mathematicsImage from "../assets/images/mathematic.jpeg";
 import "../styles/Home.css";
 import LanguagePreference from "../components/LanguagePreference";
+import { courseDuration, courseThumbnail, getPublicCourses } from "../utils/courseApi";
 
-const courses = [
-  {
-    slug: "mathematics",
-    name: "Mathematics",
-    description:
-      "Strengthen your skills in algebra, geometry, and problem-solving.",
-    rating: "4.8",
-    reviews: 240,
-    duration: "12 weeks",
-  },
-  {
-    slug: "science",
-    name: "Science",
-    description:
-      "Explore biology, chemistry, physics, and the natural world.",
-    rating: "4.7",
-    reviews: 198,
-    duration: "14 weeks",
-  },
-  {
-    slug: "english",
-    name: "English",
-    description:
-      "Improve your reading, writing, grammar, and communication skills.",
-    rating: "4.9",
-    reviews: 275,
-    duration: "10 weeks",
-  },
-  {
-    slug: "social-studies",
-    name: "Social Studies",
-    description:
-      "Discover history, geography, government, and global cultures.",
-    rating: "4.6",
-    reviews: 165,
-    duration: "12 weeks",
-  },
-  {
-    slug: "physical-education",
-    name: "Physical Education",
-    description:
-      "Build healthy habits through fitness, movement, and team sports.",
-    rating: "4.8",
-    reviews: 184,
-    duration: "8 weeks",
-  },
-];
-
-const popularCourses = [...courses]
-  .sort((a, b) => b.reviews - a.reviews)
-  .slice(0, 4);
-
-function CourseCard({ course, isSaved, onToggleSaved }) {
+function CourseCard({ course, isSaved, onToggleSaved, from }) {
   return (
     <article className="course-card">
       <div className="course-image">
-        <img src={mathematicsImage} alt={`${course.name} course`} />
-        <span className="course-category">General Education</span>
+        <img src={courseThumbnail(course, mathematicsImage)} alt={`${course.name} course`} />
+        <span className="course-category">{course.category}</span>
         <button
           className="course-save"
           type="button"
@@ -93,16 +42,16 @@ function CourseCard({ course, isSaved, onToggleSaved }) {
           <div className="course-rating">
             <span className="rating-star">★</span>
             <strong>{course.rating}</strong>
-            <span>({course.reviews} reviews)</span>
+            <span>({course.reviews || 0} reviews)</span>
           </div>
 
           <div className="course-duration">
             <span>◷</span>
-            <span>{course.duration}</span>
+            <span>{courseDuration(course)}</span>
           </div>
         </div>
 
-        <Link className="course-view" to={`/courses/${course.slug}`}>Start Learning</Link>
+        <Link className="course-view" to={`/courses/${course.slug}`} state={{ from }}>View course</Link>
       </div>
     </article>
   );
@@ -110,6 +59,7 @@ function CourseCard({ course, isSaved, onToggleSaved }) {
 
 function Home({ navigation = null, showFooter = true, dashboardPath = "/student-dashboard" }) {
   const navigate = useNavigate();
+  const [courses, setCourses] = useState([]);
   const [navSearch, setNavSearch] = useState("");
   const [savedCourses, setSavedCourses] = useState(() => {
     try {
@@ -122,14 +72,24 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
   const [activeTab, setActiveTab] = useState("home");
   const [activeSlide, setActiveSlide] = useState(0);
   const [carouselPaused, setCarouselPaused] = useState(false);
+  const homePath = showFooter ? "/" : "/home";
+  const popularCourses = [...courses].sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0)).slice(0, 4);
 
   useEffect(() => {
-    if (carouselPaused) return undefined;
+    const controller = new AbortController();
+    getPublicCourses(controller.signal).then(setCourses).catch((error) => {
+      if (error.name !== "AbortError") console.error("Load approved courses error:", error);
+    });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    if (carouselPaused || popularCourses.length < 2) return undefined;
     const interval = window.setInterval(() => {
       setActiveSlide((current) => (current + 1) % popularCourses.length);
     }, 4500);
     return () => window.clearInterval(interval);
-  }, [carouselPaused]);
+  }, [carouselPaused, popularCourses.length]);
 
   const toggleSavedCourse = (courseSlug) => {
     setSavedCourses((current) => {
@@ -143,7 +103,6 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
     const query = navSearch.trim();
     navigate(query ? `/courses?search=${encodeURIComponent(query)}` : "/courses");
   };
-
   return (
     <main className={`home ${showFooter ? "home--guest" : "home--user"}`} id="top">
       {navigation ?? (
@@ -203,15 +162,12 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
             </form>
           </div>
           <LanguagePreference />
-          <Link to="/auth?next=/tutor-application" className="home-become-tutor">
-            Become a Tutor
-          </Link>
           <Link to="/auth" className="home-get-started">
             Get Started
           </Link>
         </nav>
       )}
-      <section className="home-intro" aria-label="Popular course highlights">
+      {popularCourses.length > 0 && <section className="home-intro" aria-label="Popular course highlights">
         <div className="home-course-carousel" onMouseEnter={() => setCarouselPaused(true)} onMouseLeave={() => setCarouselPaused(false)} onFocus={() => setCarouselPaused(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setCarouselPaused(false); }}>
           <div className="home-carousel-track" style={{ transform: `translateX(-${activeSlide * 100}%)` }}>
             {popularCourses.map((course, index) => (
@@ -220,8 +176,8 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
                   <span>POPULAR COURSE</span>
                   <h1>{course.name}</h1>
                   <p>{course.description}</p>
-                  <div className="home-carousel-meta"><strong>★ {course.rating}</strong><span>{course.reviews} reviews</span><span>{course.duration}</span></div>
-                  <Link to={`/courses/${course.slug}`} tabIndex={activeSlide === index ? 0 : -1}>Explore course <span aria-hidden="true">→</span></Link>
+                  <div className="home-carousel-meta"><strong>★ {course.rating || 0}</strong><span>{course.reviews || 0} reviews</span><span>{courseDuration(course)}</span></div>
+                  <Link to={`/courses/${course.slug}`} state={{ from: homePath }} tabIndex={activeSlide === index ? 0 : -1}>Explore course <span aria-hidden="true">→</span></Link>
                 </div>
                 <div className="home-carousel-visual" aria-hidden="true">
                   <span>{course.name.slice(0, 2).toUpperCase()}</span>
@@ -236,8 +192,8 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
             {popularCourses.map((course, index) => <button type="button" className={activeSlide === index ? "active" : undefined} aria-label={`Show ${course.name}`} aria-current={activeSlide === index ? "true" : undefined} onClick={() => setActiveSlide(index)} key={course.name} />)}
           </div>
         </div>
-      </section>
-      <section className="courses-section popular-courses-section">
+      </section>}
+      {popularCourses.length > 0 && <section className="courses-section popular-courses-section">
         <div className="course-section-title">
           <h2>Popular Courses</h2>
           <Link to="/courses#popular" className="courses-view-all">
@@ -248,13 +204,14 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
           {popularCourses.map((course) => (
             <CourseCard
               course={course}
+              from={homePath}
               isSaved={savedCourses.includes(course.slug)}
               key={`popular-${course.name}`}
               onToggleSaved={() => toggleSavedCourse(course.slug)}
             />
           ))}
         </div>
-      </section>
+      </section>}
 
       <section className="courses-section" id="courses">
         <div className="course-section-title">
@@ -264,14 +221,16 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
           </Link>
         </div>
         <div className="content-courses">
-          {courses.map((course) => (
+          {courses.slice(0, 8).map((course) => (
             <CourseCard
               course={course}
+              from={homePath}
               isSaved={savedCourses.includes(course.slug)}
               key={course.name}
               onToggleSaved={() => toggleSavedCourse(course.slug)}
             />
           ))}
+          {!courses.length && <div className="home-courses-empty"><FaBookOpen /><h3>No approved courses yet</h3><p>Tutor courses will appear here after an administrator approves them.</p></div>}
         </div>
       </section>
 

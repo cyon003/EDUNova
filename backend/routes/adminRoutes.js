@@ -10,6 +10,7 @@ const Announcement = require("../models/Announcement");
 const PlatformSetting = require("../models/PlatformSetting");
 const AdminAudit = require("../models/AdminAudit");
 const TutorApplication = require("../models/TutorApplication");
+const Notification = require("../models/Notification");
 const authenticateToken = require(
   "../middleware/authMiddleware"
 );
@@ -47,7 +48,7 @@ router.get("/tutors", async (req, res) => {
 router.get("/tutor-applications", async (req, res) => {
   try {
     const applications = await TutorApplication.find()
-      .populate("tutor", "name email accountStatus tutorVerificationStatus createdAt")
+      .populate("applicant", "name email accountStatus tutorVerificationStatus createdAt")
       .populate("reviewedBy", "name email")
       .sort({ submittedAt: -1, updatedAt: -1 });
     return res.json(applications);
@@ -59,8 +60,8 @@ router.get("/tutor-applications", async (req, res) => {
 router.patch("/tutor-applications/:applicationId/review", async (req, res) => {
   try {
     const { status, reason = "" } = req.body;
-    if (!["verified", "needs_changes", "rejected", "suspended"].includes(status)) return res.status(400).json({ message: "Invalid verification decision" });
-    if (["needs_changes", "rejected", "suspended"].includes(status) && !reason.trim()) return res.status(400).json({ message: "A reason is required for this decision" });
+    if (!["APPROVED", "MORE_INFORMATION_NEEDED", "REJECTED"].includes(status)) return res.status(400).json({ message: "Invalid application decision" });
+    if (["MORE_INFORMATION_NEEDED", "REJECTED"].includes(status) && !reason.trim()) return res.status(400).json({ message: "A reason is required for this decision" });
     const application = await TutorApplication.findById(req.params.applicationId);
     if (!application) return res.status(404).json({ message: "Tutor application not found" });
     application.status = status;
@@ -68,15 +69,40 @@ router.patch("/tutor-applications/:applicationId/review", async (req, res) => {
     application.reviewedAt = new Date();
     application.reviewedBy = req.user._id;
     await application.save();
-    const userUpdate = { tutorVerificationStatus: status };
-    if (status === "verified") userUpdate.role = "tutor";
-    await User.findByIdAndUpdate(application.tutor, userUpdate);
-    await recordAudit(req.user._id, `Tutor application ${status.replace("_", " ")}`, application.legalName);
-    await application.populate("tutor", "name email accountStatus tutorVerificationStatus createdAt");
+    if (application.applicant) {
+      const userUpdate = { tutorVerificationStatus: status };
+      if (status === "APPROVED") {
+        userUpdate.role = "tutor";
+        userUpdate.accountStatus = "approved";
+      }
+      await User.findByIdAndUpdate(application.applicant, userUpdate);
+    }
+    await recordAudit(req.user._id, `Tutor application ${status.toLowerCase().replaceAll("_", " ")}`, application.fullName);
+    await application.populate("applicant", "name email accountStatus tutorVerificationStatus createdAt");
     await application.populate("reviewedBy", "name email");
     return res.json(application);
   } catch (error) {
     return res.status(500).json({ message: "Unable to review tutor application", error: error.message });
+  }
+});
+
+router.post("/tutor-applications/:applicationId/feedback", async (req, res) => {
+  try {
+    const feedback = req.body.feedback?.trim();
+    if (!feedback) return res.status(400).json({ message: "Feedback is required" });
+    const application = await TutorApplication.findById(req.params.applicationId);
+    if (!application) return res.status(404).json({ message: "Tutor application not found" });
+    application.decisionReason = feedback;
+    application.status = "MORE_INFORMATION_NEEDED";
+    application.reviewedAt = new Date();
+    application.reviewedBy = req.user._id;
+    await application.save();
+    await recordAudit(req.user._id, "Saved tutor application feedback", `${application.fullName} (${application.email})`);
+    await application.populate("applicant", "name email accountStatus tutorVerificationStatus createdAt");
+    await application.populate("reviewedBy", "name email");
+    return res.json(application);
+  } catch (error) {
+    return res.status(500).json({ message: "Unable to save application feedback", error: error.message });
   }
 });
 
@@ -121,6 +147,7 @@ router.post("/tutors", async (req, res) => {
       password: hashedPassword,
       role: "tutor",
       accountStatus: "approved",
+      tutorVerificationStatus: "APPROVED",
       createdBy: req.user._id,
     });
 
@@ -418,7 +445,7 @@ router.get("/courses", async (req, res) => {
     const countMap = new Map(counts.map((item) => [String(item._id), item.students]));
     return res.json(courses.map((course) => ({
       ...course,
-      moderationStatus: course.moderationStatus || "published",
+      moderationStatus: course.moderationStatus || "unpublished",
       students: countMap.get(String(course._id)) || 0,
     })));
   } catch (error) {
@@ -429,28 +456,52 @@ router.get("/courses", async (req, res) => {
 router.patch("/courses/:courseId/moderation", async (req, res) => {
   try {
     const moderationStatus = req.body.moderationStatus;
-    if (!["pending", "published", "unpublished", "rejected", "archived"].includes(moderationStatus)) return res.status(400).json({ message: "Invalid course status" });
+    if (!["published", "rejected"].includes(moderationStatus)) return res.status(400).json({ message: "Admins can only approve or reject courses" });
     const existingCourse = await Course.findById(req.params.courseId);
     if (!existingCourse) return res.status(404).json({ message: "Course not found" });
-    if (moderationStatus === "published") {
-      const lessonsAreComplete = existingCourse.lessons.length > 0 && existingCourse.lessons.every((lesson) => lesson.title?.trim() && lesson.videoUrl?.trim());
-      if (!existingCourse.name?.trim() || !existingCourse.description?.trim() || !existingCourse.category?.trim() || !existingCourse.tutor || !lessonsAreComplete) {
-        return res.status(400).json({ message: "Assign a tutor and complete all required course and lesson information before publishing" });
-      }
-      const assignedTutor = await User.findOne({ _id: existingCourse.tutor, role: "tutor" }).select("tutorVerificationStatus accountStatus");
-      if (!assignedTutor || assignedTutor.accountStatus !== "approved" || assignedTutor.tutorVerificationStatus !== "verified") {
-        return res.status(403).json({ message: "Only courses assigned to an active verified tutor can be published" });
-      }
+    if (existingCourse.moderationStatus !== "pending") return res.status(409).json({ message: "Only pending courses can be approved or rejected" });
+    if (moderationStatus === "rejected") {
+      const feedback = String(req.body.feedback || "").trim();
+      if (!feedback) return res.status(400).json({ message: "Rejection feedback is required" });
+      existingCourse.moderationStatus = "rejected";
+      existingCourse.reviewFeedback = feedback;
+      existingCourse.reviewedAt = new Date();
+      await existingCourse.save();
+      await Notification.create({ user: existingCourse.tutor, course: existingCourse._id, source: "ADMIN", title: "Course Rejected", message: `Your course \"${existingCourse.name}\" was not approved. Reason: ${feedback}` });
+      await recordAudit(req.user._id, "Course rejected", existingCourse.name);
+      return res.json(await existingCourse.populate("tutor", "name email accountStatus tutorVerificationStatus"));
+    }
+    const lessonsAreComplete = existingCourse.lessons.length > 0 && existingCourse.lessons.every((lesson) => lesson.title?.trim() && (lesson.videoUrl?.trim() || lesson.resources?.length));
+    if (!existingCourse.name?.trim() || !existingCourse.description?.trim() || !existingCourse.category?.trim() || !existingCourse.tutor || !lessonsAreComplete) {
+      return res.status(400).json({ message: "Assign a tutor and complete all required course and lesson information before approval" });
+    }
+    const assignedTutor = await User.findOne({ _id: existingCourse.tutor, role: "tutor" }).select("tutorVerificationStatus accountStatus");
+    if (!assignedTutor || assignedTutor.accountStatus !== "approved" || assignedTutor.tutorVerificationStatus !== "APPROVED") {
+      return res.status(403).json({ message: "Only courses assigned to an active verified tutor can be approved" });
     }
     existingCourse.moderationStatus = moderationStatus;
+    existingCourse.reviewFeedback = "";
+    existingCourse.reviewedAt = new Date();
     await existingCourse.save();
     const course = await existingCourse.populate("tutor", "name email accountStatus tutorVerificationStatus");
     if (!course) return res.status(404).json({ message: "Course not found" });
     await recordAudit(req.user._id, `Course ${moderationStatus}`, course.name);
+    await Notification.create({ user: existingCourse.tutor, course: existingCourse._id, source: "ADMIN", title: "Course Approved", message: `Your course \"${existingCourse.name}\" has been approved and is now visible to students.` });
     return res.json(course);
   } catch (error) {
     return res.status(500).json({ message: "Unable to moderate course", error: error.message });
   }
+});
+
+router.delete("/courses/:courseId", async (req,res) => {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return res.status(404).json({ message: "Course not found" });
+    await Promise.all([Enrollment.deleteMany({ course: course._id }), Note.deleteMany({ course: course._id }), Notification.deleteMany({ course: course._id })]);
+    await recordAudit(req.user._id, "Deleted course", course.name);
+    await course.deleteOne();
+    return res.json({ message: "Course deleted permanently" });
+  } catch (error) { return res.status(500).json({ message: "Unable to delete course", error: error.message }); }
 });
 
 router.patch("/courses/:courseId", async (req, res) => {
@@ -554,19 +605,29 @@ router.get("/audit", async (req, res) => {
 
 router.get("/notifications", async (req, res) => {
   try {
-    const users = await User.find({ role: { $in: ["student", "tutor"] } })
-      .select("name email role createdAt")
-      .sort({ createdAt: -1 })
-      .limit(20)
-      .lean();
-    return res.json(users.map((user) => ({
+    const [users, applications] = await Promise.all([
+      User.find({ role: { $in: ["student", "tutor"] } }).select("name email role createdAt").sort({ createdAt: -1 }).limit(20).lean(),
+      TutorApplication.find({ status: { $ne: "DRAFT" } }).select("fullName email status submittedAt updatedAt").sort({ submittedAt: -1 }).limit(20).lean(),
+    ]);
+    const userNotifications = users.map((user) => ({
       id: user._id,
       type: "new_user",
       title: `New ${user.role} registered`,
       detail: `${user.name} (${user.email})`,
       createdAt: user.createdAt,
       role: user.role,
-    })));
+    }));
+    const applicationNotifications = applications.map((application) => ({
+      id: application._id,
+      type: "tutor_application",
+      title: "New tutor application",
+      detail: `${application.fullName} (${application.email})`,
+      createdAt: application.submittedAt || application.updatedAt,
+      status: application.status,
+    }));
+    return res.json([...applicationNotifications, ...userNotifications]
+      .sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt))
+      .slice(0, 20));
   } catch (error) {
     return res.status(500).json({ message: "Unable to load notifications", error: error.message });
   }

@@ -41,6 +41,12 @@ const courseSchema = new mongoose.Schema(
       min: 0,
       max: 5,
     },
+    // Price in USD — 0 means free
+    price: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     thumbnail: { type: String, default: "", trim: true },
     tutor: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     moderationStatus: {
@@ -56,6 +62,7 @@ const courseSchema = new mongoose.Schema(
           type: String,
           required: true,
           trim: true,
+          maxlength: [200, "Lesson title cannot exceed 200 characters"],
         },
         description: {
           type: String,
@@ -74,10 +81,10 @@ const courseSchema = new mongoose.Schema(
         },
         resources: [{
           originalName: { type: String, required: true, trim: true },
-          storedName: { type: String, required: true, trim: true },
-          mimeType: { type: String, required: true, trim: true },
-          size: { type: Number, required: true, min: 0 },
-          url: { type: String, required: true, trim: true },
+          storedName:   { type: String, required: true, trim: true },
+          mimeType:     { type: String, required: true, trim: true },
+          size:         { type: Number, required: true, min: 0 },
+          url:          { type: String, required: true, trim: true },
         }],
       },
     ],

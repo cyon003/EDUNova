@@ -3,7 +3,8 @@ import { FaBookOpen, FaBrain, FaCartPlus, FaCheck, FaChevronLeft, FaClock, FaFla
 import { Link, useLocation, useParams } from "react-router-dom";
 import mathematicsImage from "../assets/images/mathematic.jpeg";
 import confusionTraining from "../data/confusionTraining";
-import { courseDuration, courseThumbnail, getPublicCourse } from "../utils/courseApi";
+import { API_ROOT, courseDuration, courseThumbnail, getPublicCourse } from "../utils/courseApi";
+import { getYouTubeEmbedUrl, isYouTubeUrl } from "../utils/lessonMedia";
 import "../styles/CourseDetail.css";
 
 function UnderstandingCheck({ course, lesson }) {
@@ -61,7 +62,10 @@ function CourseLessons({ course, enrolled, completedLessons, onToggleLesson }) {
         </div>
       ) : (
         <ol className="course-lesson-list">
-          {lessons.map((lesson, index) => (
+          {lessons.map((lesson, index) => {
+            const youtubeEmbedUrl = getYouTubeEmbedUrl(lesson.videoUrl);
+            const invalidYouTubeUrl = isYouTubeUrl(lesson.videoUrl) && !youtubeEmbedUrl;
+            return (
             <li
               className="course-lesson"
               id={`lesson-${index + 1}`}
@@ -75,11 +79,22 @@ function CourseLessons({ course, enrolled, completedLessons, onToggleLesson }) {
                     <FaLock />
                     <span>Purchase this course to watch</span>
                   </div>
-                ) : (
+                ) : youtubeEmbedUrl ? (
+                  <iframe
+                    src={youtubeEmbedUrl}
+                    title={`${lesson.title} YouTube video`}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                ) : invalidYouTubeUrl ? (
+                  <div className="lesson-media-unavailable">Invalid YouTube lesson URL</div>
+                ) : lesson.videoUrl ? (
                   <video controls preload="metadata">
                     <source src={lesson.videoUrl} type="video/mp4" />
                     Your browser does not support HTML video.
                   </video>
+                ) : (
+                  <div className="lesson-media-unavailable">Lesson video unavailable</div>
                 )}
               </div>
 
@@ -93,7 +108,7 @@ function CourseLessons({ course, enrolled, completedLessons, onToggleLesson }) {
                 {enrolled && <button type="button" className={completedLessons.includes(index) ? "lesson-complete-button completed" : "lesson-complete-button"} onClick={() => onToggleLesson(index)}><FaCheck /> {completedLessons.includes(index) ? "Completed" : "Mark complete"}</button>}
               </div>
             </li>
-          ))}
+          );})}
         </ol>
       )}
     </section>
@@ -228,7 +243,7 @@ function CourseDetail() {
     const token = localStorage.getItem("token");
     if (!token || !course) return;
     const controller = new AbortController();
-    fetch("http://localhost:5050/api/cart", {
+    fetch(`${API_ROOT}/cart`, {
       headers: { Authorization: `Bearer ${token}` },
       signal: controller.signal,
     })
@@ -248,12 +263,12 @@ function CourseDetail() {
     const controller = new AbortController();
     const loadEnrollment = async () => {
       try {
-        const response = await fetch("http://localhost:5050/api/enrollments/me", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
+        const response = await fetch(`${API_ROOT}/enrollments/me`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
         if (!response.ok) return;
         const enrollments = await response.json();
         let enrollment = enrollments.find((item) => item.course?.slug === courseSlug);
         if (!enrollment && enrolledCourses.includes(courseSlug)) {
-          const syncResponse = await fetch(`http://localhost:5050/api/enrollments/${courseSlug}`, {
+          const syncResponse = await fetch(`${API_ROOT}/enrollments/${courseSlug}`, {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` },
             signal: controller.signal,
@@ -265,7 +280,7 @@ function CourseDetail() {
             const localLessons = Array.isArray(storedLessons) ? storedLessons : [];
             const localMissions = Array.isArray(storedMissions) ? storedMissions : [];
             if (localLessons.length || localMissions.length) {
-              const progressResponse = await fetch(`http://localhost:5050/api/enrollments/${courseSlug}/progress`, {
+              const progressResponse = await fetch(`${API_ROOT}/enrollments/${courseSlug}/progress`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ completedLessons: localLessons, completedMissions: localMissions }),
@@ -310,7 +325,7 @@ function CourseDetail() {
     setCartMessage("");
     try {
       if (inCart) {
-        const res = await fetch(`http://localhost:5050/api/cart/${course._id}`, {
+        const res = await fetch(`${API_ROOT}/cart/${course._id}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -318,7 +333,7 @@ function CourseDetail() {
         setInCart(false);
         setCartMessage("Removed from cart.");
       } else {
-        const res = await fetch("http://localhost:5050/api/cart", {
+        const res = await fetch(`${API_ROOT}/cart`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ courseId: course._id }),
@@ -345,7 +360,7 @@ function CourseDetail() {
     try {
       if (isFree) {
         // Free course — use existing enrollment route
-        const response = await fetch(`http://localhost:5050/api/enrollments/${course.slug}`, {
+        const response = await fetch(`${API_ROOT}/enrollments/${course.slug}`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
           signal: AbortSignal.timeout(6000),
@@ -359,7 +374,7 @@ function CourseDetail() {
       } else {
         // Paid course — add to cart and go to cart page
         if (!inCart) {
-          const res = await fetch("http://localhost:5050/api/cart", {
+          const res = await fetch(`${API_ROOT}/cart`, {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
             body: JSON.stringify({ courseId: course._id }),
@@ -381,10 +396,10 @@ function CourseDetail() {
     if (!token) return;
     try {
       const options = { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ completedLessons: lessonItems, completedMissions: missionItems }) };
-      let response = await fetch(`http://localhost:5050/api/enrollments/${course.slug}/progress`, options);
+      let response = await fetch(`${API_ROOT}/enrollments/${course.slug}/progress`, options);
       if (response.status === 404 && enrolled) {
-        const enrollmentResponse = await fetch(`http://localhost:5050/api/enrollments/${course.slug}`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
-        if (enrollmentResponse.ok) response = await fetch(`http://localhost:5050/api/enrollments/${course.slug}/progress`, options);
+        const enrollmentResponse = await fetch(`${API_ROOT}/enrollments/${course.slug}`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+        if (enrollmentResponse.ok) response = await fetch(`${API_ROOT}/enrollments/${course.slug}/progress`, options);
       }
       if (!response.ok) throw new Error("Unable to synchronize course progress");
     } catch (error) {
@@ -414,7 +429,7 @@ function CourseDetail() {
     setReporting(true);
     setReportMessage("");
     try {
-      const response = await fetch("http://localhost:5050/api/reports", {
+      const response = await fetch(`${API_ROOT}/reports`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ ...reportForm, courseSlug: course.slug }),
@@ -454,11 +469,10 @@ function CourseDetail() {
 
             <div className="course-detail-price">
               <span>Course price</span>
-              <strong>{isFree ? "Free" : `$${course.price}`}</strong>
+              <strong>{isFree ? "Free" : `$${Number(course.price).toFixed(2)}`}</strong>
             </div>
 
             <div className="course-detail-purchase">
-              {/* Hide cart button for free courses */}
               {!isFree && !enrolled && (
                 <button
                   type="button"
@@ -477,9 +491,8 @@ function CourseDetail() {
               >
                 <FaShoppingBag /> {enrolling ? "Processing..." : enrolled ? "Enrolled" : isFree ? "Enroll Free" : "Buy Now"}
               </button>
-              {/* Go to cart link when in cart */}
               {inCart && !enrolled && (
-                <Link to="/cart" className="course-cart-button in-cart" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <Link to="/cart" className="course-go-cart-link">
                   Go to Cart →
                 </Link>
               )}

@@ -6,6 +6,7 @@ const Enrollment = require("../models/Enrollment");
 const Notification = require("../models/Notification");
 const authenticateToken = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
+const { buildOrderItems } = require("../utils/orderPricing");
 
 const router = express.Router();
 
@@ -62,10 +63,7 @@ router.post("/checkout", async (req, res) => {
     }
 
     // 4. Calculate total
-    const orderItems = purchasableItems.map((item) => ({
-      course: item.course._id,
-      price: item.course.price || 0,
-    }));
+    const orderItems = buildOrderItems(purchasableItems);
     const totalAmount = orderItems.reduce((sum, item) => sum + item.price, 0);
 
     // 5. Create order record (pending)
@@ -96,34 +94,48 @@ router.post("/checkout", async (req, res) => {
       return res.status(402).json({ message: "Payment failed", orderId: order._id });
     }
 
-    // 7. Mark order complete
+    // 7. Create enrollments idempotently before completing the order
+    await Enrollment.bulkWrite(
+      purchasableItems.map((item) => ({
+        updateOne: {
+          filter: { student: req.user._id, course: item.course._id },
+          update: {
+            $setOnInsert: {
+              student: req.user._id,
+              course: item.course._id,
+              completedLessons: [],
+              completedMissions: [],
+              recentActivity: [],
+            },
+          },
+          upsert: true,
+        },
+      }))
+    );
+
+    // 8. Mark the order complete only after access has been granted
     order.status = "completed";
     order.paidAt = new Date();
     await order.save();
 
-    // 8. Create enrollments for each purchased course
-    const enrollmentDocs = purchasableItems.map((item) => ({
-      student: req.user._id,
-      course: item.course._id,
-      completedLessons: [],
-      recentActivity: [],
-    }));
-    await Enrollment.insertMany(enrollmentDocs, { ordered: false });
-
     // 9. Clear cart items that were purchased
     const purchasedIds = new Set(purchasableItems.map((item) => String(item.course._id)));
     cart.items = cart.items.filter(
-      (item) => !purchasedIds.has(String(item.course))
+      (item) => !purchasedIds.has(String(item.course?._id || item.course))
     );
     await cart.save();
 
     // 10. Send notification to student
-    await Notification.create({
-      user: req.user._id,
-      source: "SYSTEM",
-      title: "Purchase Successful",
-      message: `You have successfully enrolled in ${purchasableItems.length} course${purchasableItems.length > 1 ? "s" : ""}.`,
-    });
+    try {
+      await Notification.create({
+        user: req.user._id,
+        source: "SYSTEM",
+        title: "Purchase Successful",
+        message: `You have successfully enrolled in ${purchasableItems.length} course${purchasableItems.length > 1 ? "s" : ""}.`,
+      });
+    } catch (notificationError) {
+      console.error("Purchase notification error:", notificationError);
+    }
 
     const populated = await order.populate("items.course", "name slug thumbnail price");
     return res.status(201).json({

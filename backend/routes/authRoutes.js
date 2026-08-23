@@ -1,35 +1,47 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { rateLimit } = require("express-rate-limit");
 
 const User = require("../models/User");
 const PlatformSetting = require("../models/PlatformSetting");
 const authenticateToken = require(
   "../middleware/authMiddleware"
 );
+const { sendPasswordResetEmail } = require("../services/emailService");
+const { createResetToken, hashResetToken, validatePassword } = require("../utils/passwordSecurity");
 
 const router = express.Router();
 
+const createLimiter = (windowMs, limit, message) => rateLimit({
+  windowMs,
+  limit,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { message },
+});
+
+const loginLimiter = createLimiter(15 * 60 * 1000, 10, "Too many login attempts. Try again later.");
+const forgotPasswordLimiter = createLimiter(60 * 60 * 1000, 5, "Too many password reset requests. Try again later.");
+const resetPasswordLimiter = createLimiter(15 * 60 * 1000, 5, "Too many reset attempts. Try again later.");
+const forgotPasswordResponse = "If an account exists for that email, a password reset link has been sent.";
+
 const normalizeEmail = (email) => {
-  return email.toLowerCase().trim();
+  return String(email).toLowerCase().trim();
 };
 
 router.post("/signup", async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    if (!name || !email || !password) {
+    if (typeof name !== "string" || typeof email !== "string" || typeof password !== "string" || !name.trim() || !email.trim()) {
       return res.status(400).json({
         message: "Name, email and password are required",
       });
     }
 
-    if (password.length < 6) {
-      return res.status(400).json({
-        message:
-          "Password must contain at least 6 characters",
-      });
-    }
+    const passwordError = validatePassword(password);
+    if (passwordError) return res.status(400).json({ message: passwordError });
 
     const normalizedEmail = normalizeEmail(email);
 
@@ -67,11 +79,11 @@ router.post("/signup", async (req, res) => {
   }
 });
 
-router.post("/login", async (req, res) => {
+router.post("/login", loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
+    if (typeof email !== "string" || typeof password !== "string" || !email.trim()) {
       return res.status(400).json({
         message: "Email and password are required",
       });
@@ -129,6 +141,7 @@ router.post("/login", async (req, res) => {
       {
         id: user._id,
         role: user.role,
+        tokenVersion: user.tokenVersion || 0,
       },
       process.env.JWT_SECRET,
       {
@@ -154,6 +167,71 @@ router.post("/login", async (req, res) => {
       message: "Server error",
       error: error.message,
     });
+  }
+});
+
+router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
+  try {
+    const email = typeof req.body.email === "string" ? normalizeEmail(req.body.email) : "";
+    const user = email ? await User.findOne({ email }) : null;
+
+    if (user && user.accountStatus === "approved") {
+      const { token, tokenHash } = createResetToken();
+      const expiresInMinutes = 15;
+      user.passwordResetTokenHash = tokenHash;
+      user.passwordResetExpiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000);
+      await user.save();
+
+      const frontendUrl = String(process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
+      console.info("Password reset email attempted");
+      const delivery = await sendPasswordResetEmail({
+        to: user.email,
+        name: user.name,
+        resetUrl: `${frontendUrl}/reset-password/${token}`,
+        expiresInMinutes,
+      });
+      if (delivery.sent) {
+        console.info("Password reset email sent");
+      } else {
+        console.error(`Password reset email failed: ${delivery.errorType || delivery.reason || "unknown_error"}`);
+      }
+    }
+
+    return res.status(200).json({ message: forgotPasswordResponse });
+  } catch (error) {
+    console.error("Forgot password error:", error);
+    return res.status(200).json({ message: forgotPasswordResponse });
+  }
+});
+
+router.post("/reset-password/:token", resetPasswordLimiter, async (req, res) => {
+  try {
+    const passwordError = validatePassword(req.body.password);
+    if (passwordError) return res.status(400).json({ message: passwordError });
+
+    const tokenHash = hashResetToken(req.params.token);
+    const user = await User.findOne({
+      passwordResetTokenHash: tokenHash,
+      passwordResetExpiresAt: { $gt: new Date() },
+    }).select("+passwordResetTokenHash +passwordResetExpiresAt");
+
+    if (!user) {
+      return res.status(400).json({ message: "This password reset link is invalid or has expired." });
+    }
+
+    user.password = await bcrypt.hash(req.body.password, 12);
+    user.passwordChangedAt = new Date();
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    user.passwordResetTokenHash = null;
+    user.passwordResetExpiresAt = null;
+    user.loginAttempts = 0;
+    user.loginLockedUntil = null;
+    await user.save();
+
+    return res.status(200).json({ message: "Password reset successfully. You can now log in." });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    return res.status(500).json({ message: "Unable to reset password" });
   }
 });
 

@@ -55,6 +55,29 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
+    passwordResetTokenHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
+
+    passwordResetExpiresAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
+    passwordChangedAt: {
+      type: Date,
+      default: null,
+    },
+
+    tokenVersion: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
     tutorVerificationStatus: {
       type: String,
       enum: ["DRAFT", "UNDER_REVIEW", "MORE_INFORMATION_NEEDED", "APPROVED", "REJECTED", "incomplete", "pending_review", "verified", "needs_changes", "rejected", "suspended"],
@@ -68,6 +91,20 @@ const userSchema = new mongoose.Schema(
       education: { type: String, default: "", trim: true },
       teachingExperience: { type: String, default: "", trim: true },
     },
+
+    studentProfile: {
+      username: { type: String, default: "", trim: true, maxlength: 40 },
+      bio: { type: String, default: "", trim: true, maxlength: 500 },
+      photoUrl: { type: String, default: "", trim: true },
+      phoneNumber: { type: String, default: "", trim: true, maxlength: 30 },
+    },
+
+    favoriteCourses: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Course",
+      },
+    ],
   },
   {
     timestamps: true,

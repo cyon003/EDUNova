@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { FaArrowLeft, FaCartPlus, FaCheck, FaShoppingBag, FaTimes, FaTrash } from "react-icons/fa";
+import { FaArrowLeft, FaCartPlus, FaCheck, FaShoppingBag, FaTrash } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
+import { API_ROOT, apiAssetUrl } from "../utils/courseApi";
 import "../styles/CartPage.css";
-
-const API = "http://localhost:5050/api";
 
 function getToken() {
   return localStorage.getItem("token");
@@ -18,12 +17,15 @@ export default function CartPage() {
   const [message,     setMessage]     = useState("");
   const [orderDone,   setOrderDone]   = useState(null);
 
-  // Load cart
   useEffect(() => {
     const token = getToken();
     if (!token) { navigate("/auth"); return; }
-    fetch(`${API}/cart`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
+    fetch(`${API_ROOT}/cart`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || "Unable to load cart.");
+        return data;
+      })
       .then((data) => setCart({ items: data.items || [], total: data.total || 0 }))
       .catch(() => setMessage("Unable to load cart."))
       .finally(() => setLoading(false));
@@ -33,7 +35,7 @@ export default function CartPage() {
     setRemoving(courseId);
     setMessage("");
     try {
-      const res = await fetch(`${API}/cart/${courseId}`, {
+      const res = await fetch(`${API_ROOT}/cart/${courseId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${getToken()}` },
       });
@@ -51,7 +53,7 @@ export default function CartPage() {
     setCheckingOut(true);
     setMessage("");
     try {
-      const res = await fetch(`${API}/orders/checkout`, {
+      const res = await fetch(`${API_ROOT}/orders/checkout`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -61,7 +63,6 @@ export default function CartPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
 
-      // Update local enrolled courses cache
       const enrolled = data.enrolledCourses || [];
       if (enrolled.length) {
         const existing = JSON.parse(localStorage.getItem("edunova-enrolled-courses") || "[]");
@@ -78,7 +79,6 @@ export default function CartPage() {
     }
   };
 
-  // ── Order success screen ──
   if (orderDone) {
     return (
       <main className="cart-page">
@@ -113,7 +113,13 @@ export default function CartPage() {
         <button type="button" className="cart-back-btn" onClick={() => navigate(-1)}>
           <FaArrowLeft /> Back
         </button>
-        <h1><FaShoppingBag /> Your Cart</h1>
+        <div className="cart-heading">
+          <span><FaShoppingBag /></span>
+          <div>
+            <h1>Your Cart</h1>
+            <p>{loading ? "Loading your courses..." : `${cart.items.length} course${cart.items.length === 1 ? "" : "s"} selected`}</p>
+          </div>
+        </div>
       </div>
 
       {message && <p className="cart-message">{message}</p>}
@@ -130,7 +136,6 @@ export default function CartPage() {
       ) : (
         <div className="cart-layout">
 
-          {/* Cart items */}
           <section className="cart-items">
             {cart.items.map((item) => {
               const course = item.course;
@@ -139,7 +144,7 @@ export default function CartPage() {
                 <article key={course._id} className="cart-item">
                   <div className="cart-item-thumb">
                     {course.thumbnail
-                      ? <img src={`http://localhost:5050${course.thumbnail}`} alt={course.name} />
+                      ? <img src={apiAssetUrl(course.thumbnail)} alt={course.name} />
                       : <div className="cart-item-thumb-placeholder"><FaShoppingBag /></div>
                     }
                   </div>
@@ -166,7 +171,6 @@ export default function CartPage() {
             })}
           </section>
 
-          {/* Order summary */}
           <aside className="cart-summary">
             <h2>Order Summary</h2>
             <div className="cart-summary-rows">

@@ -556,7 +556,15 @@
   padding: clamp(9px, 1.2vw, 16px);
 }
 
+.course-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .course-name {
+  min-width: 0;
   margin: 0;
   color: #281d3b;
   font-size: clamp(14px, 1.5vw, 19px);
@@ -601,6 +609,14 @@
 
 .course-rating strong {
   color: #302342;
+}
+
+.course-card-price {
+  flex: 0 0 auto;
+  margin: 0;
+  color: #5f36a8;
+  font-size: clamp(13px, 1.15vw, 16px);
+  font-weight: 900;
 }
 
 .course-view {

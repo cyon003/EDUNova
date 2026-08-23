@@ -6,11 +6,13 @@ import {
   FaGraduationCap,
   FaSearch,
   FaSignOutAlt,
+  FaShoppingCart,
   FaTimes,
 } from "react-icons/fa";
 import Home from "./Home";
 import "../styles/UserHome.css";
 import LanguagePreference from "../components/LanguagePreference";
+import { API_ROOT } from "../utils/courseApi";
 
 function getStoredUser() {
   try {
@@ -63,7 +65,7 @@ function UserHome() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
-    fetch("http://localhost:5050/api/announcements", { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_ROOT}/announcements`, { headers: { Authorization: `Bearer ${token}` } })
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load announcements")))
       .then(setAnnouncements)
       .catch(() => {});
@@ -139,6 +141,11 @@ function UserHome() {
         </div>
 
         <div className="uhome-nav-right">
+          {user.role === "student" && (
+            <Link to="/cart" className="uhome-cart-link" aria-label="Open cart" title="Cart">
+              <FaShoppingCart />
+            </Link>
+          )}
           <LanguagePreference />
           <form className="uhome-nav-search" onSubmit={submitSearch}>
             <FaSearch aria-hidden="true" />
@@ -180,6 +187,7 @@ function UserHome() {
 
                 <Link to={dashboardPath}>My Dashboard</Link>
                 {user.role === "student" && <Link to="/my-courses">My Courses</Link>}
+                {user.role === "student" && <Link to="/profile">My Profile</Link>}
                 <button type="button" onClick={handleLogout}>
                   <FaSignOutAlt /> Log Out
                 </button>

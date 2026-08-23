@@ -345,8 +345,10 @@
   padding: clamp(10px, 1.1vw, 14px);
 }
 
+.available-course-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 9px; }
 .available-course-content h2 {
   display: -webkit-box;
+  min-width: 0;
   min-height: 2.2em;
   margin: 0;
   overflow: hidden;
@@ -360,6 +362,7 @@
 .available-course-category { color: #8d63ea; font-size: 8px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
 .available-course-labels { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .available-course-labels > strong { color: #8d63ea; font-size: 13px; }
+.available-course-price { flex: 0 0 auto; margin: 1px 0 0; color: #7043bd; font-size: 14px; font-weight: 900; }
 .available-course-description { display: -webkit-box; margin: 2px 0 4px; overflow: hidden; color: #6f6250; font-size: 9px; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
 
 .available-course-meta {
@@ -483,4 +486,13 @@
   .learning-paths { padding: 25px 18px; border-radius: 19px; }
   .learning-path-sticky { right: 8px; bottom: 8px; left: 8px; }
   .learning-path-sticky small { display: none; }
+}
+.course-save-error {
+  width: min(1180px, calc(100% - 40px));
+  margin: 16px auto;
+  padding: 12px 16px;
+  border: 1px solid #8d3d49;
+  border-radius: 10px;
+  color: #ffadb5;
+  background: rgba(226, 74, 84, .12);
 }

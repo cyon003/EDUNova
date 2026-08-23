@@ -17,6 +17,9 @@ import Home from "./pages/Home";
 import LessonPlayer from "./pages/LessonPlayer";
 import MyCourses from "./pages/MyCourses";
 import MyTutorApplications from "./pages/MyTutorApplications";
+import Profile from "./pages/Profile";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import StudentDashboard from "./pages/StudentDashboard";
 import TutorApplication from "./pages/TutorApplication";
 import TutorDashboard from "./pages/TutorDashboard";
@@ -54,12 +57,15 @@ function App() {
       <Routes>
         <Route path="/" element={user ? <Navigate to={getRoleLanding(user)} replace /> : <Home />} />
         <Route path="/auth" element={user ? <Navigate to={getRoleLanding(user)} replace /> : <Auth />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
 
         <Route path="/home" element={<RoleRoute user={user} allowedRoles={["student", "admin", "tutor"]}><UserHome /></RoleRoute>} />
         <Route path="/student-home" element={<Navigate to="/home" replace />} />
         <Route path="/student-dashboard" element={<RoleRoute user={user} allowedRoles={["student"]}><StudentDashboard /></RoleRoute>} />
         <Route path="/my-courses" element={<RoleRoute user={user} allowedRoles={["student"]}><MyCourses /></RoleRoute>} />
         <Route path="/my-tutor-applications" element={<RoleRoute user={user} allowedRoles={["student", "tutor"]}><MyTutorApplications /></RoleRoute>} />
+        <Route path="/profile" element={<RoleRoute user={user} allowedRoles={["student"]}><Profile /></RoleRoute>} />
 
         <Route path="/tutor-dashboard" element={<RoleRoute user={user} allowedRoles={["tutor"]}><TutorDashboard /></RoleRoute>} />
         <Route path="/tutor-application" element={<RoleRoute user={user} allowedRoles={["student", "tutor"]}><TutorApplication /></RoleRoute>} />

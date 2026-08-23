@@ -1,4 +1,6 @@
-const ADMIN_API = "http://localhost:5050/api/admin";
+import { API_ROOT } from "./courseApi";
+
+const ADMIN_API = `${API_ROOT}/admin`;
 
 export async function adminApi(path, options = {}) {
   const response = await fetch(`${ADMIN_API}${path}`, {

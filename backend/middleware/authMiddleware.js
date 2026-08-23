@@ -28,6 +28,17 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
+    if ((decoded.tokenVersion || 0) !== (user.tokenVersion || 0)) {
+      return res.status(401).json({ message: "Your session is no longer valid. Please log in again." });
+    }
+
+    if (user.passwordChangedAt && decoded.iat) {
+      const changedAtSeconds = Math.floor(user.passwordChangedAt.getTime() / 1000);
+      if (changedAtSeconds > decoded.iat) {
+        return res.status(401).json({ message: "Password changed. Please log in again." });
+      }
+    }
+
     if (user.accountStatus !== "approved") {
       return res.status(403).json({
         message: "Your account has been suspended",

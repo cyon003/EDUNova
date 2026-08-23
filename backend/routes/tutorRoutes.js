@@ -6,7 +6,7 @@ const multer = require("multer");
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
 const User = require("../models/User");
-const Notification = require("../models/Notification");
+const { notifyCourseSubmitted } = require("../services/notificationService");
 const authenticateToken = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
 
@@ -102,7 +102,7 @@ router.patch("/courses/:courseId", uploadCover.single("cover"), async (req, res)
     if (!course) return res.status(404).json({ message: "Course not found" });
     if (req.body.action === "publish") {
       const resubmitted = currentCourse.moderationStatus === "rejected";
-      await Notification.create({ user: req.user._id, course: course._id, source: "SYSTEM", title: resubmitted ? "Course Resubmitted" : "Course Submitted", message: `Your course \"${course.name}\" has been ${resubmitted ? "resubmitted" : "submitted"} for admin review.` });
+      await notifyCourseSubmitted({ user: req.user._id, course, resubmitted });
     }
     return res.json(course);
   } catch (error) { return res.status(500).json({ message: "Unable to update course", error: error.message }); }

@@ -6,12 +6,12 @@ import {
   FaGraduationCap,
   FaSearch,
   FaSignOutAlt,
+  FaShoppingCart,
   FaTimes,
 } from "react-icons/fa";
 import Home from "./Home";
 import "../styles/UserHome.css";
 import LanguagePreference from "../components/LanguagePreference";
-import NotificationBell from "../components/NotificationBell";
 import { API_ROOT } from "../utils/courseApi";
 
 function getStoredUser() {
@@ -141,7 +141,11 @@ function UserHome() {
         </div>
 
         <div className="uhome-nav-right">
-          <NotificationBell />
+          {user.role === "student" && (
+            <Link to="/cart" className="uhome-cart-link" aria-label="Open cart" title="Cart">
+              <FaShoppingCart />
+            </Link>
+          )}
           <LanguagePreference />
           <form className="uhome-nav-search" onSubmit={submitSearch}>
             <FaSearch aria-hidden="true" />

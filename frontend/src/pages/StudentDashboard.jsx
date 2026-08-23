@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  FaBell,
   FaBookOpen,
   FaBrain,
   FaBullseye,
@@ -10,7 +9,6 @@ import {
   FaCheckCircle,
   FaChevronRight,
   FaClock,
-  FaComments,
   FaFire,
   FaGraduationCap,
   FaHeart,
@@ -31,6 +29,7 @@ import {
 import "../styles/StudentDashboard.css";
 import MessageBox from "../components/MessageBox";
 import DashboardSearch from "../components/DashboardSearch";
+import NotificationBell from "../components/NotificationBell";
 import { API_ROOT, courseDuration } from "../utils/courseApi";
 
 const dailyPlan = [
@@ -96,8 +95,6 @@ function StudentDashboard() {
   const [noteFolder, setNoteFolder] = useState("All Notes");
   const [noteSearch, setNoteSearch] = useState("");
   const [selectedSummaryId, setSelectedSummaryId] = useState(summarizedNotes[0].id);
-  const [notificationOpen, setNotificationOpen] = useState(false);
-  const [notificationsRead, setNotificationsRead] = useState(false);
   const [completedPlan, setCompletedPlan] = useState([]);
   const [continueDestination, setContinueDestination] = useState("/my-courses");
   const [savedCourseItems, setSavedCourseItems] = useState([]);
@@ -430,15 +427,7 @@ function StudentDashboard() {
           </div>
           <DashboardSearch />
           <div className="student-topbar-actions">
-            <button type="button" aria-label="Notifications" aria-expanded={notificationOpen} onClick={() => setNotificationOpen((current) => !current)}><FaBell />{!notificationsRead && <span />}</button>
-            {notificationOpen && (
-              <div className="student-notifications">
-                <header><div><strong>Notifications</strong><small>3 new updates</small></div><button type="button" onClick={() => setNotificationsRead(true)}>Mark all read</button></header>
-                <article><span><FaComments /></span><div><strong>New instructor message</strong><p>Your Mathematics tutor replied to your question.</p><small>10 min ago</small></div></article>
-                <article><span><FaBullseye /></span><div><strong>Weekly goal update</strong><p>You are two lessons away from this week’s goal.</p><small>1 hour ago</small></div></article>
-                <article><span><FaBookOpen /></span><div><strong>New lesson available</strong><p>Forces and Motion is ready to continue.</p><small>Yesterday</small></div></article>
-              </div>
-            )}
+            <NotificationBell />
             <MessageBox />
             <div className="student-avatar">{user?.name?.[0]?.toUpperCase() || "S"}</div>
           </div>

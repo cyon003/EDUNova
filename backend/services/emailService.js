@@ -32,7 +32,7 @@ async function sendEmail({ to, subject, text, html }) {
   if (!to) return { sent: false, reason: "missing_recipient" };
   const transporter = createTransporter();
   if (!transporter) {
-    console.warn(`Email skipped for ${to}: email environment variables are not configured`);
+    console.warn("Email skipped: email environment variables are not configured");
     return { sent: false, reason: "not_configured" };
   }
 
@@ -46,8 +46,9 @@ async function sendEmail({ to, subject, text, html }) {
     });
     return { sent: true, messageId: result.messageId };
   } catch (error) {
-    console.error(`Email delivery failed for ${to}:`, error.message);
-    return { sent: false, reason: "delivery_failed" };
+    const errorType = String(error?.code || error?.name || "delivery_error");
+    console.error(`Email delivery failed: ${errorType}`);
+    return { sent: false, reason: "delivery_failed", errorType };
   }
 }
 

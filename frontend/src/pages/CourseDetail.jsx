@@ -473,7 +473,6 @@ function CourseDetail() {
             </div>
 
             <div className="course-detail-purchase">
-              {/* Hide cart button for free courses */}
               {!isFree && !enrolled && (
                 <button
                   type="button"
@@ -492,9 +491,8 @@ function CourseDetail() {
               >
                 <FaShoppingBag /> {enrolling ? "Processing..." : enrolled ? "Enrolled" : isFree ? "Enroll Free" : "Buy Now"}
               </button>
-              {/* Go to cart link when in cart */}
               {inCart && !enrolled && (
-                <Link to="/cart" className="course-cart-button in-cart" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <Link to="/cart" className="course-go-cart-link">
                   Go to Cart →
                 </Link>
               )}

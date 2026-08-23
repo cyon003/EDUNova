@@ -10,6 +10,7 @@ import AdminTutorApplications from "./pages/AdminTutorApplications";
 import AdminTutors from "./pages/AdminTutors";
 import AiChatbot from "./pages/AiChatbot";
 import Auth from "./pages/Auth";
+import CartPage from "./pages/CartPage";
 import CourseDetail from "./pages/CourseDetail";
 import Courses from "./pages/Courses";
 import Home from "./pages/Home";
@@ -83,6 +84,7 @@ function App() {
         <Route path="/courses" element={<Courses />} />
         <Route path="/courses/:courseSlug" element={<CourseDetail />} />
         <Route path="/courses/:courseSlug/learn/:lessonNumber?" element={<RoleRoute user={user} allowedRoles={["student"]}><LessonPlayer /></RoleRoute>} />
+        <Route path="/cart" element={<RoleRoute user={user} allowedRoles={["student"]}><CartPage /></RoleRoute>} />
         <Route path="/popular-courses" element={<Navigate to="/courses#popular" replace />} />
         <Route path="/ai-chatbot" element={<AiChatbot />} />
         <Route path="*" element={<Navigate to="/" replace />} />

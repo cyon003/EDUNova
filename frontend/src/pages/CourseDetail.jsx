@@ -36,7 +36,7 @@ function UnderstandingCheck({ course, lesson }) {
       <button type="submit" disabled={!answer.trim()}><FaBrain /> Check my understanding</button>
     </form>
     {feedback && <div className="understanding-feedback" aria-live="polite">
-      {feedback.misconception ? <article className="needs-review"><strong>Possible confusion</strong><p>{feedback.misconception}</p></article> : <article><strong>{feedback.understood.length ? "Good understanding" : "Add more detail"}</strong><p>{feedback.understood.length ? `You connected: ${feedback.understood.join(", ")}.` : "Your explanation does not yet mention the lesson’s main concepts."}</p></article>}
+      {feedback.misconception ? <article className="needs-review"><strong>Possible confusion</strong><p>{feedback.misconception}</p></article> : <article><strong>{feedback.understood.length ? "Good understanding" : "Add more detail"}</strong><p>{feedback.understood.length ? `You connected: ${feedback.understood.join(", ")}.` : "Your explanation does not yet mention the lesson's main concepts."}</p></article>}
       {feedback.missing.length > 0 && <article><strong>Ideas to include</strong><p>{feedback.missing.join(" · ")}</p></article>}
       <article><strong>Try this next</strong><p>{feedback.question}</p></article>
     </div>}
@@ -69,10 +69,18 @@ function CourseLessons({ course, enrolled, completedLessons, onToggleLesson }) {
             >
               <span className="course-lesson-number">{String(index + 1).padStart(2, "0")}</span>
               <div className="course-lesson-video">
-                <video controls preload="metadata">
-                  <source src={lesson.videoUrl} type="video/mp4" />
-                  Your browser does not support HTML video.
-                </video>
+                {/* Show locked state for paid unenrolled courses */}
+                {course._restricted && !lesson.videoUrl ? (
+                  <div className="lesson-locked-placeholder">
+                    <FaLock />
+                    <span>Purchase this course to watch</span>
+                  </div>
+                ) : (
+                  <video controls preload="metadata">
+                    <source src={lesson.videoUrl} type="video/mp4" />
+                    Your browser does not support HTML video.
+                  </video>
+                )}
               </div>
 
               <div className="course-lesson-info">
@@ -159,7 +167,7 @@ function CourseMissions({ course, completedLessonCount, completedMissions, onCom
       </article>;
     })}</div>
 
-    {selectedMission && <div className="course-mission-overlay"><section className="course-mission-modal" role="dialog" aria-modal="true" aria-labelledby="active-mission-title"><header><div><small>{selectedMission.stage} Mission</small><strong id="active-mission-title">{selectedMission.title}</strong></div><button type="button" onClick={() => setSelectedMission(null)} aria-label="Close mission"><FaTimes /></button></header>{submitted ? <div className="course-mission-result"><span><FaTrophy /></span><small>MISSION REPORT</small><h2>Mission completed</h2><p>You connected course knowledge to the scenario and explained a practical solution. Full AI scoring and personalized feedback will be connected later.</p><div><strong>Skills demonstrated</strong><span>Reasoning · Application · Communication</span></div><button type="button" onClick={() => setSelectedMission(null)}>Return to Course</button></div> : <div className="course-mission-workspace"><div><span>YOUR SCENARIO</span><h2>{selectedMission.title}</h2><p>{selectedMission.scenario}</p><section><FaBrain /><div><small>AI CHARACTER</small><strong>Mission Client</strong><p>“Explain what information you need from me before you begin.”</p></div></section></div><form onSubmit={(event) => { event.preventDefault(); if (!solution.trim()) return; onCompleteMission(selectedMission.id); setSubmitted(true); }}><header><div><span>YOUR SOLUTION</span><h3>Explain your recommendation</h3></div><button type="button" onClick={() => setHintVisible((current) => !current)}><FaLightbulb /> Hint</button></header>{hintVisible && <p className="course-mission-hint">Identify what the client needs, connect it to the course concepts, and explain every important assumption.</p>}<textarea value={solution} onChange={(event) => setSolution(event.target.value)} placeholder="Write your reasoning and final solution..." required /><button type="submit"><FaSave /> Submit Mission</button></form></div>}</section></div>}
+    {selectedMission && <div className="course-mission-overlay"><section className="course-mission-modal" role="dialog" aria-modal="true" aria-labelledby="active-mission-title"><header><div><small>{selectedMission.stage} Mission</small><strong id="active-mission-title">{selectedMission.title}</strong></div><button type="button" onClick={() => setSelectedMission(null)} aria-label="Close mission"><FaTimes /></button></header>{submitted ? <div className="course-mission-result"><span><FaTrophy /></span><small>MISSION REPORT</small><h2>Mission completed</h2><p>You connected course knowledge to the scenario and explained a practical solution. Full AI scoring and personalized feedback will be connected later.</p><div><strong>Skills demonstrated</strong><span>Reasoning · Application · Communication</span></div><button type="button" onClick={() => setSelectedMission(null)}>Return to Course</button></div> : <div className="course-mission-workspace"><div><span>YOUR SCENARIO</span><h2>{selectedMission.title}</h2><p>{selectedMission.scenario}</p><section><FaBrain /><div><small>AI CHARACTER</small><strong>Mission Client</strong><p>"Explain what information you need from me before you begin."</p></div></section></div><form onSubmit={(event) => { event.preventDefault(); if (!solution.trim()) return; onCompleteMission(selectedMission.id); setSubmitted(true); }}><header><div><span>YOUR SOLUTION</span><h3>Explain your recommendation</h3></div><button type="button" onClick={() => setHintVisible((current) => !current)}><FaLightbulb /> Hint</button></header>{hintVisible && <p className="course-mission-hint">Identify what the client needs, connect it to the course concepts, and explain every important assumption.</p>}<textarea value={solution} onChange={(event) => setSolution(event.target.value)} placeholder="Write your reasoning and final solution..." required /><button type="submit"><FaSave /> Submit Mission</button></form></div>}</section></div>}
   </section>;
 }
 
@@ -169,12 +177,13 @@ function CourseDetail() {
   const [course, setCourse] = useState(null);
   const [courseLoading, setCourseLoading] = useState(true);
   const [courseError, setCourseError] = useState("");
-  const [cartCourses, setCartCourses] = useState(() => {
-    try {
-      const storedCourses = JSON.parse(localStorage.getItem("edunova-cart"));
-      return Array.isArray(storedCourses) ? storedCourses : [];
-    } catch { return []; }
-  });
+
+  // ── Cart state — synced with real API ──
+  const [inCart, setInCart] = useState(false);
+  const [cartLoading, setCartLoading] = useState(false);
+  const [cartMessage, setCartMessage] = useState("");
+
+  // ── Enrollment state ──
   const [enrolledCourses, setEnrolledCourses] = useState(() => {
     try {
       const storedCourses = JSON.parse(localStorage.getItem("edunova-enrolled-courses"));
@@ -183,6 +192,7 @@ function CourseDetail() {
   });
   const [enrolling, setEnrolling] = useState(false);
   const [enrollmentMessage, setEnrollmentMessage] = useState("");
+
   const lessonProgressKey = `edunova-lesson-progress-${courseSlug}`;
   const missionProgressKey = `edunova-mission-progress-${courseSlug}`;
   const [completedLessons, setCompletedLessons] = useState(() => {
@@ -197,11 +207,13 @@ function CourseDetail() {
       return Array.isArray(storedMissions) ? storedMissions : [];
     } catch { return []; }
   });
+
   const [reportOpen, setReportOpen] = useState(false);
   const [reportForm, setReportForm] = useState({ type: "Course content", priority: "medium", detail: "" });
   const [reportMessage, setReportMessage] = useState("");
   const [reporting, setReporting] = useState(false);
 
+  // Load course
   useEffect(() => {
     const controller = new AbortController();
     getPublicCourse(courseSlug, controller.signal)
@@ -211,6 +223,25 @@ function CourseDetail() {
     return () => controller.abort();
   }, [courseSlug]);
 
+  // Load cart status from real API
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token || !course) return;
+    const controller = new AbortController();
+    fetch(`${API_ROOT}/cart`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        const items = data.items || [];
+        setInCart(items.some((item) => item.course?.slug === courseSlug));
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [courseSlug, course]);
+
+  // Load enrollment
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return undefined;
@@ -256,9 +287,7 @@ function CourseDetail() {
     return () => controller.abort();
   }, [courseSlug, enrolledCourses, lessonProgressKey, missionProgressKey]);
 
-  if (courseLoading) {
-    return <main className="course-detail-page"><h1>Loading course...</h1></main>;
-  }
+  if (courseLoading) return <main className="course-detail-page"><h1>Loading course...</h1></main>;
 
   if (!course) {
     return (
@@ -270,39 +299,83 @@ function CourseDetail() {
     );
   }
 
-  const inCart = cartCourses.includes(course.slug);
   const enrolled = enrolledCourses.includes(course.slug);
-  const toggleCart = () => {
-    setCartCourses((current) => {
-      const updated = current.includes(course.slug) ? current.filter((slug) => slug !== course.slug) : [...current, course.slug];
-      localStorage.setItem("edunova-cart", JSON.stringify(updated));
-      return updated;
-    });
+  const isFree = !course.price || course.price === 0;
+
+  // ── Add / Remove from cart using real API ──
+  const toggleCart = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) { window.location.href = "/auth"; return; }
+    setCartLoading(true);
+    setCartMessage("");
+    try {
+      if (inCart) {
+        const res = await fetch(`${API_ROOT}/cart/${course._id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
+        setInCart(false);
+        setCartMessage("Removed from cart.");
+      } else {
+        const res = await fetch(`${API_ROOT}/cart`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ courseId: course._id }),
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.message);
+        setInCart(true);
+        setCartMessage("Added to cart!");
+      }
+    } catch (error) {
+      setCartMessage(error.message || "Cart update failed.");
+    } finally {
+      setCartLoading(false);
+    }
   };
+
+  // ── Enroll (free) or checkout (paid) ──
   const enrollCourse = async () => {
     if (enrolled) return;
     const token = localStorage.getItem("token");
-    if (!token) {
-      window.location.href = "/auth";
-      return;
-    }
-    const updated = [...enrolledCourses, course.slug];
-    setEnrolledCourses(updated);
-    localStorage.setItem("edunova-enrolled-courses", JSON.stringify(updated));
+    if (!token) { window.location.href = "/auth"; return; }
     setEnrolling(true);
     setEnrollmentMessage("");
     try {
-      const response = await fetch(`${API_ROOT}/enrollments/${course.slug}`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(6000) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Unable to enroll");
-      setEnrollmentMessage("Enrollment saved to your account.");
+      if (isFree) {
+        // Free course — use existing enrollment route
+        const response = await fetch(`${API_ROOT}/enrollments/${course.slug}`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(6000),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || "Unable to enroll");
+        const updated = [...enrolledCourses, course.slug];
+        setEnrolledCourses(updated);
+        localStorage.setItem("edunova-enrolled-courses", JSON.stringify(updated));
+        setEnrollmentMessage("Enrollment saved to your account.");
+      } else {
+        // Paid course — add to cart and go to cart page
+        if (!inCart) {
+          const res = await fetch(`${API_ROOT}/cart`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ courseId: course._id }),
+          });
+          if (res.ok) setInCart(true);
+        }
+        window.location.href = "/cart";
+      }
     } catch (error) {
       console.error("Enrollment error:", error);
-      setEnrollmentMessage("Enrolled on this device. Database sync will retry when the backend is available.");
+      setEnrollmentMessage(error.message || "Unable to process. Please try again.");
     } finally {
       setEnrolling(false);
     }
   };
+
   const saveProgress = async (lessonItems, missionItems) => {
     const token = localStorage.getItem("token");
     if (!token) return;
@@ -318,12 +391,14 @@ function CourseDetail() {
       console.error("Save course progress error:", error);
     }
   };
+
   const toggleLesson = (index) => {
     const updated = completedLessons.includes(index) ? completedLessons.filter((item) => item !== index) : [...completedLessons, index];
     setCompletedLessons(updated);
     localStorage.setItem(lessonProgressKey, JSON.stringify(updated));
     saveProgress(updated, completedMissions);
   };
+
   const completeMission = (missionId) => {
     if (completedMissions.includes(missionId)) return;
     const updated = [...completedMissions, missionId];
@@ -331,6 +406,7 @@ function CourseDetail() {
     localStorage.setItem(missionProgressKey, JSON.stringify(updated));
     saveProgress(completedLessons, updated);
   };
+
   const submitReport = async (event) => {
     event.preventDefault();
     const token = localStorage.getItem("token");
@@ -376,13 +452,41 @@ function CourseDetail() {
               <span><FaBookOpen /><strong>{course.lessons?.length ?? 0}</strong> lessons</span>
             </div>
 
-            <div className="course-detail-price"><span>Course price</span><strong>{Number(course.price) > 0 ? `$${course.price}` : "Free"}</strong></div>
+            <div className="course-detail-price">
+              <span>Course price</span>
+              <strong>{isFree ? "Free" : `$${course.price}`}</strong>
+            </div>
+
             <div className="course-detail-purchase">
-              <button type="button" className={`course-cart-button ${inCart ? "in-cart" : ""}`} onClick={toggleCart}><FaCartPlus /> {inCart ? "Added to Cart" : "Add to Cart"}</button>
-              <button type="button" className="course-buy-button" onClick={enrollCourse} disabled={enrolling || enrolled}><FaShoppingBag /> {enrolling ? "Enrolling..." : enrolled ? "Enrolled" : "Buy Now"}</button>
+              {/* Hide cart button for free courses */}
+              {!isFree && !enrolled && (
+                <button
+                  type="button"
+                  className={`course-cart-button ${inCart ? "in-cart" : ""}`}
+                  onClick={toggleCart}
+                  disabled={cartLoading}
+                >
+                  <FaCartPlus /> {cartLoading ? "..." : inCart ? "In Cart" : "Add to Cart"}
+                </button>
+              )}
+              <button
+                type="button"
+                className="course-buy-button"
+                onClick={enrollCourse}
+                disabled={enrolling || enrolled}
+              >
+                <FaShoppingBag /> {enrolling ? "Processing..." : enrolled ? "Enrolled" : isFree ? "Enroll Free" : "Buy Now"}
+              </button>
+              {/* Go to cart link when in cart */}
+              {inCart && !enrolled && (
+                <Link to="/cart" className="course-cart-button in-cart" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  Go to Cart →
+                </Link>
+              )}
             </div>
 
             <div className="course-enrollment-note"><FaCheck /> Learn at your own pace with lifetime access</div>
+            {cartMessage && <p className="course-enrollment-status">{cartMessage}</p>}
             {enrollmentMessage && <p className="course-enrollment-status">{enrollmentMessage}</p>}
             <button type="button" className="course-report-button" onClick={() => { setReportOpen(true); setReportMessage(""); }}><FaFlag /> Report an Issue</button>
           </div>
@@ -391,6 +495,7 @@ function CourseDetail() {
         <CourseLessons course={course} enrolled={enrolled} completedLessons={completedLessons} onToggleLesson={toggleLesson} />
         {enrolled && <CourseMissions course={course} completedLessonCount={completedLessons.length} completedMissions={completedMissions} onCompleteMission={completeMission} />}
       </div>
+
       {reportOpen && <div className="course-report-overlay" role="presentation" onMouseDown={() => setReportOpen(false)}><form className="course-report-modal" role="dialog" aria-modal="true" aria-labelledby="course-report-title" onSubmit={submitReport} onMouseDown={(event) => event.stopPropagation()}><header><div><small>HELP US IMPROVE</small><h2 id="course-report-title">Report an Issue</h2><p>Your report about {course.name} will be sent to the administrator.</p></div><button type="button" aria-label="Close report form" onClick={() => setReportOpen(false)}><FaTimes /></button></header>{reportMessage && <p className="course-report-message">{reportMessage}</p>}<label><span>Issue type</span><select value={reportForm.type} onChange={(event) => setReportForm({ ...reportForm, type: event.target.value })}><option>Course content</option><option>Incorrect information</option><option>Video or technical problem</option><option>Inappropriate content</option><option>Other</option></select></label><label><span>Priority</span><select value={reportForm.priority} onChange={(event) => setReportForm({ ...reportForm, priority: event.target.value })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select></label><label><span>What happened?</span><textarea minLength="10" required value={reportForm.detail} onChange={(event) => setReportForm({ ...reportForm, detail: event.target.value })} placeholder="Describe the problem clearly so the admin can investigate it." /></label><footer><button type="button" onClick={() => setReportOpen(false)}>Cancel</button><button type="submit" disabled={reporting || reportForm.detail.trim().length < 10}>{reporting ? "Submitting..." : "Submit Report"}</button></footer></form></div>}
     </main>
   );

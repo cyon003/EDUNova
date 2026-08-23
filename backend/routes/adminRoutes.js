@@ -509,6 +509,17 @@ router.patch("/courses/:courseId", async (req, res) => {
     const update = {};
     if (typeof req.body.category === "string" && req.body.category.trim()) update.category = req.body.category.trim();
     if (req.body.tutorId === null || req.body.tutorId) update.tutor = req.body.tutorId || null;
+    if (Object.hasOwn(req.body, "price")) {
+      if (req.body.price === "" || req.body.price === null || typeof req.body.price === "boolean") {
+        return res.status(400).json({ message: "Price must be a number of 0 or more" });
+      }
+      const price = Number(req.body.price);
+      if (!Number.isFinite(price) || price < 0) {
+        return res.status(400).json({ message: "Price must be a number of 0 or more" });
+      }
+      update.price = price;
+    }
+    if (!Object.keys(update).length) return res.status(400).json({ message: "No valid course changes were provided" });
     const course = await Course.findByIdAndUpdate(req.params.courseId, update, { new: true, runValidators: true }).populate("tutor", "name email accountStatus tutorVerificationStatus");
     if (!course) return res.status(404).json({ message: "Course not found" });
     await recordAudit(req.user._id, "Updated course", course.name);

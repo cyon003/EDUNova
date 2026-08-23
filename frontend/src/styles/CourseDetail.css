@@ -54,7 +54,8 @@
 .course-lesson:hover { border-color: #8d63ea; box-shadow: 0 14px 35px rgba(141, 99, 234, 0.14); transform: translateY(-3px); }
 .course-lesson-number { position: absolute; top: 12px; right: 18px; color: rgba(167, 139, 250, 0.13); font-size: 46px; font-weight: 900; }
 .course-lesson-video { position: relative; z-index: 1; background: #000; }
-.course-lesson-video video { display: block; width: 100%; height: 100%; min-height: 160px; object-fit: cover; }
+.course-lesson-video video, .course-lesson-video iframe { display: block; width: 100%; height: 100%; min-height: 160px; border: 0; object-fit: cover; }
+.lesson-media-unavailable { display: grid; width: 100%; height: 100%; min-height: 160px; box-sizing: border-box; padding: 18px; place-items: center; color: #a8afd8; font-size: 11px; text-align: center; background: #0c0917; }
 .course-lesson-info { position: relative; z-index: 1; align-self: center; padding: 22px 70px 22px 25px; }
 .course-lesson-info > span { display: flex; align-items: center; gap: 6px; }
 .course-lesson-info h3 { margin: 7px 0; font-size: 19px; }
@@ -169,7 +170,7 @@
   .course-detail-image { min-height: 250px; }
   .course-detail-image::after { background: linear-gradient(to top, #151124, transparent 55%); }
   .course-detail-copy { padding: 30px; }
-  .course-lesson-video video { min-height: 210px; }
+  .course-lesson-video video, .course-lesson-video iframe { min-height: 210px; }
   .course-lesson-info { padding: 22px 65px 24px 22px; }
 }
 
@@ -179,7 +180,7 @@
   .course-detail-copy h1 { font-size: 36px; }
   .course-detail-highlights > span { flex: 1 1 42%; }
   .course-detail-purchase { grid-template-columns: 1fr; }
-  .course-lesson-video video { min-height: 175px; }
+  .course-lesson-video video, .course-lesson-video iframe { min-height: 175px; }
   .course-mission-overlay { padding: 0; }
   .course-mission-modal { max-height: 100vh; border-radius: 0; }
 }

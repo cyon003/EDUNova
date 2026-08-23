@@ -27,7 +27,8 @@
 .lesson-curriculum nav button > svg { color: #a78bfa; font-size: 9px; }
 .lesson-workspace { min-width: 0; padding: clamp(18px, 4vw, 48px); }
 .lesson-video-shell { max-width: 1120px; margin: 0 auto; overflow: hidden; background: #000; border: 1px solid #49366f; border-radius: 18px; box-shadow: 0 25px 65px rgba(0, 0, 0, 0.42); aspect-ratio: 16 / 9; }
-.lesson-video-shell video { display: block; width: 100%; height: 100%; object-fit: contain; }
+.lesson-video-shell video, .lesson-video-shell iframe { display: block; width: 100%; height: 100%; border: 0; object-fit: contain; }
+.lesson-video-shell .lesson-media-unavailable { min-height: 100%; }
 .lesson-player-content { max-width: 1120px; margin: 24px auto 0; padding: 25px; background: #151124; border: 1px solid #2f2842; border-radius: 18px; }
 .lesson-player-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
 .lesson-player-heading small { color: #a78bfa; font-size: 8px; font-weight: 800; letter-spacing: 0.14em; }

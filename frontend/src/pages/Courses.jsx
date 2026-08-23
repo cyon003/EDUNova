@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { FaBookOpen, FaCompass, FaFire, FaGraduationCap, FaHeart, FaLaptopCode, FaRegHeart, FaRobot, FaSearch, FaStar } from "react-icons/fa";
 import mathematicsImage from "../assets/images/mathematic.jpeg";
-import { courseDuration, courseThumbnail, getPublicCourses } from "../utils/courseApi";
+import { courseDuration, courseThumbnail, formatCoursePrice, getPublicCourses } from "../utils/courseApi";
 import "../styles/Courses.css";
 
 function CourseList({ courseItems, savedCourses, onToggleSaved }) {
@@ -18,8 +18,11 @@ function CourseList({ courseItems, savedCourses, onToggleSaved }) {
             </button>
           </div>
           <div className="available-course-content">
-            <div className="available-course-labels"><span className="available-course-category">{course.category}</span><strong>{Number(course.price) > 0 ? `$${course.price}` : "Free"}</strong></div>
-            <h2>{course.name}</h2>
+            <div className="available-course-labels"><span className="available-course-category">{course.category}</span></div>
+            <div className="available-course-title-row">
+              <h2>{course.name}</h2>
+              <strong className="available-course-price">{formatCoursePrice(course.price)}</strong>
+            </div>
             <p className="available-course-description">{course.description}</p>
             <div className="available-course-meta">
               <p className="available-course-rating"><FaStar /> {course.rating}</p>

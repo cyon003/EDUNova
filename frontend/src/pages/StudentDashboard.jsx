@@ -31,7 +31,7 @@ import {
 import "../styles/StudentDashboard.css";
 import MessageBox from "../components/MessageBox";
 import DashboardSearch from "../components/DashboardSearch";
-import { getPublicCourses } from "../utils/courseApi";
+import { courseDuration, getPublicCourses } from "../utils/courseApi";
 
 const dailyPlan = [
   { id: "math", title: "Complete Quadratic Equations", detail: "Mathematics · 25 min" },
@@ -514,7 +514,7 @@ function StudentDashboard() {
 
           <section className="student-panel student-saved-panel" id="student-saved">
             <header><div><span>YOUR COLLECTION</span><h2>Saved courses</h2></div><FaHeart /></header>
-            {savedCourseItems.length ? <div className="student-saved-list">{savedCourseItems.slice(0, 3).map((course) => <Link to={`/courses/${course.slug}`} key={course.slug}><span><FaBookOpen /></span><div><strong>{course.name}</strong><small>{course.level} · {course.duration}</small></div></Link>)}</div> : <div className="student-saved-empty"><p>Save courses with the heart icon to find them here.</p><Link to="/courses">Explore courses</Link></div>}
+            {savedCourseItems.length ? <div className="student-saved-list">{savedCourseItems.slice(0, 3).map((course) => <Link to={`/courses/${course.slug}`} key={course.slug}><span><FaBookOpen /></span><div><strong>{course.name}</strong><small>{course.level} · {courseDuration(course)}</small></div></Link>)}</div> : <div className="student-saved-empty"><p>Save courses with the heart icon to find them here.</p><Link to="/courses">Explore courses</Link></div>}
           </section>
 
           <section className="student-panel student-achievements-panel" id="student-achievements">

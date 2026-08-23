@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FaArrowLeft, FaCartPlus, FaCheck, FaShoppingBag, FaTimes, FaTrash } from "react-icons/fa";
+import { FaArrowLeft, FaCartPlus, FaCheck, FaShoppingBag, FaTrash } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import "../styles/CartPage.css";
 
@@ -23,7 +23,11 @@ export default function CartPage() {
     const token = getToken();
     if (!token) { navigate("/auth"); return; }
     fetch(`${API}/cart`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || "Unable to load cart.");
+        return data;
+      })
       .then((data) => setCart({ items: data.items || [], total: data.total || 0 }))
       .catch(() => setMessage("Unable to load cart."))
       .finally(() => setLoading(false));
@@ -139,7 +143,7 @@ export default function CartPage() {
                 <article key={course._id} className="cart-item">
                   <div className="cart-item-thumb">
                     {course.thumbnail
-                      ? <img src={`http://localhost:5050${course.thumbnail}`} alt={course.name} />
+                      ? <img src={course.thumbnail.startsWith("http") ? course.thumbnail : `http://localhost:5050${course.thumbnail}`} alt={course.name} />
                       : <div className="cart-item-thumb-placeholder"><FaShoppingBag /></div>
                     }
                   </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { FaBookOpen, FaSearch, FaUserGraduate } from "react-icons/fa";
 import "../styles/DashboardSearch.css";
+import { API_ROOT } from "../utils/courseApi";
 
 function DashboardSearch() {
   const [query, setQuery] = useState("");
@@ -16,7 +17,7 @@ function DashboardSearch() {
     const timeout = setTimeout(async () => {
       setLoading(true);
       try {
-        const response = await fetch(`http://localhost:5050/api/search?q=${encodeURIComponent(trimmedQuery)}`, {
+        const response = await fetch(`${API_ROOT}/search?q=${encodeURIComponent(trimmedQuery)}`, {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
           signal: controller.signal,
         });

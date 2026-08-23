@@ -31,7 +31,7 @@ import {
 import "../styles/StudentDashboard.css";
 import MessageBox from "../components/MessageBox";
 import DashboardSearch from "../components/DashboardSearch";
-import { getPublicCourses } from "../utils/courseApi";
+import { API_ROOT, getPublicCourses } from "../utils/courseApi";
 
 const dailyPlan = [
   { id: "math", title: "Complete Quadratic Equations", detail: "Mathematics · 25 min" },
@@ -136,7 +136,7 @@ function StudentDashboard() {
       const token = localStorage.getItem("token");
       if (token) {
         try {
-          const response = await fetch("http://localhost:5050/api/enrollments/me", {
+          const response = await fetch(`${API_ROOT}/enrollments/me`, {
             headers: { Authorization: `Bearer ${token}` },
             signal: controller.signal,
           });
@@ -193,7 +193,7 @@ function StudentDashboard() {
       const token = localStorage.getItem("token");
       try {
         if (!token) throw new Error("No account session");
-        const response = await fetch("http://localhost:5050/api/enrollments/me", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
+        const response = await fetch(`${API_ROOT}/enrollments/me`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
         if (!response.ok) throw new Error("Unable to load progress");
         buildStats(await response.json());
       } catch (error) {
@@ -211,7 +211,7 @@ function StudentDashboard() {
       const token = localStorage.getItem("token");
       if (!token) return;
       try {
-        const response = await fetch("http://localhost:5050/api/notes", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
+        const response = await fetch(`${API_ROOT}/notes`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
         if (!response.ok) throw new Error("Unable to load notes");
         const databaseNotes = (await response.json()).map((note) => normalizePersonalNote(note, true));
         const storedNotes = JSON.parse(localStorage.getItem(notesStorageKey));
@@ -306,7 +306,7 @@ function StudentDashboard() {
     setNoteStatus("Saving note...");
     try {
       if (!token) throw new Error("Backend unavailable");
-      const response = await fetch(existingNote?.database ? `http://localhost:5050/api/notes/${noteId}` : "http://localhost:5050/api/notes", {
+      const response = await fetch(existingNote?.database ? `${API_ROOT}/notes/${noteId}` : `${API_ROOT}/notes`, {
         method: existingNote?.database ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),
@@ -356,7 +356,7 @@ function StudentDashboard() {
     const note = notes.find((item) => item.id === id);
     if (note?.database) {
       try {
-        const response = await fetch(`http://localhost:5050/api/notes/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+        const response = await fetch(`${API_ROOT}/notes/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
         if (!response.ok) throw new Error("Unable to delete note");
       } catch (error) {
         setNoteStatus(error.message);

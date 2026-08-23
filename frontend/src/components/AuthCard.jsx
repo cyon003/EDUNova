@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { Link } from "react-router-dom";
+import { API_ROOT } from "../utils/courseApi";
 
 function saveLogin(user, token) {
   if (!user || !token) {
@@ -26,7 +28,7 @@ function AuthCard() {
     password: "",
   });
 
-  const API_URL = "http://localhost:5050/api/auth";
+  const API_URL = `${API_ROOT}/auth`;
 
   const handleChange = (e) => {
     setFormData({
@@ -214,7 +216,7 @@ function AuthCard() {
                   placeholder="Enter password"
                   value={formData.password}
                   onChange={handleChange}
-                  minLength="6"
+                  minLength={isLogin ? undefined : 8}
                   required
                 />
 
@@ -238,6 +240,7 @@ function AuthCard() {
                   )}
                 </span>
               </div>
+              {isLogin && <Link className="forgot-password-link" to="/forgot-password">Forgot password?</Link>}
             </div>
 
             {message && (

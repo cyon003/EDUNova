@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { FaBookOpen, FaChevronRight, FaClock, FaGraduationCap, FaPlay, FaSearch } from "react-icons/fa";
 import mathematicsImage from "../assets/images/mathematic.jpeg";
-import { courseDuration, courseThumbnail } from "../utils/courseApi";
+import { API_ROOT, courseDuration, courseThumbnail } from "../utils/courseApi";
 import "../styles/MyCourses.css";
 
 function MyCourses() {
@@ -17,7 +17,7 @@ function MyCourses() {
     const controller = new AbortController();
     const loadEnrollments = async () => {
       try {
-        const response = await fetch("http://localhost:5050/api/enrollments/me", {
+        const response = await fetch(`${API_ROOT}/enrollments/me`, {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
           signal: controller.signal,
         });

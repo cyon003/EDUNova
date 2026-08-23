@@ -1,4 +1,5 @@
-export const API_ROOT = "http://localhost:5050/api";
+const API_ORIGIN = String(import.meta.env.VITE_API_ORIGIN || "").replace(/\/$/, "");
+export const API_ROOT = `${API_ORIGIN}/api`;
 
 async function readJson(response) {
   const data = await response.json().catch(() => ({}));

@@ -3,7 +3,7 @@ import { FaBookOpen, FaBrain, FaCartPlus, FaCheck, FaChevronLeft, FaClock, FaFla
 import { Link, useLocation, useParams } from "react-router-dom";
 import mathematicsImage from "../assets/images/mathematic.jpeg";
 import confusionTraining from "../data/confusionTraining";
-import { courseDuration, courseThumbnail, getPublicCourse } from "../utils/courseApi";
+import { API_ROOT, courseDuration, courseThumbnail, getPublicCourse } from "../utils/courseApi";
 import "../styles/CourseDetail.css";
 
 function UnderstandingCheck({ course, lesson }) {
@@ -217,12 +217,12 @@ function CourseDetail() {
     const controller = new AbortController();
     const loadEnrollment = async () => {
       try {
-        const response = await fetch("http://localhost:5050/api/enrollments/me", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
+        const response = await fetch(`${API_ROOT}/enrollments/me`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
         if (!response.ok) return;
         const enrollments = await response.json();
         let enrollment = enrollments.find((item) => item.course?.slug === courseSlug);
         if (!enrollment && enrolledCourses.includes(courseSlug)) {
-          const syncResponse = await fetch(`http://localhost:5050/api/enrollments/${courseSlug}`, {
+          const syncResponse = await fetch(`${API_ROOT}/enrollments/${courseSlug}`, {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` },
             signal: controller.signal,
@@ -234,7 +234,7 @@ function CourseDetail() {
             const localLessons = Array.isArray(storedLessons) ? storedLessons : [];
             const localMissions = Array.isArray(storedMissions) ? storedMissions : [];
             if (localLessons.length || localMissions.length) {
-              const progressResponse = await fetch(`http://localhost:5050/api/enrollments/${courseSlug}/progress`, {
+              const progressResponse = await fetch(`${API_ROOT}/enrollments/${courseSlug}/progress`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ completedLessons: localLessons, completedMissions: localMissions }),
@@ -292,7 +292,7 @@ function CourseDetail() {
     setEnrolling(true);
     setEnrollmentMessage("");
     try {
-      const response = await fetch(`http://localhost:5050/api/enrollments/${course.slug}`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(6000) });
+      const response = await fetch(`${API_ROOT}/enrollments/${course.slug}`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(6000) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Unable to enroll");
       setEnrollmentMessage("Enrollment saved to your account.");
@@ -308,10 +308,10 @@ function CourseDetail() {
     if (!token) return;
     try {
       const options = { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ completedLessons: lessonItems, completedMissions: missionItems }) };
-      let response = await fetch(`http://localhost:5050/api/enrollments/${course.slug}/progress`, options);
+      let response = await fetch(`${API_ROOT}/enrollments/${course.slug}/progress`, options);
       if (response.status === 404 && enrolled) {
-        const enrollmentResponse = await fetch(`http://localhost:5050/api/enrollments/${course.slug}`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
-        if (enrollmentResponse.ok) response = await fetch(`http://localhost:5050/api/enrollments/${course.slug}/progress`, options);
+        const enrollmentResponse = await fetch(`${API_ROOT}/enrollments/${course.slug}`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+        if (enrollmentResponse.ok) response = await fetch(`${API_ROOT}/enrollments/${course.slug}/progress`, options);
       }
       if (!response.ok) throw new Error("Unable to synchronize course progress");
     } catch (error) {
@@ -338,7 +338,7 @@ function CourseDetail() {
     setReporting(true);
     setReportMessage("");
     try {
-      const response = await fetch("http://localhost:5050/api/reports", {
+      const response = await fetch(`${API_ROOT}/reports`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ ...reportForm, courseSlug: course.slug }),

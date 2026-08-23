@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { FaBookOpen, FaCompass, FaFire, FaGraduationCap, FaHeart, FaLaptopCode, FaRegHeart, FaRobot, FaSearch, FaStar } from "react-icons/fa";
 import mathematicsImage from "../assets/images/mathematic.jpeg";
-import { courseDuration, courseThumbnail, formatCoursePrice, getPublicCourses } from "../utils/courseApi";
+import { API_ROOT, courseDuration, courseThumbnail, formatCoursePrice, getPublicCourses } from "../utils/courseApi";
 import "../styles/Courses.css";
 
 function CourseList({ courseItems, savedCourses, onToggleSaved }) {
@@ -40,9 +40,8 @@ function Courses() {
   const [catalogCourses, setCatalogCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [savedCourses, setSavedCourses] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("edunova-saved-courses")) || []; } catch { return []; }
-  });
+  const [savedCourses, setSavedCourses] = useState([]);
+  const [saveError, setSaveError] = useState("");
   const [searchQuery, setSearchQuery] = useState(() => new URLSearchParams(window.location.search).get("search") || "");
   const [category, setCategory] = useState("All");
   const [sortBy, setSortBy] = useState("rating");
@@ -69,6 +68,25 @@ function Courses() {
       .catch((error) => { if (active) setLoadError(error.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const user = (() => {
+      try { return JSON.parse(localStorage.getItem("user")); } catch { return null; }
+    })();
+    if (!token || user?.role !== "student") return;
+
+    fetch(`${API_ROOT}/favorites`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.message || "Unable to load saved courses");
+        return data;
+      })
+      .then((data) => setSavedCourses((data.favorites || []).map((course) => course.slug)))
+      .catch((error) => setSaveError(error.message));
   }, []);
 
   useEffect(() => {
@@ -108,12 +126,37 @@ function Courses() {
     };
   }, []);
 
-  const toggleSaved = (courseSlug) => {
-    setSavedCourses((current) => {
-      const updated = current.includes(courseSlug) ? current.filter((slug) => slug !== courseSlug) : [...current, courseSlug];
-      localStorage.setItem("edunova-saved-courses", JSON.stringify(updated));
-      return updated;
-    });
+  const toggleSaved = async (courseSlug) => {
+    const token = localStorage.getItem("token");
+    const user = (() => {
+      try { return JSON.parse(localStorage.getItem("user")); } catch { return null; }
+    })();
+
+    if (!token || user?.role !== "student") {
+      window.location.href = "/auth?next=/courses";
+      return;
+    }
+
+    const course = catalogCourses.find((item) => item.slug === courseSlug);
+    if (!course?._id) return;
+
+    const isSaved = savedCourses.includes(courseSlug);
+    setSaveError("");
+
+    try {
+      const response = await fetch(`${API_ROOT}/favorites/${course._id}`, {
+        method: isSaved ? "DELETE" : "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || "Unable to update saved courses");
+
+      setSavedCourses((current) => isSaved
+        ? current.filter((slug) => slug !== courseSlug)
+        : [...current, courseSlug]);
+    } catch (error) {
+      setSaveError(error.message);
+    }
   };
 
 
@@ -144,6 +187,7 @@ function Courses() {
           <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} aria-label="Sort courses"><option value="rating">Top rated</option><option value="name">Course name</option></select>
         </div>
       </div>
+      {saveError && <p className="course-save-error" role="alert">{saveError}</p>}
 
       {loading && <div className="course-empty-results"><FaBookOpen /><h3>Loading approved courses</h3></div>}
       {!loading && loadError && <div className="course-empty-results"><FaBookOpen /><h3>Courses are unavailable</h3><p>{loadError}</p></div>}

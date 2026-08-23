@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { FaArrowLeft, FaBookOpen, FaCheck, FaChevronLeft, FaChevronRight, FaClock, FaGraduationCap, FaPlay } from "react-icons/fa";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getYouTubeEmbedUrl, isYouTubeUrl } from "../utils/lessonMedia";
+import { API_ROOT } from "../utils/courseApi";
 import "../styles/LessonPlayer.css";
 
 function readArray(key) {
@@ -67,7 +68,7 @@ function LessonPlayer() {
         body.studyDate = new Date().toLocaleDateString("en-CA");
       }
       if (activity) body.activity = activity;
-      const response = await fetch(`http://localhost:5050/api/enrollments/${courseSlug}/progress`, {
+      const response = await fetch(`${API_ROOT}/enrollments/${courseSlug}/progress`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),
@@ -97,7 +98,7 @@ function LessonPlayer() {
       const token = localStorage.getItem("token");
       if (!token) { setCourseLoading(false); return; }
       try {
-        const response = await fetch("http://localhost:5050/api/enrollments/me", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
+        const response = await fetch(`${API_ROOT}/enrollments/me`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
         if (!response.ok) return;
         const enrollments = await response.json();
         const enrollment = enrollments.find((item) => item.course?.slug === courseSlug);

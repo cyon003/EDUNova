@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { FaChevronLeft, FaFileAlt, FaSave } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import { API_ROOT } from "../utils/courseApi";
 import "../styles/TutorApplication.css";
 
-const API = "http://localhost:5050/api/tutor-application";
+const API = `${API_ROOT}/tutor-application`;
 const initialForm = {
   fullName: "",
   email: "",

@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { FaComments, FaPaperPlane, FaTimes } from "react-icons/fa";
 import "../styles/MessageBox.css";
 
-const API_URL = "http://localhost:5050/api/messages";
+import { API_ROOT } from "../utils/courseApi";
+
+const API_URL = `${API_ROOT}/messages`;
 
 async function apiRequest(token, path = "", options = {}) {
   const response = await fetch(`${API_URL}${path}`, {

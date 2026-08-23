@@ -343,6 +343,18 @@
   animation: cardSwitch 0.3s ease;
 }
 
+.forgot-password-link {
+  display: block;
+  width: fit-content;
+  margin: 9px 0 0 auto;
+  color: var(--gold2);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.forgot-password-link:hover { text-decoration: underline; }
+
 @media (max-width: 900px) {
   .signup-page {
     padding: 30px 20px;

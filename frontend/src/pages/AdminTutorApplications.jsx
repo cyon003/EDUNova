@@ -3,9 +3,10 @@ import { FaDownload, FaSearch, FaTimes } from "react-icons/fa";
 import AdminLayout from "../components/AdminLayout";
 import AdminListControls from "../components/AdminListControls";
 import { adminApi, formatAdminDate } from "../utils/adminApi";
+import { API_ROOT } from "../utils/courseApi";
 import "../styles/AdminLayout.css";
 
-const API = "http://localhost:5050/api/tutor-application";
+const API = `${API_ROOT}/tutor-application`;
 const statuses = ["DRAFT", "UNDER_REVIEW", "MORE_INFORMATION_NEEDED", "APPROVED", "REJECTED"];
 const label = (value) => value.toLowerCase().replaceAll("_", " ");
 

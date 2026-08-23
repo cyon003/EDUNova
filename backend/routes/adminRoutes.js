@@ -11,6 +11,8 @@ const PlatformSetting = require("../models/PlatformSetting");
 const AdminAudit = require("../models/AdminAudit");
 const TutorApplication = require("../models/TutorApplication");
 const Notification = require("../models/Notification");
+const { notifyAccountStatus, notifyCourseDecision, notifyTutorApplication } = require("../services/notificationService");
+const { sendAccountStatusEmail, sendCourseDecisionEmail, sendTutorApplicationEmail } = require("../services/emailService");
 const authenticateToken = require(
   "../middleware/authMiddleware"
 );
@@ -80,6 +82,15 @@ router.patch("/tutor-applications/:applicationId/review", async (req, res) => {
     await recordAudit(req.user._id, `Tutor application ${status.toLowerCase().replaceAll("_", " ")}`, application.fullName);
     await application.populate("applicant", "name email accountStatus tutorVerificationStatus createdAt");
     await application.populate("reviewedBy", "name email");
+    if (application.applicant?._id) {
+      await notifyTutorApplication({ user: application.applicant._id, status, reason: reason.trim() });
+    }
+    await sendTutorApplicationEmail({
+      to: application.applicant?.email || application.email,
+      name: application.applicant?.name || application.fullName,
+      status,
+      reason: reason.trim(),
+    });
     return res.json(application);
   } catch (error) {
     return res.status(500).json({ message: "Unable to review tutor application", error: error.message });
@@ -100,6 +111,15 @@ router.post("/tutor-applications/:applicationId/feedback", async (req, res) => {
     await recordAudit(req.user._id, "Saved tutor application feedback", `${application.fullName} (${application.email})`);
     await application.populate("applicant", "name email accountStatus tutorVerificationStatus createdAt");
     await application.populate("reviewedBy", "name email");
+    if (application.applicant?._id) {
+      await notifyTutorApplication({ user: application.applicant._id, status: application.status, reason: feedback });
+    }
+    await sendTutorApplicationEmail({
+      to: application.applicant?.email || application.email,
+      name: application.applicant?.name || application.fullName,
+      status: application.status,
+      reason: feedback,
+    });
     return res.json(application);
   } catch (error) {
     return res.status(500).json({ message: "Unable to save application feedback", error: error.message });
@@ -261,6 +281,10 @@ router.patch(
       }
 
       tutor.password = await bcrypt.hash(newPassword, 10);
+      tutor.passwordChangedAt = new Date();
+      tutor.tokenVersion = (tutor.tokenVersion || 0) + 1;
+      tutor.loginAttempts = 0;
+      tutor.loginLockedUntil = null;
 
       await tutor.save();
 
@@ -305,6 +329,9 @@ router.patch(
 
       await recordAudit(req.user._id, "Suspended tutor", `${tutor.name} (${tutor.email})`);
 
+      await notifyAccountStatus({ user: tutor._id, accountStatus: "suspended" });
+      await sendAccountStatusEmail({ to: tutor.email, name: tutor.name, accountStatus: "suspended" });
+
       return res.status(200).json({
         message: "Tutor account suspended",
         tutor,
@@ -344,6 +371,9 @@ router.patch(
       }
 
       await recordAudit(req.user._id, "Reactivated tutor", `${tutor.name} (${tutor.email})`);
+
+      await notifyAccountStatus({ user: tutor._id, accountStatus: "approved" });
+      await sendAccountStatusEmail({ to: tutor.email, name: tutor.name, accountStatus: "approved" });
 
       return res.status(200).json({
         message: "Tutor account activated",
@@ -397,6 +427,8 @@ router.patch("/students/:studentId/status", async (req, res) => {
     const student = await User.findOneAndUpdate({ _id: req.params.studentId, role: "student" }, { accountStatus }, { new: true }).select("-password");
     if (!student) return res.status(404).json({ message: "Student not found" });
     await recordAudit(req.user._id, `${accountStatus === "suspended" ? "Suspended" : "Reactivated"} student`, `${student.name} (${student.email})`);
+    await notifyAccountStatus({ user: student._id, accountStatus });
+    await sendAccountStatusEmail({ to: student.email, name: student.name, accountStatus });
     return res.json(student);
   } catch (error) {
     return res.status(500).json({ message: "Unable to update student", error: error.message });
@@ -410,6 +442,10 @@ router.patch("/students/:studentId/reset-password", async (req, res) => {
     const student = await User.findOne({ _id: req.params.studentId, role: "student" });
     if (!student) return res.status(404).json({ message: "Student not found" });
     student.password = await bcrypt.hash(newPassword, 10);
+    student.passwordChangedAt = new Date();
+    student.tokenVersion = (student.tokenVersion || 0) + 1;
+    student.loginAttempts = 0;
+    student.loginLockedUntil = null;
     await student.save();
     await recordAudit(req.user._id, "Reset student password", `${student.name} (${student.email})`);
     return res.json({ message: "Student password reset" });
@@ -467,7 +503,9 @@ router.patch("/courses/:courseId/moderation", async (req, res) => {
       existingCourse.reviewFeedback = feedback;
       existingCourse.reviewedAt = new Date();
       await existingCourse.save();
-      await Notification.create({ user: existingCourse.tutor, course: existingCourse._id, source: "ADMIN", title: "Course Rejected", message: `Your course \"${existingCourse.name}\" was not approved. Reason: ${feedback}` });
+      const courseTutor = await User.findById(existingCourse.tutor).select("name email").lean();
+      await notifyCourseDecision({ user: existingCourse.tutor, course: existingCourse, approved: false, feedback });
+      await sendCourseDecisionEmail({ to: courseTutor?.email, name: courseTutor?.name, courseName: existingCourse.name, approved: false, feedback });
       await recordAudit(req.user._id, "Course rejected", existingCourse.name);
       return res.json(await existingCourse.populate("tutor", "name email accountStatus tutorVerificationStatus"));
     }
@@ -475,7 +513,7 @@ router.patch("/courses/:courseId/moderation", async (req, res) => {
     if (!existingCourse.name?.trim() || !existingCourse.description?.trim() || !existingCourse.category?.trim() || !existingCourse.tutor || !lessonsAreComplete) {
       return res.status(400).json({ message: "Assign a tutor and complete all required course and lesson information before approval" });
     }
-    const assignedTutor = await User.findOne({ _id: existingCourse.tutor, role: "tutor" }).select("tutorVerificationStatus accountStatus");
+    const assignedTutor = await User.findOne({ _id: existingCourse.tutor, role: "tutor" }).select("name email tutorVerificationStatus accountStatus");
     if (!assignedTutor || assignedTutor.accountStatus !== "approved" || assignedTutor.tutorVerificationStatus !== "APPROVED") {
       return res.status(403).json({ message: "Only courses assigned to an active verified tutor can be approved" });
     }
@@ -486,7 +524,8 @@ router.patch("/courses/:courseId/moderation", async (req, res) => {
     const course = await existingCourse.populate("tutor", "name email accountStatus tutorVerificationStatus");
     if (!course) return res.status(404).json({ message: "Course not found" });
     await recordAudit(req.user._id, `Course ${moderationStatus}`, course.name);
-    await Notification.create({ user: existingCourse.tutor, course: existingCourse._id, source: "ADMIN", title: "Course Approved", message: `Your course \"${existingCourse.name}\" has been approved and is now visible to students.` });
+    await notifyCourseDecision({ user: existingCourse.tutor, course: existingCourse, approved: true });
+    await sendCourseDecisionEmail({ to: assignedTutor.email, name: assignedTutor.name, courseName: existingCourse.name, approved: true });
     return res.json(course);
   } catch (error) {
     return res.status(500).json({ message: "Unable to moderate course", error: error.message });

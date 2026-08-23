@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { FaArrowLeft, FaCartPlus, FaCheck, FaShoppingBag, FaTrash } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
+import { API_ROOT, apiAssetUrl } from "../utils/courseApi";
 import "../styles/CartPage.css";
 
-const API = "http://localhost:5050/api";
+const API = API_ROOT;
 
 function getToken() {
   return localStorage.getItem("token");
@@ -143,7 +144,7 @@ export default function CartPage() {
                 <article key={course._id} className="cart-item">
                   <div className="cart-item-thumb">
                     {course.thumbnail
-                      ? <img src={course.thumbnail.startsWith("http") ? course.thumbnail : `http://localhost:5050${course.thumbnail}`} alt={course.name} />
+                      ? <img src={apiAssetUrl(course.thumbnail)} alt={course.name} />
                       : <div className="cart-item-thumb-placeholder"><FaShoppingBag /></div>
                     }
                   </div>

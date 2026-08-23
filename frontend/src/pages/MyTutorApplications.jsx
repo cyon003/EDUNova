@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { FaChevronLeft, FaClipboardList, FaPlus } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
+import { API_ROOT } from "../utils/courseApi";
 import "../styles/MyTutorApplications.css";
 
-const API = "http://localhost:5050/api/tutor-application";
+const API = `${API_ROOT}/tutor-application`;
 const statusLabels = {
   DRAFT: "Draft",
   UNDER_REVIEW: "Under Review",

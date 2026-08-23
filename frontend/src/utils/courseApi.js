@@ -1,4 +1,5 @@
-export const API_ROOT = "http://localhost:5050/api";
+const API_ORIGIN = String(import.meta.env.VITE_API_ORIGIN || "").replace(/\/$/, "");
+export const API_ROOT = `${API_ORIGIN}/api`;
 
 async function readJson(response) {
   const data = await response.json().catch(() => ({}));
@@ -18,6 +19,11 @@ export async function getPublicCourse(slug, signal) {
 
 export function courseThumbnail(course, fallback) {
   return course?.thumbnail || fallback;
+}
+
+export function apiAssetUrl(value) {
+  if (!value || /^(?:https?:|data:|blob:)/i.test(value)) return value;
+  return `${API_ROOT.replace(/\/api$/, "")}${value.startsWith("/") ? value : `/${value}`}`;
 }
 
 export function lessonDurationSeconds(lesson) {

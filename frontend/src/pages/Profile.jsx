@@ -1,345 +1,162 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { FaArrowLeft, FaBookOpen, FaHeart, FaSave, FaUser } from "react-icons/fa";
+import mathematicsImage from "../assets/images/mathematic.jpeg";
+import { API_ROOT, courseThumbnail } from "../utils/courseApi";
 import "../styles/Profile.css";
 
-/* ── Radar Chart (pure SVG) ── */
-function RadarChart({ stats }) {
-  const size = 220;
-  const cx = size / 2;
-  const cy = size / 2;
-  const r = 80;
-  const levels = 5;
-  const keys = Object.keys(stats);
-  const n = keys.length;
+async function authenticatedRequest(path, options = {}) {
+  const token = localStorage.getItem("token");
+  if (!token) throw new Error("Please log in again");
 
-  const angle = (i) => (Math.PI * 2 * i) / n - Math.PI / 2;
-
-  const point = (i, radius) => ({
-    x: cx + radius * Math.cos(angle(i)),
-    y: cy + radius * Math.sin(angle(i)),
+  const response = await fetch(`${API_ROOT}${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...options.headers,
+    },
   });
+  const data = await response.json().catch(() => ({}));
 
-  const gridPolygon = (level) => {
-    const ratio = level / levels;
-    return keys.map((_, i) => {
-      const p = point(i, r * ratio);
-      return `${p.x},${p.y}`;
-    }).join(" ");
-  };
-
-  const dataPolygon = keys.map((k, i) => {
-    const ratio = stats[k] / 100;
-    const p = point(i, r * ratio);
-    return `${p.x},${p.y}`;
-  }).join(" ");
-
-  return (
-    <svg viewBox={`0 0 ${size} ${size}`} className="radar-svg">
-      {/* Grid */}
-      {[1, 2, 3, 4, 5].map((lvl) => (
-        <polygon
-          key={lvl}
-          points={gridPolygon(lvl)}
-          fill="none"
-          stroke="rgba(200,146,10,0.15)"
-          strokeWidth="1"
-        />
-      ))}
-      {/* Axes */}
-      {keys.map((_, i) => {
-        const p = point(i, r);
-        return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="rgba(200,146,10,0.2)" strokeWidth="1" />;
-      })}
-      {/* Data shape */}
-      <polygon
-        points={dataPolygon}
-        fill="rgba(200,146,10,0.18)"
-        stroke="#c8920a"
-        strokeWidth="2"
-      />
-      {/* Dots */}
-      {keys.map((k, i) => {
-        const ratio = stats[k] / 100;
-        const p = point(i, r * ratio);
-        return <circle key={k} cx={p.x} cy={p.y} r="4" fill="#f5b913" stroke="#1f1600" strokeWidth="1.5" />;
-      })}
-      {/* Labels */}
-      {keys.map((k, i) => {
-        const p = point(i, r + 20);
-        return (
-          <text key={k} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle"
-            fontSize="10" fontWeight="700" fill="#f5b913" fontFamily="'Plus Jakarta Sans', sans-serif">
-            {k}
-          </text>
-        );
-      })}
-      {/* Values */}
-      {keys.map((k, i) => {
-        const ratio = stats[k] / 100;
-        const p = point(i, r * ratio - 14);
-        return (
-          <text key={`v${k}`} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle"
-            fontSize="9" fontWeight="800" fill="#fff" fontFamily="'Plus Jakarta Sans', sans-serif">
-            {stats[k]}
-          </text>
-        );
-      })}
-    </svg>
-  );
+  if (response.status === 401) {
+    localStorage.removeItem("user");
+    localStorage.removeItem("token");
+    window.location.replace("/auth");
+    throw new Error("Your session expired");
+  }
+  if (!response.ok) throw new Error(data.message || "Request failed");
+  return data;
 }
 
-/* ── Data ── */
-const STUDENT = {
-  name: "Alex Nova",
-  handle: "@alexnova",
-  role: "Full-Stack Learner",
-  level: "Intermediate",
-  xp: 4280,
-  xpNext: 5000,
-  joined: "Jan 2024",
-  streak: 18,
-  bio: "Passionate about web development and AI. Currently mastering React and diving deep into machine learning fundamentals.",
-  skills: { QUZ: 87, COD: 90, SPD: 74, CON: 83, PRJ: 78, DSC: 65 },
-  stats: [
-    { label: "Courses Done",    value: "12",   sub: "completed" },
-    { label: "Avg Score",       value: "88%",  sub: "across quizzes" },
-    { label: "Hours Learned",   value: "142",  sub: "total" },
-    { label: "Rank",            value: "#24",  sub: "in cohort" },
-  ],
-  trophies: [
-    { icon: "🏆", label: "Top Scorer",      color: "#f5b913" },
-    { icon: "🔥", label: "30-Day Streak",   color: "#e05050" },
-    { icon: "⚡", label: "Speed Learner",   color: "#00a8b5" },
-    { icon: "🎯", label: "Quiz Master",     color: "#c8920a" },
-    { icon: "💡", label: "AI Explorer",     color: "#a78bfa" },
-  ],
-  courses: [
-    { title: "UI/UX Design",       pct: 74,  color: "#c8920a",  status: "In Progress" },
-    { title: "Python Basics",      pct: 100, color: "#34D399",  status: "Completed"   },
-    { title: "Machine Learning",   pct: 30,  color: "#00a8b5",  status: "In Progress" },
-    { title: "Cybersecurity",      pct: 0,   color: "#e05050",  status: "Not Started" },
-  ],
-};
-
-const TABS = ["Overview", "Courses", "Achievements"];
+function initials(name) {
+  return String(name || "Student")
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
 
 export default function Profile() {
-  const [tab, setTab] = useState("Overview");
+  const navigate = useNavigate();
+  const [profile, setProfile] = useState(null);
+  const [form, setForm] = useState({ name: "", username: "", bio: "", photoUrl: "", phoneNumber: "" });
+  const [favorites, setFavorites] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  const xpPct = Math.round((STUDENT.xp / STUDENT.xpNext) * 100);
+  useEffect(() => {
+    let active = true;
+
+    Promise.all([authenticatedRequest("/profile"), authenticatedRequest("/favorites")])
+      .then(([profileData, favoriteData]) => {
+        if (!active) return;
+        const user = profileData.user;
+        setProfile(user);
+        setForm({
+          name: user.name || "",
+          username: user.studentProfile?.username || "",
+          bio: user.studentProfile?.bio || "",
+          photoUrl: user.studentProfile?.photoUrl || "",
+          phoneNumber: user.studentProfile?.phoneNumber || "",
+        });
+        setFavorites(favoriteData.favorites || []);
+      })
+      .catch((requestError) => { if (active) setError(requestError.message); })
+      .finally(() => { if (active) setLoading(false); });
+
+    return () => { active = false; };
+  }, []);
+
+  const joined = profile?.createdAt
+    ? new Date(profile.createdAt).toLocaleDateString(undefined, { month: "long", year: "numeric" })
+    : "";
+
+  const updateField = (event) => setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
+
+  const saveProfile = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const data = await authenticatedRequest("/profile", { method: "PATCH", body: JSON.stringify(form) });
+      setProfile(data.user);
+      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+      localStorage.setItem("user", JSON.stringify({ ...storedUser, name: data.user.name }));
+      setMessage("Your profile was saved successfully.");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeFavorite = async (courseId) => {
+    setMessage("");
+    setError("");
+    try {
+      await authenticatedRequest(`/favorites/${courseId}`, { method: "DELETE" });
+      setFavorites((current) => current.filter((course) => course._id !== courseId));
+      setMessage("Course removed from your saved courses.");
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  };
+
+  if (loading) return <main className="student-profile-state">Loading your profile…</main>;
+  if (!profile) return <main className="student-profile-state"><p>{error || "Unable to load profile"}</p><button type="button" onClick={() => navigate("/home")}>Return home</button></main>;
 
   return (
-    <div className="profile-shell">
+    <main className="student-profile-page">
+      <div className="student-profile-container">
+        <Link to="/home" className="student-profile-back"><FaArrowLeft /> Back to home</Link>
 
-      {/* ── Sidebar ── */}
-      <aside className="prof-sidebar">
-        <Link to="/" className="prof-logo">
-          <span className="edu">EDU</span><span className="nova">NOVA</span>
-        </Link>
-        <nav className="prof-nav">
-          {[
-            { icon: "⌂",  label: "Home",      to: "/" },
-            { icon: "◫",  label: "Courses",   to: "/courses" },
-            { icon: "▦",  label: "Dashboard", to: "/dashboard" },
-            { icon: "✦",  label: "AI Tutor",  to: "/ai" },
-            { icon: "◯",  label: "Profile",   to: "/profile", active: true },
-          ].map(n => (
-            <Link key={n.label} to={n.to} className={`prof-nav-item ${n.active ? "prof-nav-active" : ""}`}>
-              <span>{n.icon}</span>{n.label}
-            </Link>
-          ))}
-        </nav>
-      </aside>
-
-      {/* ── Main ── */}
-      <div className="prof-main">
-
-        {/* Hero band */}
-        <div className="prof-hero">
-          <div className="prof-hero-bg" />
-
-          <div className="prof-hero-content">
-            <div className="prof-avatar-wrap">
-              <div className="prof-avatar">AN</div>
-              <div className="prof-level-badge">{STUDENT.level}</div>
-            </div>
-
-            <div className="prof-hero-info">
-              <div className="prof-role">{STUDENT.role}</div>
-              <h1 className="prof-name">{STUDENT.name}</h1>
-              <div className="prof-handle">{STUDENT.handle} · Joined {STUDENT.joined}</div>
-
-              {/* XP bar */}
-              <div className="prof-xp-wrap">
-                <div className="prof-xp-labels">
-                  <span>XP {STUDENT.xp.toLocaleString()}</span>
-                  <span>{xpPct}% to next level</span>
-                </div>
-                <div className="prof-xp-track">
-                  <div className="prof-xp-fill" style={{ width: `${xpPct}%` }} />
-                </div>
-              </div>
-            </div>
-
-            {/* Trophies */}
-            <div className="prof-trophies">
-              {STUDENT.trophies.map(t => (
-                <div className="prof-trophy" key={t.label} title={t.label}>
-                  <div className="trophy-icon" style={{ boxShadow: `0 0 14px ${t.color}55` }}>
-                    {t.icon}
-                  </div>
-                  <span className="trophy-label">{t.label}</span>
-                </div>
-              ))}
-            </div>
+        <header className="student-profile-header">
+          <div className="student-profile-avatar">
+            {form.photoUrl ? <img src={form.photoUrl} alt={`${form.name} profile`} /> : <span>{initials(form.name)}</span>}
           </div>
+          <div><span className="student-profile-eyebrow">STUDENT PROFILE</span><h1>{profile.name}</h1><p>{profile.email}{joined ? ` · Joined ${joined}` : ""}</p></div>
+        </header>
+
+        {(message || error) && <p className={`student-profile-message ${error ? "error" : "success"}`} role="status">{error || message}</p>}
+
+        <div className="student-profile-grid">
+          <section className="student-profile-panel">
+            <div className="student-profile-panel-title"><FaUser /><div><h2>Personal information</h2><p>Update information displayed on your student account.</p></div></div>
+            <form className="student-profile-form" onSubmit={saveProfile}>
+              <label><span>Full name</span><input name="name" value={form.name} onChange={updateField} required maxLength="100" /></label>
+              <label><span>Username</span><input name="username" value={form.username} onChange={updateField} maxLength="40" placeholder="Choose a display name" /></label>
+              <label><span>Email</span><input value={profile.email} readOnly /></label>
+              <label><span>Phone number</span><input name="phoneNumber" value={form.phoneNumber} onChange={updateField} maxLength="30" placeholder="Optional" /></label>
+              <label className="wide"><span>Profile photo URL</span><input name="photoUrl" type="url" value={form.photoUrl} onChange={updateField} placeholder="https://example.com/photo.jpg" /></label>
+              <label className="wide"><span>Bio</span><textarea name="bio" value={form.bio} onChange={updateField} maxLength="500" rows="5" placeholder="Tell others about your learning goals" /><small>{form.bio.length}/500</small></label>
+              <button type="submit" disabled={saving}><FaSave /> {saving ? "Saving…" : "Save profile"}</button>
+            </form>
+          </section>
+
+          <section className="student-profile-panel">
+            <div className="student-profile-panel-title"><FaHeart /><div><h2>Saved courses</h2><p>Your favorites are stored securely in your account.</p></div></div>
+            {favorites.length === 0 ? (
+              <div className="student-profile-empty"><FaBookOpen /><h3>No saved courses</h3><p>Use the heart button in the course catalog to save a course.</p><Link to="/courses">Explore courses</Link></div>
+            ) : (
+              <div className="student-favorite-list">
+                {favorites.map((course) => (
+                  <article key={course._id} className="student-favorite-card">
+                    <img src={courseThumbnail(course, mathematicsImage)} alt="" />
+                    <div><small>{course.category}</small><h3>{course.name}</h3><p>{course.level} · {course.duration}</p><div><Link to={`/courses/${course.slug}`}>View course</Link><button type="button" onClick={() => removeFavorite(course._id)}><FaHeart /> Remove</button></div></div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
-
-        {/* Tabs */}
-        <div className="prof-tabs">
-          {TABS.map(t => (
-            <button key={t} className={`prof-tab ${tab === t ? "prof-tab-active" : ""}`} onClick={() => setTab(t)}>
-              {t}
-            </button>
-          ))}
-        </div>
-
-        {/* ── OVERVIEW TAB ── */}
-        {tab === "Overview" && (
-          <div className="prof-overview">
-
-            {/* Stat cards */}
-            <div className="prof-stats-row">
-              {STUDENT.stats.map(s => (
-                <div className="prof-stat-card" key={s.label}>
-                  <div className="prof-stat-value">{s.value}</div>
-                  <div className="prof-stat-label">{s.label}</div>
-                  <div className="prof-stat-sub">{s.sub}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="prof-body">
-
-              {/* Left — Bio + Skill bars */}
-              <div className="prof-left">
-                <div className="prof-card">
-                  <div className="prof-card-title">About</div>
-                  <p className="prof-bio">{STUDENT.bio}</p>
-
-                  <div className="prof-card-title" style={{ marginTop: 24 }}>Streak</div>
-                  <div className="streak-row">
-                    <div className="streak-fire">🔥</div>
-                    <div>
-                      <div className="streak-num">{STUDENT.streak} days</div>
-                      <div className="streak-sub">Keep it going!</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="prof-card">
-                  <div className="prof-card-title">Skill Breakdown</div>
-                  <div className="skill-bars">
-                    {[
-                      { label: "Quiz Performance",   pct: 87, color: "#f5b913" },
-                      { label: "Coding Exercises",   pct: 90, color: "#00a8b5" },
-                      { label: "Project Work",       pct: 78, color: "#c8920a" },
-                      { label: "Discussion",         pct: 65, color: "#a78bfa" },
-                      { label: "Consistency",        pct: 83, color: "#34D399" },
-                    ].map(s => (
-                      <div className="skill-bar-item" key={s.label}>
-                        <div className="skill-bar-header">
-                          <span>{s.label}</span>
-                          <span style={{ color: s.color }}>{s.pct}</span>
-                        </div>
-                        <div className="skill-bar-track">
-                          <div className="skill-bar-fill" style={{ width: `${s.pct}%`, background: s.color }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Right — Radar + Current courses */}
-              <div className="prof-right">
-                <div className="prof-card radar-card">
-                  <div className="prof-card-title">Learning Radar</div>
-                  <div className="radar-wrap">
-                    <RadarChart stats={STUDENT.skills} />
-                  </div>
-                  <div className="radar-legend">
-                    <span>QUZ = Quiz</span><span>COD = Coding</span>
-                    <span>SPD = Speed</span><span>CON = Consistency</span>
-                    <span>PRJ = Projects</span><span>DSC = Discussion</span>
-                  </div>
-                </div>
-
-                <div className="prof-card">
-                  <div className="prof-card-title">Current Courses</div>
-                  <div className="prof-course-list">
-                    {STUDENT.courses.map(c => (
-                      <div className="prof-course-item" key={c.title}>
-                        <div className="prof-course-dot" style={{ background: c.color }} />
-                        <div className="prof-course-info">
-                          <div className="prof-course-name">{c.title}</div>
-                          <div className="prof-course-bar-track">
-                            <div className="prof-course-bar-fill" style={{ width: `${c.pct}%`, background: c.color }} />
-                          </div>
-                        </div>
-                        <span className="prof-course-pct" style={{ color: c.color }}>{c.pct}%</span>
-                        <span className={`prof-course-status status-${c.status.replace(" ", "-").toLowerCase()}`}>{c.status}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        )}
-
-        {/* ── COURSES TAB ── */}
-        {tab === "Courses" && (
-          <div className="prof-tab-content">
-            <div className="prof-courses-grid">
-              {STUDENT.courses.map(c => (
-                <div className="prof-course-card" key={c.title} style={{ "--accent": c.color }}>
-                  <div className="prof-course-card-top">
-                    <span className="prof-course-card-title">{c.title}</span>
-                    <span className={`prof-course-status status-${c.status.replace(" ", "-").toLowerCase()}`}>{c.status}</span>
-                  </div>
-                  <div className="prof-course-card-bar-track">
-                    <div className="prof-course-card-bar-fill" style={{ width: `${c.pct}%`, background: c.color }} />
-                  </div>
-                  <div className="prof-course-card-pct" style={{ color: c.color }}>{c.pct}% complete</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── ACHIEVEMENTS TAB ── */}
-        {tab === "Achievements" && (
-          <div className="prof-tab-content">
-            <div className="prof-achievements-grid">
-              {[
-                ...STUDENT.trophies,
-                { icon: "📚", label: "10 Courses",    color: "#c8920a" },
-                { icon: "🧠", label: "100 Hrs",       color: "#a78bfa" },
-                { icon: "🥇", label: "Perfect Quiz",  color: "#f5b913" },
-                { icon: "🤝", label: "Peer Helper",   color: "#34D399" },
-              ].map((t, i) => (
-                <div className="achievement-card" key={i} style={{ "--acolor": t.color }}>
-                  <div className="achievement-icon">{t.icon}</div>
-                  <div className="achievement-label">{t.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
       </div>
-    </div>
+    </main>
   );
 }

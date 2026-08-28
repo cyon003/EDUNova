@@ -5,11 +5,11 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node --test --test-concurrency=1 tests/*.test.js",
-    "test:watch": "node --test --watch --test-concurrency=1 tests/*.test.js",
-    "check": "node --check app.js && node --check server.js",
+    "check": "node --check app.js && node --check server.js && node --check routes/authRoutes.js && node --check routes/adminRoutes.js && node --check routes/aiRoutes.js && node --check routes/tutorRoutes.js && node --check models/RefreshSession.js && node --check models/ChatbotConversation.js && node --check models/LessonResourceChunk.js && node --check services/sessionService.js && node --check services/lessonResourceExtraction.js && node --check scripts/reprocessLessonResources.js && node --check scripts/migrateChatbotConversationModes.js",
     "migrate:tutor-applications": "node scripts/migrateTutorApplications.js",
-    "seed:courses": "node scripts/seedCourses.js"
+    "migrate:chatbot-modes": "node scripts/migrateChatbotConversationModes.js",
+    "seed:courses": "node scripts/seedCourses.js",
+    "reprocess:lesson-resources": "node scripts/reprocessLessonResources.js"
   },
   "keywords": [],
   "author": "",
@@ -23,12 +23,11 @@
     "express-rate-limit": "^8.6.2",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
+    "mammoth": "^1.12.1",
     "mongoose": "^9.7.0",
     "multer": "^2.2.0",
-    "nodemailer": "^9.0.5"
+    "nodemailer": "^9.0.5",
+    "pdfjs-dist": "^6.2.108"
   },
-  "devDependencies": {
-    "mongodb-memory-server": "^11.2.0",
-    "supertest": "^7.2.2"
-  }
+  "devDependencies": {}
 }

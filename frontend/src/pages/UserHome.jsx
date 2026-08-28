@@ -13,6 +13,7 @@ import Home from "./Home";
 import "../styles/UserHome.css";
 import LanguagePreference from "../components/LanguagePreference";
 import { API_ROOT } from "../utils/courseApi";
+import { logout } from "../utils/authClient";
 
 function getStoredUser() {
   try {
@@ -48,6 +49,7 @@ function UserHome() {
   const navigate = useNavigate();
   const [user] = useState(() => getStoredUser());
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profilePhoto, setProfilePhoto] = useState("");
   const [activeTab, setActiveTab] = useState("home");
   const [searchQuery, setSearchQuery] = useState("");
   const [announcements, setAnnouncements] = useState([]);
@@ -71,9 +73,16 @@ function UserHome() {
       .catch(() => {});
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
+  useEffect(() => {
+    if (user?.role !== "tutor") return;
+    fetch(`${API_ROOT}/tutor/profile`)
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load tutor profile")))
+      .then((profile) => setProfilePhoto(profile.tutorProfile?.photoUrl || ""))
+      .catch(() => {});
+  }, [user?.role]);
+
+  const handleLogout = async () => {
+    await logout();
     window.location.href = "/";
   };
   const submitSearch = (event) => {
@@ -166,7 +175,7 @@ function UserHome() {
               aria-expanded={menuOpen}
               aria-label="Profile menu"
             >
-              <span className="uhome-avatar">{getInitials(user.name)}</span>
+              <span className="uhome-avatar">{profilePhoto?<img src={profilePhoto} alt=""/>:getInitials(user.name)}</span>
               <span className="uhome-profile-name">Profile</span>
               <FaChevronDown
                 className={`uhome-chevron ${menuOpen ? "open" : ""}`}
@@ -177,7 +186,7 @@ function UserHome() {
               <div className="uhome-profile-dropdown">
                 <div className="uhome-profile-header">
                   <span className="uhome-avatar uhome-avatar-large">
-                    {getInitials(user.name)}
+                    {profilePhoto?<img src={profilePhoto} alt={`${user.name || "Tutor"} profile`}/>:getInitials(user.name)}
                   </span>
                   <div>
                     <p className="uhome-user-name">{user.name || "User"}</p>

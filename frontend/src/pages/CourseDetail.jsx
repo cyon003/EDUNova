@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { FaBookOpen, FaBrain, FaCartPlus, FaCheck, FaChevronLeft, FaClock, FaFlag, FaLightbulb, FaLock, FaPlay, FaSave, FaShoppingBag, FaSignal, FaStar, FaTimes, FaTrophy } from "react-icons/fa";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import mathematicsImage from "../assets/images/mathematic.jpeg";
 import confusionTraining from "../data/confusionTraining";
-import { API_ROOT, courseDuration, courseThumbnail, getPublicCourse } from "../utils/courseApi";
+import { API_ROOT, courseDuration, courseThumbnail, formatCoursePrice, getPublicCourse } from "../utils/courseApi";
+import { storedUser } from "../utils/authClient";
 import { getYouTubeEmbedUrl, isYouTubeUrl } from "../utils/lessonMedia";
+import { CourseSummaryPanel } from "../components/Summaries";
 import "../styles/CourseDetail.css";
 
 function UnderstandingCheck({ course, lesson }) {
@@ -188,7 +190,10 @@ function CourseMissions({ course, completedLessonCount, completedMissions, onCom
 
 function CourseDetail() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { courseSlug } = useParams();
+  const currentUser = storedUser();
+  const enrollmentStorageKey = currentUser?.id ? `edunova-enrolled-courses-${currentUser.id}` : null;
   const [course, setCourse] = useState(null);
   const [courseLoading, setCourseLoading] = useState(true);
   const [courseError, setCourseError] = useState("");
@@ -200,8 +205,10 @@ function CourseDetail() {
 
   // ── Enrollment state ──
   const [enrolledCourses, setEnrolledCourses] = useState(() => {
+    const user = storedUser();
+    if (!user?.id || user.role !== "student") return [];
     try {
-      const storedCourses = JSON.parse(localStorage.getItem("edunova-enrolled-courses"));
+      const storedCourses = JSON.parse(localStorage.getItem(`edunova-enrolled-courses-${user.id}`));
       return Array.isArray(storedCourses) ? storedCourses : [];
     } catch { return []; }
   });
@@ -259,7 +266,9 @@ function CourseDetail() {
   // Load enrollment
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) return undefined;
+    if (!token || !currentUser?.id || currentUser.role !== "student") {
+      return undefined;
+    }
     const controller = new AbortController();
     const loadEnrollment = async () => {
       try {
@@ -300,7 +309,7 @@ function CourseDetail() {
     };
     loadEnrollment();
     return () => controller.abort();
-  }, [courseSlug, enrolledCourses, lessonProgressKey, missionProgressKey]);
+  }, [courseSlug, currentUser?.id, currentUser?.role, enrolledCourses, lessonProgressKey, missionProgressKey]);
 
   if (courseLoading) return <main className="course-detail-page"><h1>Loading course...</h1></main>;
 
@@ -314,7 +323,8 @@ function CourseDetail() {
     );
   }
 
-  const enrolled = enrolledCourses.includes(course.slug);
+  const isStudent = currentUser?.role === "student" && Boolean(currentUser.id);
+  const enrolled = isStudent && enrolledCourses.includes(course.slug);
   const isFree = !course.price || course.price === 0;
 
   // ── Add / Remove from cart using real API ──
@@ -353,6 +363,11 @@ function CourseDetail() {
   // ── Enroll (free) or checkout (paid) ──
   const enrollCourse = async () => {
     if (enrolled) return;
+    if (!currentUser) {
+      navigate(`/auth?next=${encodeURIComponent(location.pathname)}`);
+      return;
+    }
+    if (!isStudent) return;
     const token = localStorage.getItem("token");
     if (!token) { window.location.href = "/auth"; return; }
     setEnrolling(true);
@@ -369,7 +384,7 @@ function CourseDetail() {
         if (!response.ok) throw new Error(data.message || "Unable to enroll");
         const updated = [...enrolledCourses, course.slug];
         setEnrolledCourses(updated);
-        localStorage.setItem("edunova-enrolled-courses", JSON.stringify(updated));
+        if (enrollmentStorageKey) localStorage.setItem(enrollmentStorageKey, JSON.stringify(updated));
         setEnrollmentMessage("Enrollment saved to your account.");
       } else {
         // Paid course — add to cart and go to cart page
@@ -469,11 +484,11 @@ function CourseDetail() {
 
             <div className="course-detail-price">
               <span>Course price</span>
-              <strong>{isFree ? "Free" : `$${Number(course.price).toFixed(2)}`}</strong>
+              <strong>{formatCoursePrice(course.price)}</strong>
             </div>
 
             <div className="course-detail-purchase">
-              {!isFree && !enrolled && (
+              {isStudent && !isFree && !enrolled && (
                 <button
                   type="button"
                   className={`course-cart-button ${inCart ? "in-cart" : ""}`}
@@ -487,9 +502,9 @@ function CourseDetail() {
                 type="button"
                 className="course-buy-button"
                 onClick={enrollCourse}
-                disabled={enrolling || enrolled}
+                disabled={enrolling || enrolled || Boolean(currentUser && !isStudent)}
               >
-                <FaShoppingBag /> {enrolling ? "Processing..." : enrolled ? "Enrolled" : isFree ? "Enroll Free" : "Buy Now"}
+                <FaShoppingBag /> {enrolling ? "Processing..." : enrolled ? "Enrolled" : !currentUser ? "Log in to Enroll" : !isStudent ? "Student enrollment only" : isFree ? "Enroll Now" : "Buy Now"}
               </button>
               {inCart && !enrolled && (
                 <Link to="/cart" className="course-go-cart-link">
@@ -505,6 +520,7 @@ function CourseDetail() {
           </div>
         </article>
 
+        <CourseSummaryPanel course={course} role={JSON.parse(localStorage.getItem("user")||"null")?.role||"student"}/>
         <CourseLessons course={course} enrolled={enrolled} completedLessons={completedLessons} onToggleLesson={toggleLesson} />
         {enrolled && <CourseMissions course={course} completedLessonCount={completedLessons.length} completedMissions={completedMissions} onCompleteMission={completeMission} />}
       </div>

@@ -20,6 +20,7 @@ const profileRoutes = require("./routes/profileRoutes");
 const favoriteRoutes = require("./routes/favoriteRoutes");
 const cartRoutes = require("./routes/cartRoutes");
 const orderRoutes = require("./routes/orderRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 
 const app = express();
 const configuredOrigins = allowedOrigins();
@@ -30,11 +31,10 @@ app.use(cors({
   origin(origin, callback) {
     if (!origin) return callback(null, true);
     const normalizedOrigin = origin.replace(/\/$/, "");
-    const localDevelopmentOrigin = process.env.NODE_ENV !== "production"
-      && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(normalizedOrigin);
-    if (configuredOrigins.has(normalizedOrigin) || localDevelopmentOrigin) return callback(null, true);
+    if (configuredOrigins.has(normalizedOrigin)) return callback(null, true);
     return callback(Object.assign(new Error("Origin is not allowed by CORS"), { status: 403 }));
   },
+  credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Application-Token"],
 }));
@@ -57,6 +57,7 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/favorites", favoriteRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/ai", aiRoutes);
 
 app.get("/", (_req, res) => res.send("EduNova backend is running"));
 app.get("/api/health", (_req, res) => res.json({ status: "ok", environment: process.env.NODE_ENV || "development" }));

@@ -3,6 +3,7 @@ import { FaArrowLeft, FaBookOpen, FaCheck, FaChevronLeft, FaChevronRight, FaCloc
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getYouTubeEmbedUrl, isYouTubeUrl } from "../utils/lessonMedia";
 import { API_ROOT } from "../utils/courseApi";
+import { LessonSummaryPanel, VideoTranscriptPanel } from "../components/Summaries";
 import "../styles/LessonPlayer.css";
 
 function readArray(key) {
@@ -42,6 +43,7 @@ function LessonPlayer() {
   const [completedLessons, setCompletedLessons] = useState(() => readArray(progressKey));
   const [videoPositions, setVideoPositions] = useState(() => readObject(positionsKey));
   const [syncMessage, setSyncMessage] = useState("");
+  const [activeTool, setActiveTool] = useState("content");
 
   const syncProgress = async ({ completed = completedLessons, index = lessonIndex, seconds, studiedSeconds = 0, activity } = {}) => {
     if (studiedSeconds > 0) {
@@ -193,6 +195,15 @@ function LessonPlayer() {
         <article className="lesson-player-content">
           <div className="lesson-player-heading"><div><small>LESSON {lessonIndex + 1} OF {lessons.length}</small><h1>{lesson.title}</h1><p>{lesson.description}</p></div><button type="button" className={completedLessons.includes(lessonIndex) ? "completed" : ""} onClick={toggleComplete}><FaCheck /> {completedLessons.includes(lessonIndex) ? "Completed" : "Mark complete"}</button></div>
           <div className="lesson-player-status"><span>{syncMessage || "Your position is saved automatically"}</span><span><FaClock /> {lesson.duration}</span></div>
+          <nav className="lesson-tool-tabs" aria-label="Lesson tools">{[["content","Lesson"],["summary","Summary"],["transcript","Transcript"],["notes","Personal Notes"],["assistant","Course Assistant"]].map(([id,label])=><button type="button" className={activeTool===id?"active":""} aria-pressed={activeTool===id} onClick={()=>setActiveTool(id)} key={id}>{label}</button>)}</nav>
+          {activeTool==="summary"&&<LessonSummaryPanel course={course} lesson={lesson} lessonIndex={lessonIndex} role="student"/>}
+          {activeTool==="transcript"&&<VideoTranscriptPanel
+            lesson={lesson}
+            canSeek={Boolean(lesson.videoUrl&&!youtubeEmbedUrl)}
+            onSeek={seconds=>{if(videoRef.current){videoRef.current.currentTime=seconds;videoRef.current.play()}}}
+          />}
+          {activeTool==="notes"&&<div className="lesson-tool-placeholder"><h3>Personal Notes</h3><p>Create and manage notes from Dashboard → Notes. Notes saved from approved summaries remain separate from personal notes.</p><Link to="/student-dashboard">Open My Notes</Link></div>}
+          {activeTool==="assistant"&&<div className="lesson-tool-placeholder"><h3>Course Assistant</h3><p>Ask questions grounded in course materials you are authorized to access.</p><Link to="/ai-chatbot">Open Course Assistant</Link></div>}
           <footer>
             <button type="button" onClick={() => openLesson(lessonIndex - 1)} disabled={lessonIndex === 0}><FaChevronLeft /> Previous lesson</button>
             <Link to={`/courses/${courseSlug}`}>Course overview</Link>

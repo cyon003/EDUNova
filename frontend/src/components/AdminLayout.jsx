@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { FaBell, FaBookOpen, FaChartBar, FaChalkboardTeacher, FaCog, FaFileAlt, FaGraduationCap, FaHome, FaIdCard, FaSignOutAlt, FaUsers } from "react-icons/fa";
 import { adminApi, formatAdminDate } from "../utils/adminApi";
+import { logout } from "../utils/authClient";
 import "../styles/AdminLayout.css";
 
 function getStoredUser() {
@@ -46,9 +47,8 @@ export default function AdminLayout({ children, title, subtitle }) {
       setLastSeen(seenAt);
     }
   };
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
+  const handleLogout = async () => {
+    await logout();
     window.location.href = "/auth";
   };
 

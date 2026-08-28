@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 
 const User = require("../models/User");
 const Course = require("../models/Course");
+const LessonResourceChunk = require("../models/LessonResourceChunk");
 const Enrollment = require("../models/Enrollment");
 const Note = require("../models/Note");
 const Report = require("../models/Report");
@@ -13,6 +14,7 @@ const TutorApplication = require("../models/TutorApplication");
 const Notification = require("../models/Notification");
 const { notifyAccountStatus, notifyCourseDecision, notifyTutorApplication } = require("../services/notificationService");
 const { sendAccountStatusEmail, sendCourseDecisionEmail, sendTutorApplicationEmail } = require("../services/emailService");
+const { revokeUserSessions } = require("../services/sessionService");
 const authenticateToken = require(
   "../middleware/authMiddleware"
 );
@@ -78,6 +80,7 @@ router.patch("/tutor-applications/:applicationId/review", async (req, res) => {
         userUpdate.accountStatus = "approved";
       }
       await User.findByIdAndUpdate(application.applicant, userUpdate);
+      await revokeUserSessions(application.applicant, "account_changed");
     }
     await recordAudit(req.user._id, `Tutor application ${status.toLowerCase().replaceAll("_", " ")}`, application.fullName);
     await application.populate("applicant", "name email accountStatus tutorVerificationStatus createdAt");
@@ -328,6 +331,7 @@ router.patch(
       }
 
       await recordAudit(req.user._id, "Suspended tutor", `${tutor.name} (${tutor.email})`);
+      await revokeUserSessions(tutor._id, "account_changed");
 
       await notifyAccountStatus({ user: tutor._id, accountStatus: "suspended" });
       await sendAccountStatusEmail({ to: tutor.email, name: tutor.name, accountStatus: "suspended" });
@@ -371,6 +375,7 @@ router.patch(
       }
 
       await recordAudit(req.user._id, "Reactivated tutor", `${tutor.name} (${tutor.email})`);
+      await revokeUserSessions(tutor._id, "account_changed");
 
       await notifyAccountStatus({ user: tutor._id, accountStatus: "approved" });
       await sendAccountStatusEmail({ to: tutor.email, name: tutor.name, accountStatus: "approved" });
@@ -402,6 +407,7 @@ router.delete("/tutors/:tutorId", async (req, res) => {
     await Course.updateMany({ tutor: tutor._id }, { $set: { tutor: null } });
     await Report.updateMany({ reporter: tutor._id }, { $set: { reporter: null } });
     await recordAudit(req.user._id, "Removed suspended tutor", `${tutor.name} (${tutor.email})`);
+    await revokeUserSessions(tutor._id, "account_changed");
     await tutor.deleteOne();
     return res.json({ message: "Tutor account removed permanently" });
   } catch (error) {
@@ -426,6 +432,7 @@ router.patch("/students/:studentId/status", async (req, res) => {
     if (!["approved", "suspended"].includes(accountStatus)) return res.status(400).json({ message: "Invalid account status" });
     const student = await User.findOneAndUpdate({ _id: req.params.studentId, role: "student" }, { accountStatus }, { new: true }).select("-password");
     if (!student) return res.status(404).json({ message: "Student not found" });
+    await revokeUserSessions(student._id, "account_changed");
     await recordAudit(req.user._id, `${accountStatus === "suspended" ? "Suspended" : "Reactivated"} student`, `${student.name} (${student.email})`);
     await notifyAccountStatus({ user: student._id, accountStatus });
     await sendAccountStatusEmail({ to: student.email, name: student.name, accountStatus });
@@ -447,6 +454,7 @@ router.patch("/students/:studentId/reset-password", async (req, res) => {
     student.loginAttempts = 0;
     student.loginLockedUntil = null;
     await student.save();
+    await revokeUserSessions(student._id, "password_changed");
     await recordAudit(req.user._id, "Reset student password", `${student.name} (${student.email})`);
     return res.json({ message: "Student password reset" });
   } catch (error) {
@@ -467,6 +475,7 @@ router.delete("/students/:studentId", async (req, res) => {
     await Note.deleteMany({ student: student._id });
     await Report.updateMany({ reporter: student._id }, { $set: { reporter: null } });
     await recordAudit(req.user._id, "Removed suspended student", `${student.name} (${student.email})`);
+    await revokeUserSessions(student._id, "account_changed");
     await student.deleteOne();
     return res.json({ message: "Student account and learning data removed permanently" });
   } catch (error) {
@@ -536,7 +545,7 @@ router.delete("/courses/:courseId", async (req,res) => {
   try {
     const course = await Course.findById(req.params.courseId);
     if (!course) return res.status(404).json({ message: "Course not found" });
-    await Promise.all([Enrollment.deleteMany({ course: course._id }), Note.deleteMany({ course: course._id }), Notification.deleteMany({ course: course._id })]);
+    await Promise.all([Enrollment.deleteMany({ course: course._id }), Note.deleteMany({ course: course._id }), Notification.deleteMany({ course: course._id }), LessonResourceChunk.deleteMany({ course: course._id })]);
     await recordAudit(req.user._id, "Deleted course", course.name);
     await course.deleteOne();
     return res.json({ message: "Course deleted permanently" });

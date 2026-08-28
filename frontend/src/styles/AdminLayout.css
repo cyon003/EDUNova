@@ -263,7 +263,8 @@
 .adm-course-preview-cover { display: grid; width: 100%; height: min(34vh, 330px); margin-top: 1.35rem; overflow: hidden; place-items: center; color: #9e94ad; background: linear-gradient(135deg,#211633,#3b275b); border-radius: 15px; }
 .adm-course-preview-cover img { width: 100%; height: 100%; object-fit: cover; }
 .adm-course-view > h3 { margin: 1.5rem 0 0.8rem; }
-.adm-confirm-dialog { width: min(430px,100%); padding: 1.8rem; color: #f7f3ff; background: #151020; border: 1px solid #49366e; border-radius: 18px; box-shadow: 0 28px 80px rgba(0,0,0,.5); }
+.adm-confirm-dialog { position: relative; width: min(430px,100%); padding: 1.8rem; color: #f7f3ff; background: #151020; border: 1px solid #49366e; border-radius: 18px; box-shadow: 0 28px 80px rgba(0,0,0,.5); }
+.adm-confirm-close{position:absolute;top:13px;right:13px;display:grid;width:32px;height:32px;place-items:center;color:#bdb2c9;background:transparent;border:1px solid transparent;border-radius:8px;cursor:pointer}.adm-confirm-close:hover{color:white;background:#281d35;border-color:#4c3861}.adm-confirm-close:disabled{cursor:not-allowed;opacity:.45}.adm-confirm-error{margin-top:14px!important;padding:10px 12px;color:#ffc2ca!important;background:#351820;border:1px solid #7b3545;border-radius:8px}.adm-confirm-dialog[aria-busy="true"] footer button{cursor:not-allowed}
 .adm-confirm-dialog h2 { margin: 0 0 0.7rem; }
 .adm-confirm-dialog p { color: #c5bdd1; line-height: 1.55; }
 .adm-confirm-dialog small { color: #92899f; }
@@ -1046,3 +1047,4 @@
   .adm-main { padding: 20px 16px 40px; }
   .adm-stats-grid { grid-template-columns: 1fr 1fr; }
 }
+.adm-ai-summary-review{margin-top:22px;padding:18px;background:#151020;border:1px solid #493461;border-radius:12px}.adm-ai-summary-review>header h3{margin:0 0 5px}.adm-ai-summary-review>header p{margin:0;color:#a89eb5;font-size:11px}.adm-ai-summary-review>article{margin-top:14px;padding:15px;background:#1d1629;border:1px solid #3b2c50;border-radius:10px}.adm-ai-summary-review>article>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:12px}.adm-ai-summary-review>article>p{color:#c9bfd5;line-height:1.55}.adm-ai-summary-review .summary-points,.adm-ai-summary-review .summary-keywords{color:#c9bfd5}.adm-ai-summary-review .summary-keywords span{color:#eee8f7}

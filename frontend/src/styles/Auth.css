@@ -91,6 +91,7 @@
 }
 
 .signup-card {
+  position: relative;
   width: 440px;
   flex-shrink: 0;
   min-height: 500px;
@@ -105,6 +106,36 @@
   color: aliceblue;
   transition: transform 0.45s ease, box-shadow 0.45s ease;
   animation: cardEntrance 0.7s ease both;
+}
+
+.auth-close {
+  position: absolute;
+  z-index: 5;
+  top: 15px;
+  right: 15px;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  color: #c9bce0;
+  font-size: 17px;
+  cursor: pointer;
+  background: rgba(28, 20, 45, 0.88);
+  border: 1px solid rgba(167, 139, 250, 0.38);
+  border-radius: 50%;
+  place-items: center;
+  transition: color .2s, background .2s, transform .2s;
+}
+
+.auth-close:hover {
+  color: white;
+  background: #6f49ae;
+  transform: scale(1.06);
+}
+
+.auth-close:focus-visible {
+  outline: 3px solid #a78bfa;
+  outline-offset: 3px;
 }
 
 .signup-card.login-mode {
@@ -129,7 +160,7 @@
 .signup-tabs {
   position: relative;
   display: flex;
-  width: 100%;
+  width: calc(100% - 50px);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 50px;

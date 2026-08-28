@@ -31,6 +31,7 @@ import MessageBox from "../components/MessageBox";
 import DashboardSearch from "../components/DashboardSearch";
 import NotificationBell from "../components/NotificationBell";
 import { API_ROOT, courseDuration } from "../utils/courseApi";
+import { logout } from "../utils/authClient";
 
 const dailyPlan = [
   { id: "math", title: "Complete Quadratic Equations", detail: "Mathematics · 25 min" },
@@ -61,6 +62,8 @@ function normalizePersonalNote(note, database = false) {
     courseSlug: note.course?.slug || note.courseSlug || "",
     lessonIndex: Number.isInteger(note.lessonIndex) ? note.lessonIndex : null,
     lessonTitle: note.lessonTitle || "",
+    lessonId: note.lessonId || "",
+    sourceType: note.sourceType || "personal",
     createdAt: note.createdAt || note.updatedAt || new Date().toISOString(),
     updatedAt: note.updatedAt || new Date().toISOString(),
     database,
@@ -104,9 +107,11 @@ function StudentDashboard() {
     { id: "hours", label: "Study hours", current: 4, target: 7 },
   ]);
   const noteFolders = ["All Notes", ...new Set([...learningStats.courses.map((course) => course.name), ...notes.map((note) => note.course)].filter(Boolean))];
-  const activeNotes = noteType === "summaries" ? summarizedNotes : notes;
+  const lessonNotes = notes.filter((note) => note.sourceType === "saved_from_summary");
+  const personalNotes = notes.filter((note) => note.sourceType !== "saved_from_summary");
+  const activeNotes = noteType === "summaries" ? lessonNotes : personalNotes;
   const visibleNotes = activeNotes.filter((note) => (noteFolder === "All Notes" || note.course === noteFolder) && `${note.course} ${note.title} ${note.body}`.toLowerCase().includes(noteSearch.trim().toLowerCase()));
-  const selectedSummary = summarizedNotes.find((note) => note.id === selectedSummaryId) || summarizedNotes[0];
+  const selectedSummary = activeNotes.find((note) => note.id === selectedSummaryId) || activeNotes[0] || summarizedNotes[0];
   const selectedManualNote = notes.find((note) => note.id === noteId);
 
   useEffect(() => {
@@ -231,9 +236,8 @@ function StudentDashboard() {
     return () => controller.abort();
   }, [notesStorageKey]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
+  const handleLogout = async () => {
+    await logout();
     window.location.href = "/auth";
   };
 
@@ -543,14 +547,14 @@ function StudentDashboard() {
           {notesOpen && <div className="student-notes-overlay">
             <section className="student-notepad student-notes-page" role="dialog" aria-modal="true" aria-labelledby="student-notes-title">
               <header className="student-notes-toolbar">
-                <div>{notePage !== "folders" && <button type="button" onClick={() => setNotePage(notePage === "list" ? "folders" : "list")} aria-label="Go back"><FaChevronRight /></button>}<strong id="student-notes-title">{notePage === "folders" ? "My Notes" : noteType === "summaries" ? "Summaries" : "Notes"}</strong></div>
+                <div>{notePage !== "folders" && <button type="button" onClick={() => setNotePage(notePage === "list" ? "folders" : "list")} aria-label="Go back"><FaChevronRight /></button>}<strong id="student-notes-title">{notePage === "folders" ? "My Notes" : noteType === "summaries" ? "Lesson Notes" : "Personal Notes"}</strong></div>
                 {noteStatus && <small className="student-note-status">{noteStatus}</small>}
                 <button type="button" onClick={() => setNotesOpen(false)} aria-label="Close notes"><FaTimes /></button>
               </header>
               <div className="student-notes-workspace">
                 {notePage === "folders" && <div className="student-note-home">
                   <div className="student-note-home-heading"><span>YOUR NOTEBOOK</span><h3>What would you like to open?</h3><p>Keep lesson knowledge and personal ideas organized in one place.</p></div>
-                  <button type="button" onClick={() => switchNoteType("summaries")}><span><FaBrain /></span><div><strong>Summaries</strong><small>Automatic, read-only lesson summaries</small><i>Course · Lesson · Key ideas</i></div><b>{summarizedNotes.length}</b><FaChevronRight /></button>
+                  <button type="button" onClick={() => switchNoteType("summaries")}><span><FaBrain /></span><div><strong>Lesson Notes</strong><small>Summaries you explicitly saved from lessons</small><i>Course · Lesson · Key ideas</i></div><b>{lessonNotes.length}</b><FaChevronRight /></button>
                   <button type="button" onClick={() => switchNoteType("manual")}><span><FaStickyNote /></span><div><strong>Notes</strong><small>Your personal notes and ideas</small><i>Create · Edit · Organize</i></div><b>{notes.length}</b><FaChevronRight /></button>
                 </div>}
 
@@ -568,7 +572,7 @@ function StudentDashboard() {
                   </div>
                 </div>}
 
-                {notePage === "detail" && (noteType === "summaries" ? <article className="student-summary-reader"><span>COURSE SUMMARY</span><small>{selectedSummary.course}</small><h3>{selectedSummary.title}</h3><div className="student-summary-divider" /><p>{selectedSummary.body}</p><footer><FaBrain /> Generated from the completed lesson · Read only</footer></article> : selectedManualNote && <article className="student-summary-reader student-manual-reader"><span>PERSONAL NOTE</span><small>{selectedManualNote.course}{selectedManualNote.lessonTitle ? ` · ${selectedManualNote.lessonTitle}` : ""}</small><h3>{selectedManualNote.title}</h3><div className="student-summary-divider" /><p>{selectedManualNote.body}</p><footer><small>Created {formatNoteTimestamp(selectedManualNote.createdAt)} · Updated {formatNoteTimestamp(selectedManualNote.updatedAt)}</small><div><button type="button" onClick={() => editNote(selectedManualNote)}>Edit note</button><button type="button" onClick={() => deleteNote(selectedManualNote.id)}><FaTrash /> Delete</button></div></footer></article>)}
+                {notePage === "detail" && (noteType === "summaries" ? <article className="student-summary-reader"><span>LESSON NOTE</span><small>{selectedSummary.course}{selectedSummary.lessonTitle ? ` · ${selectedSummary.lessonTitle}` : ""}</small><h3>{selectedSummary.title}</h3><div className="student-summary-divider" /><p>{selectedSummary.body}</p><footer><span><FaBrain /> Saved from an approved summary</span>{selectedSummary.courseSlug&&Number.isInteger(selectedSummary.lessonIndex)&&<button type="button" onClick={()=>navigate(`/courses/${selectedSummary.courseSlug}/learn/${selectedSummary.lessonIndex+1}`)}>Return to Lesson</button>}</footer></article> : selectedManualNote && <article className="student-summary-reader student-manual-reader"><span>PERSONAL NOTE</span><small>{selectedManualNote.course}{selectedManualNote.lessonTitle ? ` · ${selectedManualNote.lessonTitle}` : ""}</small><h3>{selectedManualNote.title}</h3><div className="student-summary-divider" /><p>{selectedManualNote.body}</p><footer><small>Created {formatNoteTimestamp(selectedManualNote.createdAt)} · Updated {formatNoteTimestamp(selectedManualNote.updatedAt)}</small><div><button type="button" onClick={() => editNote(selectedManualNote)}>Edit note</button><button type="button" onClick={() => deleteNote(selectedManualNote.id)}><FaTrash /> Delete</button></div></footer></article>)}
 
                 {notePage === "editor" && <form className="student-note-editor" onSubmit={handleSaveNote}><label>Note title<input value={noteTitle} onChange={(event) => setNoteTitle(event.target.value)} placeholder="Give your note a title" required autoFocus /></label><label>Note<textarea value={noteBody} onChange={(event) => setNoteBody(event.target.value)} placeholder="Write your ideas, questions, or lesson notes..." required /></label><div className="student-note-editor-actions"><button type="button" onClick={cancelNoteEditor}>Cancel</button><button type="submit"><FaSave /> {noteId ? "Update note" : "Save note"}</button></div></form>}
               </div>

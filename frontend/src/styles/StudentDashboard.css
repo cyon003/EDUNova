@@ -107,9 +107,18 @@
 }
 
 .student-sidebar-help a {
-  color: #c6aff8;
+  display: inline-flex;
+  width: fit-content;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 14px;
+  color: #180d2b;
+  background: #c5a3ff;
+  border: 1px solid #d9c3ff;
+  border-radius: 7px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
   text-decoration: none;
 }
 

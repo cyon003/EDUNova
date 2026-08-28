@@ -5,7 +5,7 @@ import mathematicsImage from "../assets/images/mathematic.jpeg";
 import { API_ROOT, courseDuration, courseThumbnail, formatCoursePrice, getPublicCourses } from "../utils/courseApi";
 import "../styles/Courses.css";
 
-function CourseList({ courseItems, savedCourses, onToggleSaved }) {
+export function CourseList({ courseItems, savedCourses, onToggleSaved, from = "/courses" }) {
   return (
     <ul className="available-course-list">
       {courseItems.map((course) => (
@@ -28,7 +28,7 @@ function CourseList({ courseItems, savedCourses, onToggleSaved }) {
               <p className="available-course-rating"><FaStar /> {course.rating}</p>
               <span>{courseDuration(course)}</span>
             </div>
-            <Link to={`/courses/${course.slug}`} state={{ from: "/courses" }} className="course-details-link">View course</Link>
+            <Link to={`/courses/${course.slug}`} state={{ from }} className="course-details-link">View course</Link>
           </div>
         </li>
       ))}

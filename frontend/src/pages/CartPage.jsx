@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { FaArrowLeft, FaCartPlus, FaCheck, FaShoppingBag, FaTrash } from "react-icons/fa";
+import {
+  FaArrowLeft,
+  FaCartPlus,
+  FaCheck,
+  FaShoppingBag,
+  FaTrash,
+} from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { API_ROOT, apiAssetUrl } from "../utils/courseApi";
 import "../styles/CartPage.css";
@@ -143,11 +149,17 @@ export default function CartPage() {
               return (
                 <article key={course._id} className="cart-item">
                   <div className="cart-item-thumb">
-                    {course.thumbnail
-                      ? <img src={apiAssetUrl(course.thumbnail)} alt={course.name} />
-                      : <div className="cart-item-thumb-placeholder"><FaShoppingBag /></div>
-                    }
-                  </div>
+  {course.thumbnail ? (
+    <img
+      src={apiAssetUrl(course.thumbnail)}
+      alt={course.name}
+    />
+  ) : (
+    <div className="cart-item-thumb-placeholder">
+      <FaShoppingBag />
+    </div>
+  )}
+</div>
                   <div className="cart-item-info">
                     <h3>
                       <Link to={`/courses/${course.slug}`}>{course.name}</Link>

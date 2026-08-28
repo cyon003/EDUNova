@@ -30,7 +30,11 @@ import "../styles/StudentDashboard.css";
 import MessageBox from "../components/MessageBox";
 import DashboardSearch from "../components/DashboardSearch";
 import NotificationBell from "../components/NotificationBell";
-import { API_ROOT, courseDuration } from "../utils/courseApi";
+import {
+  API_ROOT,
+  courseDuration,
+  getPublicCourses,
+} from "../utils/courseApi";
 
 const dailyPlan = [
   { id: "math", title: "Complete Quadratic Equations", detail: "Mathematics · 25 min" },

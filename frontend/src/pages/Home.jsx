@@ -137,12 +137,12 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
               Courses
             </Link>
             <Link
-              to="/ai-chatbot"
+              to="/ai-tutor"
               className={activeTab === "chatbot" ? "active" : undefined}
               onClick={() => setActiveTab("chatbot")}
               onFocus={() => setActiveTab("chatbot")}
             >
-              AI Chatbot
+              General AI Tutor
             </Link>
             <Link
               to="/#about"
@@ -251,7 +251,7 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
 
           <div className="home-footer-links">
             <h3>Learning tools</h3>
-            <Link to="/ai-chatbot">AI Chatbot</Link>
+            <Link to="/ai-tutor">General AI Tutor</Link>
             <Link to="/student-dashboard">Student Dashboard</Link>
           </div>
 

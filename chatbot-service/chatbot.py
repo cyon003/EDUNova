@@ -455,14 +455,14 @@ def create_app():
 
     @app.errorhandler(500)
     def internal_error(_error):
-        return json_error("Unable to process the course materials", 500)
+        return json_error("The General AI Tutor is temporarily unavailable", 500)
 
     @app.get("/health")
     def health():
         settings = gemini_settings()
         return jsonify({
             "status": "ok",
-            "service": "edunova-course-assistant",
+            "service": "edunova-general-ai-tutor",
             "provider": settings["provider"],
             "geminiConfigured": settings["provider"] == "gemini" and bool(settings["api_key"] and settings["model"]),
         })
@@ -475,37 +475,19 @@ def create_app():
 
         message = payload.get("message")
         mode = payload.get("mode")
-        documents = payload.get("documents", [])
         conversation = payload.get("conversation", [])
-        follow_up = payload.get("followUp", {})
-        if mode not in ["course", "general"]:
-            return json_error("Mode must be either course or general")
+        if mode != "general":
+            return json_error("Mode must be general")
+        forbidden_fields = ["courseId", "lessonId", "documents", "sources", "followUp"]
+        if any(field in payload for field in forbidden_fields):
+            return json_error("General AI Tutor requests do not accept courseId, lessonId, documents, sources, or followUp")
         if not isinstance(message, str) or not message.strip():
             return json_error("Message is required and must be a string")
         message = message.strip()
         if len(message) > MAX_MESSAGE_LENGTH:
             return json_error(f"Message cannot exceed {MAX_MESSAGE_LENGTH} characters", 413)
-        if not isinstance(documents, list):
-            return json_error("Documents must be an array")
         if not isinstance(conversation, list):
             return json_error("Conversation must be an array")
-        if not isinstance(follow_up, dict):
-            return json_error("Follow-up context must be an object")
-        if mode == "general" and (documents or follow_up):
-            return json_error("General mode does not accept course documents or follow-up metadata")
-        cleaned_follow_up = {
-            "isFollowUp": follow_up.get("isFollowUp") is True,
-            "resolved": follow_up.get("resolved") is True,
-            "resolvedTopic": follow_up.get("resolvedTopic", ""),
-            "retrievalQuery": follow_up.get("retrievalQuery", ""),
-            "preferredSourceId": follow_up.get("preferredSourceId", ""),
-        }
-        if any(not isinstance(cleaned_follow_up[key], str) for key in ["resolvedTopic", "retrievalQuery", "preferredSourceId"]):
-            return json_error("Follow-up text fields must be strings")
-        if any(len(cleaned_follow_up[key]) > 2000 for key in ["resolvedTopic", "retrievalQuery"]):
-            return json_error("Follow-up context is too large", 413)
-        if cleaned_follow_up["isFollowUp"] and cleaned_follow_up["resolved"] and not cleaned_follow_up["retrievalQuery"].strip():
-            return json_error("A resolved follow-up requires a retrieval query")
         if len(conversation) > 10:
             return json_error("Conversation context cannot exceed 10 messages", 413)
         cleaned_conversation = []
@@ -519,32 +501,11 @@ def create_app():
                 return json_error("Conversation context is too large", 413)
             if content:
                 cleaned_conversation.append({"role": item["role"], "content": content})
-        if len(documents) > MAX_DOCUMENTS:
-            return json_error(f"Documents cannot exceed {MAX_DOCUMENTS} items", 413)
-
-        cleaned_documents = []
-        total_content = 0
-        for document in documents:
-            if not isinstance(document, dict):
-                return json_error("Every document must be an object")
-            content = document.get("content", "")
-            if not isinstance(content, str):
-                return json_error("Document content must be a string")
-            if len(content) > MAX_DOCUMENT_LENGTH:
-                return json_error(f"Each document cannot exceed {MAX_DOCUMENT_LENGTH} characters", 413)
-            total_content += len(content)
-            if total_content > MAX_TOTAL_CONTENT:
-                return json_error(f"Total document content cannot exceed {MAX_TOTAL_CONTENT} characters", 413)
-            if content.strip():
-                cleaned_documents.append({**document, "content": content.strip()})
-
-        if mode == "general":
-            result = answer_general_question(message, cleaned_conversation)
-            if isinstance(result, tuple):
-                body, status = result
-                return jsonify(body), status
-            return jsonify(result)
-        return jsonify(answer_question(message, cleaned_documents, cleaned_conversation, cleaned_follow_up))
+        result = answer_general_question(message, cleaned_conversation)
+        if isinstance(result, tuple):
+            body, status = result
+            return jsonify(body), status
+        return jsonify(result)
 
     return app
 

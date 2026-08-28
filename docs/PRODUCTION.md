@@ -12,11 +12,11 @@ Production requires:
 - valid SMTP values for email delivery
 - `PYTHON_CHATBOT_URL` pointing to the private Flask service
 - a suitable `PYTHON_CHATBOT_TIMEOUT_MS` and assistant rate limit
-- `AI_COURSE_RATE_LIMIT_PER_MINUTE` and the stricter `AI_GENERAL_RATE_LIMIT_PER_MINUTE`
+- `AI_GENERAL_RATE_LIMIT_PER_MINUTE`
 
 Never commit the real `.env` file or email app password.
 
-## Python course-assistant service
+## Python General AI Tutor service
 
 Use Python 3.10 or newer. Install the service in an isolated environment:
 
@@ -28,7 +28,7 @@ pip install -r requirements.txt
 python3 chatbot.py
 ```
 
-Run it under a production process supervisor with Flask debug mode disabled. Bind it to `127.0.0.1` when it shares a host with Express, or place it on a private application network. The public proxy must not expose `/chat`; only Express should reach the Python service. Apply host-level resource limits because TF-IDF vectors are computed per request.
+Run it under a production process supervisor with Flask debug mode disabled. Bind it to `127.0.0.1` when it shares a host with Express, or place it on a private application network. The public proxy must not expose `/chat`; only Express should reach the Python service.
 
 ```env
 AI_PROVIDER=gemini
@@ -41,16 +41,7 @@ GEMINI_MAX_ANSWER_LENGTH=8000
 
 Store the key only in the Flask service environment or ignored `.env`; never expose it to Express, React, logs, or health responses. Allow outbound HTTPS from Flask to the Gemini API. Set Express `PYTHON_CHATBOT_TIMEOUT_MS=70000` so it safely exceeds the default Gemini timeout.
 
-The service retrieves only the bounded documents Express supplies. Low relevance bypasses generation. Gemini failures return an extractive passage rather than a service error. Express remains responsible for JWT verification, role and enrollment checks, MongoDB access, rate limiting, timeouts, source validation, and user-owned conversation history.
-
-General AI Tutor requests contain no course identifiers, documents, or sources. They use a separate rate limit and same-mode history scope. General failures return a fixed safe unavailable response rather than course text. Keep outbound Gemini access restricted to the Flask service and monitor free-tier quota usage.
-
-For an existing deployment, run the idempotent conversation migration once before serving the new API:
-
-```bash
-cd backend
-npm run migrate:chatbot-modes
-```
+General AI Tutor requests contain no course identifiers, lesson identifiers, documents, sources, or retrieval metadata. Express remains responsible for JWT verification, MongoDB access, rate limiting, timeouts, and user-owned general history. General failures return a fixed safe response. Keep outbound Gemini access restricted to the Flask service and monitor quota usage. Dormant TF-IDF code remains packaged only until Phase 2 and is not reachable through the active endpoint.
 
 ## Lesson-resource extraction
 

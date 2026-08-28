@@ -93,7 +93,8 @@ function App() {
         <Route path="/courses/:courseSlug/learn/:lessonNumber?" element={<RoleRoute user={user} allowedRoles={["student"]}><LessonPlayer /></RoleRoute>} />
         <Route path="/cart" element={<RoleRoute user={user} allowedRoles={["student"]}><CartPage /></RoleRoute>} />
         <Route path="/popular-courses" element={<Navigate to="/courses#popular" replace />} />
-        <Route path="/ai-chatbot" element={<RoleRoute user={user} allowedRoles={["student", "tutor", "admin"]}><AiChatbot /></RoleRoute>} />
+        <Route path="/ai-tutor" element={<RoleRoute user={user} allowedRoles={["student", "tutor", "admin"]}><AiChatbot /></RoleRoute>} />
+        <Route path="/ai-chatbot" element={<Navigate to="/ai-tutor" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

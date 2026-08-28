@@ -16,6 +16,10 @@ const { revokeUserSessions } = require("../services/sessionService");
 const { validatePassword } = require("../utils/passwordSecurity");
 
 const router = express.Router();
+const LESSON_SUMMARY_MAX_LENGTH = 5000;
+const LESSON_TRANSCRIPT_MAX_LENGTH = 50000;
+const MAX_REFERENCES = 20;
+const mediaExtensions = new Set([".mp4", ".webm", ".ogv", ".mov", ".m4v", ".mp3", ".wav", ".m4a", ".ogg"]);
 const videoDirectory = path.join(__dirname, "..", "uploads", "course-videos");
 fs.mkdirSync(videoDirectory, { recursive: true });
 const lessonResourceDirectory = path.join(__dirname, "..", "uploads", "lesson-resources");
@@ -48,12 +52,13 @@ const uploadLessonFiles = multer({
   limits: { fileSize: 500 * 1024 * 1024 },
   fileFilter: (_req, file, callback) => {
     const extension = path.extname(file.originalname).toLowerCase();
-    const imageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp"]);
+    const imageExtensions = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
+    const documentExtensions = new Set([".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt"]);
+    const media = mediaExtensions.has(extension) && /^(video|audio)\//.test(file.mimetype);
+    if (file.fieldname === "video" && !media) return callback(Object.assign(new Error("Main lesson media must be a supported video or audio file"), { status: 400 }));
     const allowed = (imageExtensions.has(extension) && file.mimetype.startsWith("image/"))
-      || (extension === ".pdf" && file.mimetype === "application/pdf")
-      || (extension === ".docx" && file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-      || (extension === ".txt" && ["text/plain", "application/octet-stream"].includes(file.mimetype))
-      || (extension === ".mp4" && file.mimetype === "video/mp4");
+      || documentExtensions.has(extension)
+      || media;
     if (!allowed) return callback(Object.assign(new Error("Unsupported lesson resource type"), { status: 400 }));
     return callback(null, true);
   },
@@ -61,6 +66,38 @@ const uploadLessonFiles = multer({
 const receiveLessonFiles = uploadLessonFiles.fields([{ name: "video", maxCount: 1 }, { name: "resources", maxCount: 10 }]);
 router.use(authenticateToken);
 router.use(requireRole("tutor"));
+
+function lessonContentFields(body, partial = false) {
+  const result = {};
+  for (const [field, limit, label] of [["summary", LESSON_SUMMARY_MAX_LENGTH, "Lesson summary"], ["transcript", LESSON_TRANSCRIPT_MAX_LENGTH, "Lesson transcript"]]) {
+    if (partial && body[field] === undefined) continue;
+    if (body[field] !== undefined && typeof body[field] !== "string") return { error: `${label} must be text` };
+    const value = String(body[field] || "").trim();
+    if (value.length > limit) return { error: `${label} cannot exceed ${limit} characters` };
+    result[field] = value;
+  }
+  return { values: result };
+}
+
+function referenceFields(body, partial = false) {
+  if (partial && body.references === undefined) return {};
+  let input = body.references ?? [];
+  if (typeof input === "string") {
+    try { input = JSON.parse(input); } catch { input = input.split(/\r?\n/).filter(Boolean).map((url) => ({ url })); }
+  }
+  if (!Array.isArray(input) || input.length > MAX_REFERENCES) return { error: `References must contain at most ${MAX_REFERENCES} links` };
+  const references = [];
+  for (const item of input) {
+    const url = String(typeof item === "string" ? item : item?.url || "").trim();
+    try { const parsed = new URL(url); if (!["http:", "https:"].includes(parsed.protocol)) throw new Error(); references.push({ label: String(item?.label || parsed.hostname).trim().slice(0, 200), url }); }
+    catch { return { error: "Each reference must be a valid HTTP or HTTPS URL" }; }
+  }
+  return { references };
+}
+
+function mediaDescriptor(file, storage = "course-videos", resourceId = null) {
+  return { originalName: file.originalname, storedName: file.filename, mimeType: file.mimetype, size: file.size, url: `/uploads/${storage}/${file.filename}`, storage, resourceId };
+}
 
 const percent = (enrollment) => {
   const total = enrollment.course?.lessons?.length || 0;
@@ -147,7 +184,14 @@ router.post("/courses/:courseId/lessons", receiveLessonFiles, async (req, res) =
     const externalVideoUrl = String(req.body.videoUrl || "").trim();
     const videoFile = req.files?.video?.[0];
     const resourceFiles = req.files?.resources || [];
-    if (!req.body.title || (!videoFile && !externalVideoUrl && !resourceFiles.length)) return res.status(400).json({ message: "Lesson title and at least one video, document, or image are required" });
+    const lessonContent = lessonContentFields(req.body);
+    const referenceContent = referenceFields(req.body);
+    if (lessonContent.error) {
+      [...(req.files?.video || []), ...resourceFiles].forEach((file) => fs.unlink(file.path, () => {}));
+      return res.status(400).json({ message: lessonContent.error });
+    }
+    if (referenceContent.error) return res.status(400).json({ message: referenceContent.error });
+    if (!req.body.title || (!videoFile && !externalVideoUrl && !resourceFiles.length && !referenceContent.references.length)) return res.status(400).json({ message: "Lesson title and at least one video, resource, or reference are required" });
     const oversizedSearchable = resourceFiles.find((file) => searchableContentType({ originalName: file.originalname, mimeType: file.mimetype }) && file.size > extractionLimits().maxFileBytes);
     if (oversizedSearchable) {
       [...(req.files?.video || []), ...resourceFiles].forEach((file) => fs.unlink(file.path, () => {}));
@@ -171,13 +215,13 @@ router.post("/courses/:courseId/lessons", receiveLessonFiles, async (req, res) =
     }
     const seconds = Math.max(0, Math.round(Number(req.body.durationSeconds) || 0));
     const duration = seconds ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}` : "Provider managed";
-    const materialVideo = resourceFiles.find((file) => path.extname(file.originalname).toLowerCase() === ".mp4");
-    const videoUrl = videoFile ? `${req.protocol}://${req.get("host")}/uploads/course-videos/${videoFile.filename}` : externalVideoUrl || (materialVideo ? `${req.protocol}://${req.get("host")}/uploads/lesson-resources/${materialVideo.filename}` : "");
+    const references = [...referenceContent.references];
+    if (externalVideoUrl && !references.some((item) => item.url === externalVideoUrl)) references.push({ label: new URL(externalVideoUrl).hostname, url: externalVideoUrl });
     const resources = resourceFiles.map((file) => {
       const searchable = searchableContentType({ originalName: file.originalname, mimeType: file.mimetype });
       return { originalName: file.originalname, storedName: file.filename, mimeType: file.mimetype, size: file.size, url: `${req.protocol}://${req.get("host")}/uploads/lesson-resources/${file.filename}`, extractionStatus: searchable ? "pending" : null };
     });
-    course.lessons.push({ title: req.body.title, description: req.body.description || "", duration, videoUrl, resources });
+    course.lessons.push({ title: req.body.title, description: req.body.description || "", ...lessonContent.values, duration, videoUrl: "", primaryMedia: videoFile ? mediaDescriptor(videoFile) : undefined, primaryMediaRemoved: false, references, resources });
     if (course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
     await course.save();
     const lesson = course.lessons[course.lessons.length - 1];
@@ -194,11 +238,84 @@ router.patch("/courses/:courseId/lessons/:lessonId", async (req, res) => {
     const course = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id });
     const lesson = course?.lessons.id(req.params.lessonId);
     if (!lesson) return res.status(404).json({ message: "Lesson not found" });
-    ["title", "description", "duration", "videoUrl"].forEach((key) => { if (req.body[key] !== undefined) lesson[key] = req.body[key]; });
+    const lessonContent = lessonContentFields(req.body, true);
+    const referenceContent = referenceFields(req.body, true);
+    if (lessonContent.error) return res.status(400).json({ message: lessonContent.error });
+    if (referenceContent.error) return res.status(400).json({ message: referenceContent.error });
+    ["title", "description", "duration"].forEach((key) => { if (req.body[key] !== undefined) lesson[key] = req.body[key]; });
+    Object.assign(lesson, lessonContent.values);
+    if (referenceContent.references) lesson.references = referenceContent.references;
     if (course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
     await course.save();
     return res.json(course);
   } catch (error) { return res.status(500).json({ message: "Unable to update lesson", error: error.message }); }
+});
+
+router.post("/courses/:courseId/lessons/:lessonId/main-media", uploadLessonFiles.single("video"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "Choose a supported main video or audio file" });
+    const course = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id });
+    const lesson = course?.lessons.id(req.params.lessonId);
+    if (!lesson) { fs.unlink(req.file.path, () => {}); return res.status(404).json({ message: "Lesson not found" }); }
+    const previous = lesson.primaryMedia?.storedName && lesson.primaryMedia.storage === "course-videos" ? lesson.primaryMedia.storedName : null;
+    lesson.primaryMedia = mediaDescriptor(req.file);
+    lesson.primaryMediaRemoved = false;
+    await course.save();
+    if (previous) fs.unlink(path.join(videoDirectory, path.basename(previous)), () => {});
+    return res.json(course);
+  } catch (error) { if (req.file) fs.unlink(req.file.path, () => {}); return res.status(500).json({ message: "Unable to replace main lesson media" }); }
+});
+
+router.patch("/courses/:courseId/lessons/:lessonId/main-media", async (req, res) => {
+  try {
+    const course = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id });
+    const lesson = course?.lessons.id(req.params.lessonId);
+    const resource = lesson?.resources.id(req.body.resourceId);
+    if (!resource || !(/^(video|audio)\//.test(resource.mimeType || "") || mediaExtensions.has(path.extname(resource.originalName).toLowerCase()))) return res.status(400).json({ message: "Choose an uploaded video or audio resource" });
+    const previous = lesson.primaryMedia?.storage === "course-videos" ? lesson.primaryMedia.storedName : "";
+    lesson.primaryMedia = { ...resource.toObject(), storage: "lesson-resources", resourceId: resource._id };
+    lesson.primaryMediaRemoved = false;
+    await course.save();
+    if (previous) fs.unlink(path.join(videoDirectory, path.basename(previous)), () => {});
+    return res.json(course);
+  } catch { return res.status(500).json({ message: "Unable to select main lesson media" }); }
+});
+
+router.delete("/courses/:courseId/lessons/:lessonId/main-media", async (req, res) => {
+  try {
+    const course = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id });
+    const lesson = course?.lessons.id(req.params.lessonId);
+    if (!lesson) return res.status(404).json({ message: "Lesson not found" });
+    const storedName = lesson.primaryMedia?.storage === "course-videos" ? lesson.primaryMedia.storedName : "";
+    lesson.primaryMedia = undefined;
+    lesson.primaryMediaRemoved = true;
+    lesson.videoUrl = "";
+    await course.save();
+    if (storedName) fs.unlink(path.join(videoDirectory, path.basename(storedName)), () => {});
+    return res.json(course);
+  } catch { return res.status(500).json({ message: "Unable to remove main lesson media" }); }
+});
+
+router.post("/courses/:courseId/lessons/:lessonId/resources", uploadLessonFiles.array("resources", 10), async (req, res) => {
+  try {
+    const files = req.files || [];
+    if (!files.length) return res.status(400).json({ message: "Choose at least one supporting resource" });
+    const course = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id });
+    const lesson = course?.lessons.id(req.params.lessonId);
+    if (!lesson) { files.forEach((file) => fs.unlink(file.path, () => {})); return res.status(404).json({ message: "Lesson not found" }); }
+    const oversized = files.find((file) => searchableContentType({ originalName: file.originalname, mimeType: file.mimetype }) && file.size > extractionLimits().maxFileBytes);
+    if (oversized) { files.forEach((file) => fs.unlink(file.path, () => {})); return res.status(413).json({ message: "A searchable lesson resource exceeds the extraction size limit" }); }
+    const addedResources = [];
+    for (const file of files) {
+      const descriptor = { originalName: file.originalname, mimeType: file.mimetype };
+      if (searchableContentType(descriptor) && !(await validateSearchableFile(descriptor, file.path))) { files.forEach((item) => fs.unlink(item.path, () => {})); return res.status(400).json({ message: "A lesson resource does not match its declared PDF, DOCX, or TXT format" }); }
+      lesson.resources.push({ ...mediaDescriptor(file, "lesson-resources"), extractionStatus: searchableContentType(descriptor) ? "pending" : null });
+      addedResources.push(lesson.resources[lesson.resources.length - 1]);
+    }
+    await course.save();
+    await Promise.all(addedResources.filter((resource) => resource.extractionStatus === "pending").map((resource) => processResourceExtraction({ courseId: course._id, lessonId: lesson._id, resourceId: resource._id })));
+    return res.json(await Course.findById(course._id));
+  } catch (error) { (req.files || []).forEach((file) => fs.unlink(file.path, () => {})); return res.status(500).json({ message: "Unable to add lesson resources" }); }
 });
 
 router.delete("/courses/:courseId/lessons/:lessonId", async (req, res) => {
@@ -206,7 +323,8 @@ router.delete("/courses/:courseId/lessons/:lessonId", async (req, res) => {
     const course = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id });
     const lesson = course?.lessons.id(req.params.lessonId);
     if (!lesson) return res.status(404).json({ message: "Lesson not found" });
-    if (lesson.videoUrl?.includes("/uploads/course-videos/")) fs.unlink(path.join(videoDirectory, path.basename(lesson.videoUrl)), () => {});
+    if (lesson.primaryMedia?.storage === "course-videos" && lesson.primaryMedia.storedName) fs.unlink(path.join(videoDirectory, path.basename(lesson.primaryMedia.storedName)), () => {});
+    else if (lesson.videoUrl?.includes("/uploads/course-videos/")) fs.unlink(path.join(videoDirectory, path.basename(lesson.videoUrl)), () => {});
     lesson.resources.forEach((resource) => { try { fs.unlink(safeResourcePath(resource.storedName), () => {}); } catch { /* Invalid legacy paths are never followed. */ } });
     await LessonResourceChunk.deleteMany({ course: course._id, lesson: lesson._id });
     lesson.deleteOne();
@@ -223,6 +341,7 @@ router.delete("/courses/:courseId/lessons/:lessonId/resources/:resourceId", asyn
     const resource = lesson?.resources.id(req.params.resourceId);
     if (!resource) return res.status(404).json({ message: "Lesson resource not found" });
     await LessonResourceChunk.deleteMany({ resource: resource._id });
+    if (String(lesson.primaryMedia?.resourceId || "") === String(resource._id)) lesson.primaryMedia = undefined;
     try { await fs.promises.unlink(safeResourcePath(resource.storedName)); } catch (error) { if (error.code !== "ENOENT" && error.message !== "unsafe_path") console.error("Delete lesson resource file error:", error); }
     resource.deleteOne();
     if (course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";

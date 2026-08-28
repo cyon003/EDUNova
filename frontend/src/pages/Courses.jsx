@@ -202,8 +202,8 @@ function Courses() {
       </section>}
 
       <section className="course-match-panel" id="course-ai-recommendation">
-        <div><span><FaRobot /></span><div><small>PERSONALIZED GUIDANCE</small><h2>Not sure where to begin?</h2><p>Tell the AI assistant what you want to learn and get a course recommendation.</p></div></div>
-        <Link to="/ai-chatbot">Ask AI</Link>
+        <div><span><FaRobot /></span><div><small>GENERAL STUDY GUIDANCE</small><h2>Not sure where to begin?</h2><p>Ask the General AI Tutor to explain a subject or help you clarify your learning goals.</p></div></div>
+        <Link to="/ai-tutor">General AI Tutor</Link>
       </section>
 
       {!loading && !loadError && catalogCourses.length > 0 && <section className="course-collection" id="available">
@@ -218,7 +218,7 @@ function Courses() {
       <section className={`learning-paths ${learningPathsVisible ? "visible" : ""}`} id="learning-paths" aria-labelledby="learning-paths-title">
         <header>
           <div><span>CHOOSE YOUR DIRECTION</span><h2 id="learning-paths-title">Build a learning path that fits your goal</h2><p>Start with a direction and follow a small set of courses designed to help you move forward.</p></div>
-          <Link to="/ai-chatbot"><FaRobot /> Build my path with AI</Link>
+          <Link to="/ai-tutor"><FaRobot /> General AI Tutor</Link>
         </header>
         <div className="learning-path-grid">
           <article>
@@ -248,7 +248,7 @@ function Courses() {
       {showLearningPathBar && (
         <aside className="learning-path-sticky" aria-label="Learning path suggestion">
           <div><FaCompass /><span><strong>Build your learning path</strong><small>Turn your goals into a simple course plan.</small></span></div>
-          <Link to="/ai-chatbot"><FaRobot /> Ask AI</Link>
+          <Link to="/ai-tutor"><FaRobot /> General AI Tutor</Link>
         </aside>
       )}
 

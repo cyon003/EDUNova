@@ -5,8 +5,7 @@ import mathematicsImage from "../assets/images/mathematic.jpeg";
 import confusionTraining from "../data/confusionTraining";
 import { API_ROOT, courseDuration, courseThumbnail, formatCoursePrice, getPublicCourse } from "../utils/courseApi";
 import { storedUser } from "../utils/authClient";
-import { getYouTubeEmbedUrl, isYouTubeUrl } from "../utils/lessonMedia";
-import { CourseSummaryPanel } from "../components/Summaries";
+import { getLessonPrimaryMedia } from "../utils/lessonMedia";
 import "../styles/CourseDetail.css";
 
 function UnderstandingCheck({ course, lesson }) {
@@ -65,8 +64,7 @@ function CourseLessons({ course, enrolled, completedLessons, onToggleLesson }) {
       ) : (
         <ol className="course-lesson-list">
           {lessons.map((lesson, index) => {
-            const youtubeEmbedUrl = getYouTubeEmbedUrl(lesson.videoUrl);
-            const invalidYouTubeUrl = isYouTubeUrl(lesson.videoUrl) && !youtubeEmbedUrl;
+            const primaryMedia = getLessonPrimaryMedia(lesson);
             return (
             <li
               className="course-lesson"
@@ -76,27 +74,15 @@ function CourseLessons({ course, enrolled, completedLessons, onToggleLesson }) {
               <span className="course-lesson-number">{String(index + 1).padStart(2, "0")}</span>
               <div className="course-lesson-video">
                 {/* Show locked state for paid unenrolled courses */}
-                {course._restricted && !lesson.videoUrl ? (
+                {course._restricted ? (
                   <div className="lesson-locked-placeholder">
                     <FaLock />
                     <span>Purchase this course to watch</span>
                   </div>
-                ) : youtubeEmbedUrl ? (
-                  <iframe
-                    src={youtubeEmbedUrl}
-                    title={`${lesson.title} YouTube video`}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                  />
-                ) : invalidYouTubeUrl ? (
-                  <div className="lesson-media-unavailable">Invalid YouTube lesson URL</div>
-                ) : lesson.videoUrl ? (
-                  <video controls preload="metadata">
-                    <source src={lesson.videoUrl} type="video/mp4" />
-                    Your browser does not support HTML video.
-                  </video>
+                ) : primaryMedia ? (
+                  <div className="lesson-media-unavailable">Uploaded lesson video · Open the lesson to watch</div>
                 ) : (
-                  <div className="lesson-media-unavailable">Lesson video unavailable</div>
+                  <div className="lesson-media-unavailable">No lesson video has been uploaded.</div>
                 )}
               </div>
 
@@ -520,7 +506,6 @@ function CourseDetail() {
           </div>
         </article>
 
-        <CourseSummaryPanel course={course} role={JSON.parse(localStorage.getItem("user")||"null")?.role||"student"}/>
         <CourseLessons course={course} enrolled={enrolled} completedLessons={completedLessons} onToggleLesson={toggleLesson} />
         {enrolled && <CourseMissions course={course} completedLessonCount={completedLessons.length} completedMissions={completedMissions} onCompleteMission={completeMission} />}
       </div>

@@ -132,12 +132,12 @@ function UserHome() {
             Courses
           </Link>
           <Link
-            to="/ai-chatbot"
+            to="/ai-tutor"
             className={activeTab === "chatbot" ? "active" : undefined}
             onClick={() => setActiveTab("chatbot")}
             onFocus={() => setActiveTab("chatbot")}
           >
-            AI Chatbot
+            General AI Tutor
           </Link>
           <Link
             to={dashboardPath}

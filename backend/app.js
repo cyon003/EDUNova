@@ -39,7 +39,9 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization", "X-Application-Token"],
 }));
 app.use(express.json({ limit: "1mb" }));
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+// Lesson media and resources are served only by authenticated course routes.
+app.use("/uploads/course-covers", express.static(path.join(__dirname, "uploads", "course-covers")));
+app.use("/uploads/profile-photos", express.static(path.join(__dirname, "uploads", "profile-photos")));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);

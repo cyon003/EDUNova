@@ -518,7 +518,7 @@ router.patch("/courses/:courseId/moderation", async (req, res) => {
       await recordAudit(req.user._id, "Course rejected", existingCourse.name);
       return res.json(await existingCourse.populate("tutor", "name email accountStatus tutorVerificationStatus"));
     }
-    const lessonsAreComplete = existingCourse.lessons.length > 0 && existingCourse.lessons.every((lesson) => lesson.title?.trim() && (lesson.videoUrl?.trim() || lesson.resources?.length));
+    const lessonsAreComplete = existingCourse.lessons.length > 0 && existingCourse.lessons.every((lesson) => lesson.title?.trim() && (lesson.primaryMedia?.storedName || lesson.videoUrl?.trim() || lesson.resources?.length || lesson.references?.length));
     if (!existingCourse.name?.trim() || !existingCourse.description?.trim() || !existingCourse.category?.trim() || !existingCourse.tutor || !lessonsAreComplete) {
       return res.status(400).json({ message: "Assign a tutor and complete all required course and lesson information before approval" });
     }

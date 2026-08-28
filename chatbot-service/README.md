@@ -1,8 +1,8 @@
-# EDUNova Course Assistant service
+# EDUNova General AI Tutor service
 
-This private Flask service performs TF-IDF/cosine-similarity retrieval over documents supplied by the trusted Express API, then asks Gemini to explain only the highest-ranking authorized passages. Flask has no database credentials or user authentication logic; its Gemini key remains server-side.
+This private Flask service sends general educational questions and bounded same-user conversation context to Gemini. It has no database credentials or user-authentication logic; Express authenticates users, scopes history, and keeps the Gemini key server-side.
 
-`POST /chat` requires an explicit `mode`. Course mode accepts only Express-authorized documents and applies TF-IDF before Gemini. General mode rejects course documents and follow-up metadata, skips retrieval entirely, and sends only the question plus bounded general-mode conversation context. General failures return a fixed unavailable message and never use an extractive course fallback.
+`POST /chat` accepts only `mode: "general"`. Course mode and course-specific fields such as `courseId`, `lessonId`, `documents`, `sources`, and `followUp` are rejected. Answers use general knowledge and are not verified against EDUNova course materials.
 
 ```bash
 python3 -m venv venv
@@ -12,9 +12,7 @@ pip install -r requirements.txt
 
 Create `.env` from `.env.example`, add the key locally, then start Flask with `python3 chatbot.py` while the virtual environment is active.
 
-Configure the service through its local `.env` file or process environment:
-
-```bash
+```env
 AI_PROVIDER=gemini
 GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.6-flash
@@ -23,18 +21,12 @@ GEMINI_MAX_OUTPUT_TOKENS=1600
 GEMINI_MAX_ANSWER_LENGTH=8000
 ```
 
-The relevance gate runs before generation. Short referential follow-ups are resolved by Express from the latest successful turn in the exact user/course/lesson scope, then still pass through TF-IDF. Low-relevance questions never reach Gemini. If Gemini is unavailable, slow, quota-limited, blocked, or invalid, the service returns the best retrieved passage as an explicitly marked extractive fallback. Generated output is bounded and trimmed at a complete sentence boundary.
+Generated output is bounded and trimmed at a complete sentence boundary. Missing configuration, quota exhaustion, timeouts, blocked or malformed responses, and network failures return categorized safe errors without course content.
 
-Retrieval normalizes punctuation, case, whitespace, and common technical spelling variants. It extracts the searchable topic from conversational instructions, compares both normalized full-query and topic-query scores, and applies a capped exact-term/phrase bonus. The configured similarity threshold remains the final gate.
-
-It listens on `127.0.0.1:5001` by default. Check `GET /health`; it reports provider/configuration availability without exposing the key. `POST /chat` is intended only for Express, so keep Flask private and do not expose it through the public reverse proxy.
-
-Request examples:
-
-```json
-{"mode":"course","message":"Explain authentication","documents":[],"conversation":[],"followUp":{}}
-```
+The service listens on `127.0.0.1:5001` by default. `GET /health` reports provider/configuration availability without exposing the key. Keep `POST /chat` private and accessible only from Express.
 
 ```json
 {"mode":"general","message":"What is Python?","conversation":[]}
 ```
+
+The old TF-IDF implementation and `scikit-learn` dependency remain dormant for Phase 1 compatibility. They are not reachable from `/chat` and are scheduled for Phase 2 removal.

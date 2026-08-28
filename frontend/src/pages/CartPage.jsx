@@ -7,7 +7,8 @@ import {
   FaTrash,
 } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
-import { API_ROOT, apiAssetUrl } from "../utils/courseApi";
+import { API_ROOT, apiAssetUrl, formatCoursePrice } from "../utils/courseApi";
+import { storedUser } from "../utils/authClient";
 import "../styles/CartPage.css";
 
 function getToken() {
@@ -71,9 +72,11 @@ export default function CartPage() {
 
       const enrolled = data.enrolledCourses || [];
       if (enrolled.length) {
-        const existing = JSON.parse(localStorage.getItem("edunova-enrolled-courses") || "[]");
+        const userId = storedUser()?.id;
+        const enrollmentKey = userId ? `edunova-enrolled-courses-${userId}` : null;
+        const existing = enrollmentKey ? JSON.parse(localStorage.getItem(enrollmentKey) || "[]") : [];
         const merged = [...new Set([...existing, ...enrolled])];
-        localStorage.setItem("edunova-enrolled-courses", JSON.stringify(merged));
+        if (enrollmentKey) localStorage.setItem(enrollmentKey, JSON.stringify(merged));
       }
 
       setOrderDone(data.order);
@@ -105,7 +108,7 @@ export default function CartPage() {
             ))}
           </div>
           <div className="cart-success-total">
-            Total paid: <strong>${orderDone.totalAmount.toFixed(2)}</strong>
+            Total paid: <strong>{formatCoursePrice(orderDone.totalAmount)}</strong>
           </div>
           <Link to="/my-courses" className="cart-btn-primary">Go to My Courses</Link>
         </div>
@@ -166,7 +169,7 @@ export default function CartPage() {
                     </h3>
                     <span className="cart-item-meta">{course.level} · {course.category}</span>
                     <span className="cart-item-price">
-                      {course.price > 0 ? `$${course.price.toFixed(2)}` : <span className="cart-free-badge">Free</span>}
+                      {course.price > 0 ? formatCoursePrice(course.price) : <span className="cart-free-badge">Free</span>}
                     </span>
                   </div>
                   <button
@@ -189,13 +192,13 @@ export default function CartPage() {
               {cart.items.map((item) => item.course && (
                 <div key={item.course._id} className="cart-summary-row">
                   <span>{item.course.name}</span>
-                  <span>{item.course.price > 0 ? `$${item.course.price.toFixed(2)}` : "Free"}</span>
+                  <span>{formatCoursePrice(item.course.price)}</span>
                 </div>
               ))}
             </div>
             <div className="cart-summary-total">
               <span>Total</span>
-              <strong>${cart.total.toFixed(2)}</strong>
+              <strong>{formatCoursePrice(cart.total)}</strong>
             </div>
             <button
               type="button"
@@ -203,7 +206,7 @@ export default function CartPage() {
               onClick={checkout}
               disabled={checkingOut}
             >
-              {checkingOut ? "Processing..." : cart.total === 0 ? "Enroll Free" : `Pay $${cart.total.toFixed(2)}`}
+              {checkingOut ? "Processing..." : cart.total === 0 ? "Enroll Free" : `Pay ${formatCoursePrice(cart.total)}`}
             </button>
             <p className="cart-secure-note"><FaCheck /> Secure checkout · Lifetime access</p>
           </aside>

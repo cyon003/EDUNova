@@ -5,11 +5,12 @@ require("dotenv").config({ path: path.join(__dirname, ".env") });
 const app = require("./app");
 const { validateEnvironment } = require("./config/environment");
 const TutorApplication = require("./models/TutorApplication");
+const RefreshSession = require("./models/RefreshSession");
 
 async function startServer() {
   const { port } = validateEnvironment();
   await mongoose.connect(process.env.MONGO_URI);
-  await TutorApplication.syncIndexes();
+  await Promise.all([TutorApplication.syncIndexes(), RefreshSession.syncIndexes()]);
   console.log("MongoDB Connected");
 
   const server = app.listen(port, () => console.log(`Server running on port ${port}`));

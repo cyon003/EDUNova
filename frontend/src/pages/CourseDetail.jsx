@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { FaBookOpen, FaBrain, FaCartPlus, FaCheck, FaChevronLeft, FaClock, FaFlag, FaLightbulb, FaLock, FaPlay, FaSave, FaShoppingBag, FaSignal, FaStar, FaTimes, FaTrophy } from "react-icons/fa";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import mathematicsImage from "../assets/images/mathematic.jpeg";
 import confusionTraining from "../data/confusionTraining";
-import { API_ROOT, courseDuration, courseThumbnail, getPublicCourse } from "../utils/courseApi";
-import { getYouTubeEmbedUrl, isYouTubeUrl } from "../utils/lessonMedia";
+import { API_ROOT, courseDuration, courseThumbnail, formatCoursePrice, getPublicCourse } from "../utils/courseApi";
+import { storedUser } from "../utils/authClient";
+import { getLessonPrimaryMedia } from "../utils/lessonMedia";
 import "../styles/CourseDetail.css";
 
 function UnderstandingCheck({ course, lesson }) {
@@ -63,8 +64,7 @@ function CourseLessons({ course, enrolled, completedLessons, onToggleLesson }) {
       ) : (
         <ol className="course-lesson-list">
           {lessons.map((lesson, index) => {
-            const youtubeEmbedUrl = getYouTubeEmbedUrl(lesson.videoUrl);
-            const invalidYouTubeUrl = isYouTubeUrl(lesson.videoUrl) && !youtubeEmbedUrl;
+            const primaryMedia = getLessonPrimaryMedia(lesson);
             return (
             <li
               className="course-lesson"
@@ -74,27 +74,15 @@ function CourseLessons({ course, enrolled, completedLessons, onToggleLesson }) {
               <span className="course-lesson-number">{String(index + 1).padStart(2, "0")}</span>
               <div className="course-lesson-video">
                 {/* Show locked state for paid unenrolled courses */}
-                {course._restricted && !lesson.videoUrl ? (
+                {course._restricted ? (
                   <div className="lesson-locked-placeholder">
                     <FaLock />
                     <span>Purchase this course to watch</span>
                   </div>
-                ) : youtubeEmbedUrl ? (
-                  <iframe
-                    src={youtubeEmbedUrl}
-                    title={`${lesson.title} YouTube video`}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                  />
-                ) : invalidYouTubeUrl ? (
-                  <div className="lesson-media-unavailable">Invalid YouTube lesson URL</div>
-                ) : lesson.videoUrl ? (
-                  <video controls preload="metadata">
-                    <source src={lesson.videoUrl} type="video/mp4" />
-                    Your browser does not support HTML video.
-                  </video>
+                ) : primaryMedia ? (
+                  <div className="lesson-media-unavailable">Uploaded lesson video · Open the lesson to watch</div>
                 ) : (
-                  <div className="lesson-media-unavailable">Lesson video unavailable</div>
+                  <div className="lesson-media-unavailable">No lesson video has been uploaded.</div>
                 )}
               </div>
 
@@ -188,7 +176,10 @@ function CourseMissions({ course, completedLessonCount, completedMissions, onCom
 
 function CourseDetail() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { courseSlug } = useParams();
+  const currentUser = storedUser();
+  const enrollmentStorageKey = currentUser?.id ? `edunova-enrolled-courses-${currentUser.id}` : null;
   const [course, setCourse] = useState(null);
   const [courseLoading, setCourseLoading] = useState(true);
   const [courseError, setCourseError] = useState("");
@@ -200,8 +191,10 @@ function CourseDetail() {
 
   // ── Enrollment state ──
   const [enrolledCourses, setEnrolledCourses] = useState(() => {
+    const user = storedUser();
+    if (!user?.id || user.role !== "student") return [];
     try {
-      const storedCourses = JSON.parse(localStorage.getItem("edunova-enrolled-courses"));
+      const storedCourses = JSON.parse(localStorage.getItem(`edunova-enrolled-courses-${user.id}`));
       return Array.isArray(storedCourses) ? storedCourses : [];
     } catch { return []; }
   });
@@ -259,7 +252,9 @@ function CourseDetail() {
   // Load enrollment
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) return undefined;
+    if (!token || !currentUser?.id || currentUser.role !== "student") {
+      return undefined;
+    }
     const controller = new AbortController();
     const loadEnrollment = async () => {
       try {
@@ -300,7 +295,7 @@ function CourseDetail() {
     };
     loadEnrollment();
     return () => controller.abort();
-  }, [courseSlug, enrolledCourses, lessonProgressKey, missionProgressKey]);
+  }, [courseSlug, currentUser?.id, currentUser?.role, enrolledCourses, lessonProgressKey, missionProgressKey]);
 
   if (courseLoading) return <main className="course-detail-page"><h1>Loading course...</h1></main>;
 
@@ -314,7 +309,8 @@ function CourseDetail() {
     );
   }
 
-  const enrolled = enrolledCourses.includes(course.slug);
+  const isStudent = currentUser?.role === "student" && Boolean(currentUser.id);
+  const enrolled = isStudent && enrolledCourses.includes(course.slug);
   const isFree = !course.price || course.price === 0;
 
   // ── Add / Remove from cart using real API ──
@@ -353,6 +349,11 @@ function CourseDetail() {
   // ── Enroll (free) or checkout (paid) ──
   const enrollCourse = async () => {
     if (enrolled) return;
+    if (!currentUser) {
+      navigate(`/auth?next=${encodeURIComponent(location.pathname)}`);
+      return;
+    }
+    if (!isStudent) return;
     const token = localStorage.getItem("token");
     if (!token) { window.location.href = "/auth"; return; }
     setEnrolling(true);
@@ -369,7 +370,7 @@ function CourseDetail() {
         if (!response.ok) throw new Error(data.message || "Unable to enroll");
         const updated = [...enrolledCourses, course.slug];
         setEnrolledCourses(updated);
-        localStorage.setItem("edunova-enrolled-courses", JSON.stringify(updated));
+        if (enrollmentStorageKey) localStorage.setItem(enrollmentStorageKey, JSON.stringify(updated));
         setEnrollmentMessage("Enrollment saved to your account.");
       } else {
         // Paid course — add to cart and go to cart page
@@ -469,11 +470,11 @@ function CourseDetail() {
 
             <div className="course-detail-price">
               <span>Course price</span>
-              <strong>{isFree ? "Free" : `$${Number(course.price).toFixed(2)}`}</strong>
+              <strong>{formatCoursePrice(course.price)}</strong>
             </div>
 
             <div className="course-detail-purchase">
-              {!isFree && !enrolled && (
+              {isStudent && !isFree && !enrolled && (
                 <button
                   type="button"
                   className={`course-cart-button ${inCart ? "in-cart" : ""}`}
@@ -487,9 +488,9 @@ function CourseDetail() {
                 type="button"
                 className="course-buy-button"
                 onClick={enrollCourse}
-                disabled={enrolling || enrolled}
+                disabled={enrolling || enrolled || Boolean(currentUser && !isStudent)}
               >
-                <FaShoppingBag /> {enrolling ? "Processing..." : enrolled ? "Enrolled" : isFree ? "Enroll Free" : "Buy Now"}
+                <FaShoppingBag /> {enrolling ? "Processing..." : enrolled ? "Enrolled" : !currentUser ? "Log in to Enroll" : !isStudent ? "Student enrollment only" : isFree ? "Enroll Now" : "Buy Now"}
               </button>
               {inCart && !enrolled && (
                 <Link to="/cart" className="course-go-cart-link">

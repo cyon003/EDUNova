@@ -64,5 +64,10 @@ export function courseDuration(course) {
 export function formatCoursePrice(price) {
   const amount = Number(price);
   if (!Number.isFinite(amount) || amount <= 0) return "Free";
-  return `฿${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(amount)}`;
+  return new Intl.NumberFormat("en-TH", {
+    style: "currency",
+    currency: "THB",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
 }

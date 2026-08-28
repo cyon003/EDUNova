@@ -7,6 +7,7 @@ backend/node_modules/
 .env
 backend/.env
 frontend/.env
+chatbot-service/.env
 
 # Logs
 *.log
@@ -23,6 +24,10 @@ dist/
 build/
 coverage/
 .cache/
+venv/
+.venv/
+__pycache__/
+*.py[cod]
 
 # Temporary and editor files
 *.tmp
@@ -35,3 +40,8 @@ coverage/
 
 # User uploads
 backend/uploads/
+
+# Generated confusion-model files and private datasets
+confusion-ai-service/models/generated/
+confusion-ai-service/data/raw/
+confusion-ai-service/data/processed/

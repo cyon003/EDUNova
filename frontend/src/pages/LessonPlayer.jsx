@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { FaArrowLeft, FaBookOpen, FaCheck, FaChevronLeft, FaChevronRight, FaClock, FaGraduationCap, FaPlay } from "react-icons/fa";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { getYouTubeEmbedUrl, isYouTubeUrl } from "../utils/lessonMedia";
+import { canPreviewResource, fileType, formatFileSize, getLessonPrimaryMedia, lessonReferences, supportingResources, supportsLessonTranscript } from "../utils/lessonMedia";
 import { API_ROOT } from "../utils/courseApi";
+import { LessonSummaryPanel, VideoTranscriptPanel } from "../components/Summaries";
 import "../styles/LessonPlayer.css";
 
 function readArray(key) {
@@ -36,12 +37,37 @@ function LessonPlayer() {
   const requestedIndex = Math.max(Number.parseInt(lessonNumber || String((Number.isNaN(savedLessonIndex) ? 0 : savedLessonIndex) + 1), 10) - 1, 0);
   const lessonIndex = Math.min(Number.isNaN(requestedIndex) ? 0 : requestedIndex, Math.max(lessons.length - 1, 0));
   const lesson = lessons[lessonIndex];
+  const transcriptSupported = supportsLessonTranscript(lesson);
   const progressKey = `edunova-lesson-progress-${courseSlug}`;
   const positionsKey = `edunova-video-positions-${courseSlug}`;
   const currentLessonKey = `edunova-current-lesson-${courseSlug}`;
   const [completedLessons, setCompletedLessons] = useState(() => readArray(progressKey));
   const [videoPositions, setVideoPositions] = useState(() => readObject(positionsKey));
   const [syncMessage, setSyncMessage] = useState("");
+  const [activeTool, setActiveTool] = useState("content");
+  const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaLessonIndex, setMediaLessonIndex] = useState(-1);
+  const [mediaError, setMediaError] = useState("");
+
+  useEffect(() => {
+    const primary = getLessonPrimaryMedia(lesson);
+    if (!primary) return undefined;
+    const controller = new AbortController();
+    fetch(`${API_ROOT}/courses/${encodeURIComponent(courseSlug)}/lessons/${lessonIndex}/media-access`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, signal: controller.signal })
+      .then((response) => { if (!response.ok) throw new Error("Lesson video is unavailable."); return response.json(); })
+      .then(({ url }) => { setMediaError(""); setMediaLessonIndex(lessonIndex); setMediaUrl(url); })
+      .catch((error) => { if (error.name !== "AbortError") setMediaError(error.message); });
+    return () => controller.abort();
+  }, [courseSlug, lesson, lessonIndex]);
+
+  const openResource = async (resource, action) => {
+    const response = await fetch(`${API_ROOT}/courses/${encodeURIComponent(courseSlug)}/lessons/${lessonIndex}/resources/${resource._id}/${action}`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+    if (!response.ok) { setSyncMessage("This resource is unavailable"); return; }
+    const blobUrl = URL.createObjectURL(await response.blob());
+    if (action === "view") window.open(blobUrl, "_blank", "noopener,noreferrer");
+    else { const link = document.createElement("a"); link.href = blobUrl; link.download = resource.originalName || "lesson-resource"; link.click(); }
+    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+  };
 
   const syncProgress = async ({ completed = completedLessons, index = lessonIndex, seconds, studiedSeconds = 0, activity } = {}) => {
     if (studiedSeconds > 0) {
@@ -130,6 +156,7 @@ function LessonPlayer() {
     playStartedAt.current = null;
     saveVideoPosition(videoRef.current?.currentTime);
     syncProgress({ index: lessonIndex, seconds: videoRef.current?.currentTime, studiedSeconds });
+    setActiveTool("content");
     navigate(`/courses/${courseSlug}/learn/${index + 1}`);
   };
 
@@ -138,8 +165,9 @@ function LessonPlayer() {
   if (!lesson) return <main className="lesson-player-state"><FaBookOpen /><h1>No lessons available yet</h1><p>This course does not have lesson videos.</p><Link to={`/courses/${courseSlug}`}>View course details</Link></main>;
 
   const progress = Math.round(completedLessons.length / lessons.length * 100);
-  const youtubeEmbedUrl = getYouTubeEmbedUrl(lesson.videoUrl);
-  const invalidYouTubeUrl = isYouTubeUrl(lesson.videoUrl) && !youtubeEmbedUrl;
+  const primaryMedia = getLessonPrimaryMedia(lesson);
+  const references = lessonReferences(lesson);
+  const resources = supportingResources(lesson);
 
   return <main className="lesson-player-page">
     <header className="lesson-player-topbar">
@@ -162,12 +190,7 @@ function LessonPlayer() {
 
       <section className="lesson-workspace">
         <div className="lesson-video-shell">
-          {youtubeEmbedUrl ? <iframe
-            src={youtubeEmbedUrl}
-            title={`${lesson.title} YouTube video`}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-          /> : invalidYouTubeUrl ? <div className="lesson-media-unavailable">This YouTube lesson URL is invalid.</div> : lesson.videoUrl ? <video
+          {primaryMedia && mediaUrl && mediaLessonIndex===lessonIndex && !mediaError && String(primaryMedia.mimeType || "").startsWith("audio/") ? <audio ref={videoRef} src={mediaUrl} controls /> : primaryMedia && mediaUrl && mediaLessonIndex===lessonIndex && !mediaError ? <video
             ref={videoRef}
             controls
             key={`${courseSlug}-${lessonIndex}`}
@@ -184,15 +207,22 @@ function LessonPlayer() {
               saveVideoPosition(0);
               syncProgress({ completed: updatedLessons, index: lessonIndex, seconds: 0, studiedSeconds, activity: { activityType: "lesson_completed", lessonIndex, lessonTitle: lesson.title } });
             }}
+            onError={() => setMediaError("This video format is not supported by your browser.")}
           >
-            <source src={lesson.videoUrl} type="video/mp4" />
+            <source src={mediaUrl} type={primaryMedia.mimeType || "video/mp4"} />
             Your browser does not support HTML video.
-          </video> : <div className="lesson-media-unavailable">Lesson video unavailable.</div>}
+          </video> : <div className="lesson-media-unavailable">{mediaError || (primaryMedia ? "Loading lesson video..." : "No lesson video has been uploaded.")}</div>}
         </div>
 
         <article className="lesson-player-content">
           <div className="lesson-player-heading"><div><small>LESSON {lessonIndex + 1} OF {lessons.length}</small><h1>{lesson.title}</h1><p>{lesson.description}</p></div><button type="button" className={completedLessons.includes(lessonIndex) ? "completed" : ""} onClick={toggleComplete}><FaCheck /> {completedLessons.includes(lessonIndex) ? "Completed" : "Mark complete"}</button></div>
+          {references.length>0&&<section className="lesson-materials"><h2>References</h2>{references.map((reference,index)=><a key={`${reference.url}-${index}`} href={reference.url} target="_blank" rel="noopener noreferrer">{reference.label||reference.url}</a>)}</section>}
+          {resources.length>0&&<section className="lesson-materials"><h2>Downloadable Resources</h2>{resources.map(resource=><div className="lesson-resource-row" key={resource._id}><div><strong>{resource.originalName}</strong><small>{fileType(resource)} · {formatFileSize(resource.size)}</small></div><span>{canPreviewResource(resource)&&<button type="button" onClick={()=>openResource(resource,"view")}>View</button>}<button type="button" onClick={()=>openResource(resource,"download")}>Download</button></span></div>)}</section>}
           <div className="lesson-player-status"><span>{syncMessage || "Your position is saved automatically"}</span><span><FaClock /> {lesson.duration}</span></div>
+          <nav className="lesson-tool-tabs" aria-label="Lesson tools">{[["content","Lesson"],["summary","Summary"],...(transcriptSupported?[["transcript","Transcript"]]:[]),["notes","Personal Notes"]].map(([id,label])=><button type="button" className={activeTool===id?"active":""} aria-pressed={activeTool===id} onClick={()=>setActiveTool(id)} key={id}>{label}</button>)}</nav>
+          {activeTool==="summary"&&<LessonSummaryPanel lesson={lesson}/>}
+          {activeTool==="transcript"&&transcriptSupported&&<VideoTranscriptPanel lesson={lesson}/>}
+          {activeTool==="notes"&&<div className="lesson-tool-placeholder"><h3>Personal Notes</h3><p>Create and manage your private notes from Dashboard → Notes.</p><Link to="/student-dashboard">Open My Notes</Link></div>}
           <footer>
             <button type="button" onClick={() => openLesson(lessonIndex - 1)} disabled={lessonIndex === 0}><FaChevronLeft /> Previous lesson</button>
             <Link to={`/courses/${courseSlug}`}>Course overview</Link>

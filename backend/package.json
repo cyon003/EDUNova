@@ -5,9 +5,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node --test --test-concurrency=1 tests/*.test.js",
-    "test:watch": "node --test --watch --test-concurrency=1 tests/*.test.js",
-    "check": "node --check app.js && node --check server.js",
+    "test": "node --test tests/*.test.js",
+    "check": "node --check app.js && node --check server.js && node --check routes/authRoutes.js && node --check routes/adminRoutes.js && node --check routes/aiRoutes.js && node --check routes/courseRoutes.js && node --check routes/tutorRoutes.js && node --check models/RefreshSession.js && node --check models/ChatbotConversation.js && node --check services/sessionService.js",
     "migrate:tutor-applications": "node scripts/migrateTutorApplications.js",
     "seed:courses": "node scripts/seedCourses.js"
   },
@@ -26,9 +25,5 @@
     "mongoose": "^9.7.0",
     "multer": "^2.2.0",
     "nodemailer": "^9.0.5"
-  },
-  "devDependencies": {
-    "mongodb-memory-server": "^11.2.0",
-    "supertest": "^7.2.2"
   }
 }

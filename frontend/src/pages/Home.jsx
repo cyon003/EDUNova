@@ -5,6 +5,7 @@ import {
   FaChartLine,
   FaComments,
   FaEnvelope,
+  FaFire,
   FaGraduationCap,
   FaHeart,
   FaRegHeart,
@@ -16,6 +17,7 @@ import mathematicsImage from "../assets/images/mathematic.jpeg";
 import "../styles/Home.css";
 import LanguagePreference from "../components/LanguagePreference";
 import { courseDuration, courseThumbnail, formatCoursePrice, getPublicCourses } from "../utils/courseApi";
+import { CourseList } from "./Courses";
 
 function CourseCard({ course, isSaved, onToggleSaved, from }) {
   return (
@@ -88,9 +90,7 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
 
   useEffect(() => {
     if (carouselPaused || popularCourses.length < 2) return undefined;
-    const interval = window.setInterval(() => {
-      setActiveSlide((current) => (current + 1) % popularCourses.length);
-    }, 4500);
+    const interval = window.setInterval(() => setActiveSlide((current) => (current + 1) % popularCourses.length), 4500);
     return () => window.clearInterval(interval);
   }, [carouselPaused, popularCourses.length]);
 
@@ -137,12 +137,12 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
               Courses
             </Link>
             <Link
-              to="/ai-chatbot"
+              to="/ai-tutor"
               className={activeTab === "chatbot" ? "active" : undefined}
               onClick={() => setActiveTab("chatbot")}
               onFocus={() => setActiveTab("chatbot")}
             >
-              AI Chatbot
+              General AI Tutor
             </Link>
             <Link
               to="/#about"
@@ -173,47 +173,25 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
       {popularCourses.length > 0 && <section className="home-intro" aria-label="Popular course highlights">
         <div className="home-course-carousel" onMouseEnter={() => setCarouselPaused(true)} onMouseLeave={() => setCarouselPaused(false)} onFocus={() => setCarouselPaused(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setCarouselPaused(false); }}>
           <div className="home-carousel-track" style={{ transform: `translateX(-${activeSlide * 100}%)` }}>
-            {popularCourses.map((course, index) => (
-              <article className="home-carousel-slide" aria-hidden={activeSlide !== index} key={course.name}>
-                <div>
-                  <span>POPULAR COURSE</span>
-                  <h1>{course.name}</h1>
-                  <p>{course.description}</p>
-                  <div className="home-carousel-meta"><strong>★ {course.rating || 0}</strong><span>{course.reviews || 0} reviews</span><span>{courseDuration(course)}</span><strong>{formatCoursePrice(course.price)}</strong></div>
-                  <Link to={`/courses/${course.slug}`} state={{ from: homePath }} tabIndex={activeSlide === index ? 0 : -1}>Explore course <span aria-hidden="true">→</span></Link>
-                </div>
-                <div className="home-carousel-visual" aria-hidden="true">
-                  <span>{course.name.slice(0, 2).toUpperCase()}</span>
-                  <strong>0{index + 1}</strong>
-                </div>
-              </article>
-            ))}
+            {popularCourses.map((course, index) => <article className="home-carousel-slide" aria-hidden={activeSlide !== index} key={course.name}><div><span>POPULAR COURSE</span><h1>{course.name}</h1><p>{course.description}</p><div className="home-carousel-meta"><strong>★ {course.rating || 0}</strong><span>{course.reviews || 0} reviews</span><span>{courseDuration(course)}</span><strong>{formatCoursePrice(course.price)}</strong></div><Link to={`/courses/${course.slug}`} state={{ from: homePath }} tabIndex={activeSlide === index ? 0 : -1}>Explore course <span aria-hidden="true">→</span></Link></div><div className="home-carousel-visual" aria-hidden="true"><span>{course.name.slice(0, 2).toUpperCase()}</span><strong>0{index + 1}</strong></div></article>)}
           </div>
           <button className="home-carousel-arrow previous" type="button" aria-label="Previous course" onClick={() => setActiveSlide((current) => (current - 1 + popularCourses.length) % popularCourses.length)}>‹</button>
           <button className="home-carousel-arrow next" type="button" aria-label="Next course" onClick={() => setActiveSlide((current) => (current + 1) % popularCourses.length)}>›</button>
-          <div className="home-carousel-dots" aria-label="Choose a course slide">
-            {popularCourses.map((course, index) => <button type="button" className={activeSlide === index ? "active" : undefined} aria-label={`Show ${course.name}`} aria-current={activeSlide === index ? "true" : undefined} onClick={() => setActiveSlide(index)} key={course.name} />)}
-          </div>
+          <div className="home-carousel-dots" aria-label="Choose a course slide">{popularCourses.map((course, index) => <button type="button" className={activeSlide === index ? "active" : undefined} aria-label={`Show ${course.name}`} aria-current={activeSlide === index ? "true" : undefined} onClick={() => setActiveSlide(index)} key={course.name} />)}</div>
         </div>
       </section>}
-      {popularCourses.length > 0 && <section className="courses-section popular-courses-section">
-        <div className="course-section-title">
-          <h2>Popular Courses</h2>
-          <Link to="/courses#popular" className="courses-view-all">
-            View All
-          </Link>
-        </div>
-        <div className="content-courses">
-          {popularCourses.map((course) => (
-            <CourseCard
-              course={course}
-              from={homePath}
-              isSaved={savedCourses.includes(course.slug)}
-              key={`popular-${course.name}`}
-              onToggleSaved={() => toggleSavedCourse(course.slug)}
-            />
-          ))}
-        </div>
+
+      <section className="home-learning-journey" aria-labelledby="learning-journey-title">
+        <div className="home-section-heading"><span>YOUR LEARNING JOURNEY</span><h2 id="learning-journey-title">Everything you need to learn smarter</h2><p>From your first lesson to your final achievement, EDUNOVA keeps every part of learning connected.</p></div>
+        <div className="home-journey-grid"><article><span className="home-journey-number">01</span><div className="home-journey-icon"><FaBookOpen /></div><h3>Choose your course</h3><p>Explore focused courses and continue learning at your own pace.</p></article><article><span className="home-journey-number">02</span><div className="home-journey-icon"><FaRobot /></div><h3>Learn with AI support</h3><p>Ask questions, simplify difficult topics, and get help whenever you need it.</p></article><article><span className="home-journey-number">03</span><div className="home-journey-icon"><FaChartLine /></div><h3>Track your growth</h3><p>See your progress, study activity, assignments, and achievements in one place.</p></article></div>
+      </section>
+
+      {popularCourses.length > 0 && <section className="course-collection popular-course-collection home-popular-catalog" id="popular">
+        <header>
+          <div><span><FaFire /></span><div><small>STUDENT FAVORITES</small><h2>Popular Courses</h2><p>Highly rated courses learners are enjoying right now.</p></div></div>
+          <Link to="/courses#popular">View all {popularCourses.length}</Link>
+        </header>
+        <CourseList courseItems={popularCourses} savedCourses={savedCourses} onToggleSaved={toggleSavedCourse} from={homePath}/>
       </section>}
 
       <section className="courses-section" id="courses">
@@ -237,49 +215,6 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
         </div>
       </section>
 
-      <section className="home-learning-journey" aria-labelledby="learning-journey-title">
-        <div className="home-section-heading">
-          <span>YOUR LEARNING JOURNEY</span>
-          <h2 id="learning-journey-title">Everything you need to learn smarter</h2>
-          <p>From your first lesson to your final achievement, EDUNOVA keeps every part of learning connected.</p>
-        </div>
-
-        <div className="home-journey-grid">
-          <article>
-            <span className="home-journey-number">01</span>
-            <div className="home-journey-icon"><FaBookOpen /></div>
-            <h3>Choose your course</h3>
-            <p>Explore focused courses and continue learning at your own pace.</p>
-          </article>
-          <article>
-            <span className="home-journey-number">02</span>
-            <div className="home-journey-icon"><FaRobot /></div>
-            <h3>Learn with AI support</h3>
-            <p>Ask questions, simplify difficult topics, and get help whenever you need it.</p>
-          </article>
-          <article>
-            <span className="home-journey-number">03</span>
-            <div className="home-journey-icon"><FaChartLine /></div>
-            <h3>Track your growth</h3>
-            <p>See your progress, study activity, assignments, and achievements in one place.</p>
-          </article>
-        </div>
-      </section>
-
-      <section className="home-feature-showcase" aria-label="EDUNOVA features">
-        <div className="home-feature-copy">
-          <span>BUILT AROUND YOU</span>
-          <h2>More than just online courses</h2>
-          <p>Your learning tools work together, so you can spend less time organizing and more time making progress.</p>
-          <Link to="/courses">Start exploring</Link>
-        </div>
-        <div className="home-feature-list">
-          <article><FaStickyNote /><div><h3>Smart lesson notes</h3><p>Save summaries and important ideas as you learn.</p></div></article>
-          <article><FaComments /><div><h3>Instructor messaging</h3><p>Connect with instructors when you need guidance.</p></div></article>
-          <article><FaChartLine /><div><h3>Clear performance insights</h3><p>Understand your habits and celebrate improvement.</p></div></article>
-        </div>
-      </section>
-
       <section className="home-final-cta">
         <div>
           <span>READY WHEN YOU ARE</span>
@@ -291,6 +226,8 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
           <Link to={showFooter ? "/auth" : dashboardPath}>{showFooter ? "Get started" : "My dashboard"}</Link>
         </div>
       </section>
+
+      <section className="home-feature-showcase" aria-label="EDUNOVA features"><div className="home-feature-copy"><span>BUILT AROUND YOU</span><h2>More than just online courses</h2><p>Your learning tools work together, so you can spend less time organizing and more time making progress.</p><Link to="/courses">Start exploring</Link></div><div className="home-feature-list"><article><FaStickyNote /><div><h3>Smart lesson notes</h3><p>Save summaries and important ideas as you learn.</p></div></article><article><FaComments /><div><h3>Instructor messaging</h3><p>Connect with instructors when you need guidance.</p></div></article><article><FaChartLine /><div><h3>Clear performance insights</h3><p>Understand your habits and celebrate improvement.</p></div></article></div></section>
 
       {showFooter && (
         <footer className="home-footer" id="about">
@@ -314,7 +251,7 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
 
           <div className="home-footer-links">
             <h3>Learning tools</h3>
-            <Link to="/ai-chatbot">AI Chatbot</Link>
+            <Link to="/ai-tutor">General AI Tutor</Link>
             <Link to="/student-dashboard">Student Dashboard</Link>
           </div>
 

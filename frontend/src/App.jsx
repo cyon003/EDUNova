@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import NavigationManager from "./components/NavigationManager";
@@ -24,17 +25,7 @@ import StudentDashboard from "./pages/StudentDashboard";
 import TutorApplication from "./pages/TutorApplication";
 import TutorDashboard from "./pages/TutorDashboard";
 import UserHome from "./pages/UserHome";
-
-function getStoredUser() {
-  try {
-    const raw = localStorage.getItem("user");
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
-  }
-}
+import { AUTH_EVENT, restoreSession, storedUser } from "./utils/authClient";
 
 function RoleRoute({ user, allowedRoles, children }) {
   if (!user) return <Navigate to="/auth" replace />;
@@ -44,12 +35,28 @@ function RoleRoute({ user, allowedRoles, children }) {
 
 function getRoleLanding(user) {
   if (user?.role === "admin") return "/admin-dashboard";
-  if (user?.role === "tutor") return "/tutor-dashboard";
   return "/home";
 }
 
 function App() {
-  const user = getStoredUser();
+  const [auth, setAuth] = useState({ loading: true, user: storedUser() });
+
+  useEffect(() => {
+    let active = true;
+    const update = (event) => active && setAuth({ loading: false, user: event.detail.user });
+    window.addEventListener(AUTH_EVENT, update);
+    restoreSession().then((user) => active && setAuth({ loading: false, user }));
+    return () => {
+      active = false;
+      window.removeEventListener(AUTH_EVENT, update);
+    };
+  }, []);
+
+  if (auth.loading) {
+    return <div className="app-session-loading" role="status">Restoring your EDUNova session…</div>;
+  }
+
+  const user = auth.user;
 
   return (
     <BrowserRouter>
@@ -86,7 +93,8 @@ function App() {
         <Route path="/courses/:courseSlug/learn/:lessonNumber?" element={<RoleRoute user={user} allowedRoles={["student"]}><LessonPlayer /></RoleRoute>} />
         <Route path="/cart" element={<RoleRoute user={user} allowedRoles={["student"]}><CartPage /></RoleRoute>} />
         <Route path="/popular-courses" element={<Navigate to="/courses#popular" replace />} />
-        <Route path="/ai-chatbot" element={<AiChatbot />} />
+        <Route path="/ai-tutor" element={<RoleRoute user={user} allowedRoles={["student", "tutor", "admin"]}><AiChatbot /></RoleRoute>} />
+        <Route path="/ai-chatbot" element={<Navigate to="/ai-tutor" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

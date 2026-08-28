@@ -69,6 +69,18 @@ const courseSchema = new mongoose.Schema(
           default: "",
           trim: true,
         },
+        summary: {
+          type: String,
+          default: "",
+          trim: true,
+          maxlength: [5000, "Lesson summary cannot exceed 5000 characters"],
+        },
+        transcript: {
+          type: String,
+          default: "",
+          trim: true,
+          maxlength: [50000, "Lesson transcript cannot exceed 50000 characters"],
+        },
         duration: {
           type: String,
           default: "",
@@ -79,6 +91,20 @@ const courseSchema = new mongoose.Schema(
           default: "",
           trim: true,
         },
+        primaryMedia: {
+          originalName: { type: String, default: "", trim: true },
+          storedName: { type: String, default: "", trim: true },
+          mimeType: { type: String, default: "", trim: true },
+          size: { type: Number, default: 0, min: 0 },
+          url: { type: String, default: "", trim: true },
+          storage: { type: String, enum: ["course-videos", "lesson-resources"], default: "course-videos" },
+          resourceId: { type: mongoose.Schema.Types.ObjectId, default: null },
+        },
+        primaryMediaRemoved: { type: Boolean, default: false },
+        references: [{
+          label: { type: String, default: "Reference", trim: true, maxlength: 200 },
+          url: { type: String, required: true, trim: true, maxlength: 2000 },
+        }],
         resources: [{
           originalName: { type: String, required: true, trim: true },
           storedName:   { type: String, required: true, trim: true },

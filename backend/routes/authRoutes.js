@@ -1,6 +1,5 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
 const { rateLimit } = require("express-rate-limit");
 
 const User = require("../models/User");
@@ -10,6 +9,7 @@ const authenticateToken = require(
 );
 const { sendPasswordResetEmail } = require("../services/emailService");
 const { createResetToken, hashResetToken, validatePassword } = require("../utils/passwordSecurity");
+const { RefreshSession, accessToken, clearRefreshCookie, createSession, hashToken, publicUser, readCookie, revokeUserSessions, setRefreshCookie } = require("../services/sessionService");
 
 const router = express.Router();
 
@@ -21,7 +21,8 @@ const createLimiter = (windowMs, limit, message) => rateLimit({
   message: { message },
 });
 
-const loginLimiter = createLimiter(15 * 60 * 1000, 10, "Too many login attempts. Try again later.");
+const loginLimiter = createLimiter(15 * 60 * 1000, process.env.NODE_ENV === "test" ? 1000 : 10, "Too many login attempts. Try again later.");
+const refreshLimiter = createLimiter(60 * 1000, 30, "Too many session refresh attempts. Try again later.");
 const forgotPasswordLimiter = createLimiter(60 * 60 * 1000, 5, "Too many password reset requests. Try again later.");
 const resetPasswordLimiter = createLimiter(15 * 60 * 1000, 5, "Too many reset attempts. Try again later.");
 const forgotPasswordResponse = "If an account exists for that email, a password reset link has been sent.";
@@ -103,7 +104,6 @@ router.post("/login", loginLimiter, async (req, res) => {
 
     const settings = await PlatformSetting.findOne({ key: "platform" }).lean();
     const maxLoginAttempts = settings?.maxLoginAttempts || 5;
-    const sessionTimeout = settings?.sessionTimeout || 30;
     if (user.loginLockedUntil && user.loginLockedUntil > new Date()) {
       return res.status(429).json({ message: "Too many failed login attempts. Try again later." });
     }
@@ -137,28 +137,13 @@ router.post("/login", loginLimiter, async (req, res) => {
     user.loginLockedUntil = null;
     await user.save();
 
-    const token = jwt.sign(
-      {
-        id: user._id,
-        role: user.role,
-        tokenVersion: user.tokenVersion || 0,
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: `${sessionTimeout}m`,
-      }
-    );
+    const session = await createSession(user, req);
+    setRefreshCookie(res, session.rawToken);
 
     return res.status(200).json({
       message: "Login successful",
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        accountStatus: user.accountStatus,
-      },
+      token: accessToken(user),
+      user: publicUser(user),
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -168,6 +153,56 @@ router.post("/login", loginLimiter, async (req, res) => {
       error: error.message,
     });
   }
+});
+
+router.post("/refresh", refreshLimiter, async (req, res) => {
+  const rawToken = readCookie(req);
+  if (!rawToken) return res.status(401).json({ message: "Refresh session is missing or expired" });
+  const tokenHash = hashToken(rawToken);
+  try {
+    const existing = await RefreshSession.findOne({ tokenHash }).select("+tokenHash +replacedByHash");
+    if (!existing) { clearRefreshCookie(res); return res.status(401).json({ message: "Refresh session is invalid" }); }
+    if (existing.revokedAt) {
+      if (existing.revokeReason === "rotated") await RefreshSession.updateMany({ familyId: existing.familyId, revokedAt: null }, { $set: { revokedAt: new Date(), revokeReason: "reuse_detected" } });
+      clearRefreshCookie(res);
+      return res.status(401).json({ message: "Refresh session has been revoked" });
+    }
+    if (existing.expiresAt <= new Date()) {
+      existing.revokedAt = new Date(); existing.revokeReason = "expired"; await existing.save(); clearRefreshCookie(res);
+      return res.status(401).json({ message: "Refresh session has expired" });
+    }
+    const user = await User.findById(existing.user);
+    if (!user || user.accountStatus !== "approved") {
+      await RefreshSession.updateMany({ familyId: existing.familyId, revokedAt: null }, { $set: { revokedAt: new Date(), revokeReason: "account_changed" } });
+      clearRefreshCookie(res);
+      return res.status(401).json({ message: "User session is no longer active" });
+    }
+    const rotated = await RefreshSession.findOneAndUpdate({ _id: existing._id, revokedAt: null }, { $set: { revokedAt: new Date(), revokeReason: "rotated", lastUsedAt: new Date() } }, { returnDocument: "after" });
+    if (!rotated) {
+      await RefreshSession.updateMany({ familyId: existing.familyId, revokedAt: null }, { $set: { revokedAt: new Date(), revokeReason: "reuse_detected" } });
+      clearRefreshCookie(res);
+      return res.status(401).json({ message: "Refresh token reuse was detected" });
+    }
+    const next = await createSession(user, req, existing.familyId);
+    await RefreshSession.updateOne({ _id: existing._id }, { $set: { replacedByHash: next.tokenHash } });
+    setRefreshCookie(res, next.rawToken);
+    return res.json({ message: "Session refreshed", token: accessToken(user), user: publicUser(user) });
+  } catch (error) {
+    console.error("Refresh session error:", error.message); clearRefreshCookie(res);
+    return res.status(401).json({ message: "Unable to refresh session" });
+  }
+});
+
+router.post("/logout", async (req, res) => {
+  const rawToken = readCookie(req);
+  if (rawToken) await RefreshSession.updateOne({ tokenHash: hashToken(rawToken), revokedAt: null }, { $set: { revokedAt: new Date(), revokeReason: "logout", lastUsedAt: new Date() } });
+  clearRefreshCookie(res);
+  return res.json({ message: "Logged out" });
+});
+
+router.post("/logout-all", authenticateToken, async (req, res) => {
+  await revokeUserSessions(req.user._id, "logout_all"); clearRefreshCookie(res);
+  return res.json({ message: "Logged out from all sessions" });
 });
 
 router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
@@ -232,6 +267,8 @@ router.post("/reset-password/:token", resetPasswordLimiter, async (req, res) => 
     user.loginAttempts = 0;
     user.loginLockedUntil = null;
     await user.save();
+    await revokeUserSessions(user._id, "password_changed");
+    clearRefreshCookie(res);
 
     return res.status(200).json({ message: "Password reset successfully. You can now log in." });
   } catch (error) {

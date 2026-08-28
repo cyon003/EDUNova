@@ -5,7 +5,7 @@ import mathematicsImage from "../assets/images/mathematic.jpeg";
 import { API_ROOT, courseDuration, courseThumbnail, formatCoursePrice, getPublicCourses } from "../utils/courseApi";
 import "../styles/Courses.css";
 
-function CourseList({ courseItems, savedCourses, onToggleSaved }) {
+export function CourseList({ courseItems, savedCourses, onToggleSaved, from = "/courses" }) {
   return (
     <ul className="available-course-list">
       {courseItems.map((course) => (
@@ -28,7 +28,7 @@ function CourseList({ courseItems, savedCourses, onToggleSaved }) {
               <p className="available-course-rating"><FaStar /> {course.rating}</p>
               <span>{courseDuration(course)}</span>
             </div>
-            <Link to={`/courses/${course.slug}`} state={{ from: "/courses" }} className="course-details-link">View course</Link>
+            <Link to={`/courses/${course.slug}`} state={{ from }} className="course-details-link">View course</Link>
           </div>
         </li>
       ))}
@@ -43,20 +43,28 @@ function Courses() {
   const [savedCourses, setSavedCourses] = useState([]);
   const [saveError, setSaveError] = useState("");
   const [searchQuery, setSearchQuery] = useState(() => new URLSearchParams(window.location.search).get("search") || "");
-  const [category, setCategory] = useState("All");
-  const [sortBy, setSortBy] = useState("rating");
+  const [category, setCategory] = useState(() => window.location.hash === "#popular" ? "Popular" : "All");
   const [savedOnly, setSavedOnly] = useState(false);
   const [showLearningPathBar, setShowLearningPathBar] = useState(false);
   const [learningPathsVisible, setLearningPathsVisible] = useState(false);
-  const popularCourses = [...catalogCourses]
-    .sort((first, second) => Number(second.rating) - Number(first.rating))
-    .slice(0, 4);
-  const categories = ["All", ...new Set(catalogCourses.map((course) => course.category))];
+  const categories = ["All", "Popular", "General Education", "Technology & Computing", "Business & Management", "Languages & Communication", "Other"];
+  const categoryGroup = (value) => {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (["ge", "general", "general education", "general studies"].includes(normalized)) return "General Education";
+    if (/(technology|comput|program|software|web|data|cyber|information technology|computer science)/.test(normalized)) return "Technology & Computing";
+    if (/(business|management|marketing|finance|account|entrepreneur|econom)/.test(normalized)) return "Business & Management";
+    if (/(language|communication|english|thai|chinese|japanese|korean|spanish|french)/.test(normalized)) return "Languages & Communication";
+    return "Other";
+  };
+  const popularSlugs = new Set([...catalogCourses].sort((first, second) => Number(second.rating || 0) - Number(first.rating || 0)).slice(0, 4).map((course) => course.slug));
   const filteredCourses = catalogCourses
-    .filter((course) => category === "All" || course.category === category)
+    .filter((course) => category === "All" || (category === "Popular" ? popularSlugs.has(course.slug) : categoryGroup(course.category) === category))
     .filter((course) => !savedOnly || savedCourses.includes(course.slug))
     .filter((course) => `${course.name} ${course.description} ${course.category}`.toLowerCase().includes(searchQuery.trim().toLowerCase()))
-    .sort((first, second) => sortBy === "name" ? first.name.localeCompare(second.name) : Number(second.rating) - Number(first.rating));
+    .sort((first, second) => category === "Popular" ? Number(second.rating || 0) - Number(first.rating || 0) : first.name.localeCompare(second.name));
+  const sectionTitle = savedOnly ? "Saved Courses" : category === "All" ? "Available Courses" : category === "Popular" ? "Popular Courses" : `${category} Courses`;
+  const sectionLabel = savedOnly ? "YOUR SAVED COURSES" : category === "Popular" ? "STUDENT FAVORITES" : category === "All" ? "FULL CATALOG" : "BROWSE BY CATEGORY";
+  const sectionDescription = savedOnly ? "Courses you saved for later." : category === "Popular" ? "Highly rated courses learners are enjoying right now." : category === "All" ? "Explore every subject and find the right course for your goals." : `Explore courses in ${category}.`;
 
   useEffect(() => {
     let active = true;
@@ -90,7 +98,7 @@ function Courses() {
   }, []);
 
   useEffect(() => {
-    const sectionId = window.location.hash.slice(1);
+    const sectionId = window.location.hash === "#popular" ? "available" : window.location.hash.slice(1);
     if (!sectionId) return;
     requestAnimationFrame(() => document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth" }));
   }, []);
@@ -180,11 +188,10 @@ function Courses() {
       <div className="course-catalog-tools">
         <label className="course-search"><FaSearch /><input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search courses" aria-label="Search courses" /></label>
         <div className="course-category-filters" aria-label="Filter by category">
-          {categories.map((item) => <button type="button" className={category === item ? "active" : undefined} onClick={() => setCategory(item)} key={item}>{item}</button>)}
+          {categories.map((item) => <button type="button" className={!savedOnly && category === item ? "active" : undefined} onClick={() => { setCategory(item); setSavedOnly(false); }} key={item}>{item}</button>)}
         </div>
         <div className="course-filter-actions">
-          <button type="button" className={savedOnly ? "active" : undefined} onClick={() => setSavedOnly((current) => !current)}><FaHeart /> Saved</button>
-          <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} aria-label="Sort courses"><option value="rating">Top rated</option><option value="name">Course name</option></select>
+          <button type="button" className={savedOnly ? "active" : undefined} aria-pressed={savedOnly} onClick={() => { setSavedOnly((current) => !current); setCategory("All"); }}><FaHeart /> Saved</button>
         </div>
       </div>
       {saveError && <p className="course-save-error" role="alert">{saveError}</p>}
@@ -193,32 +200,24 @@ function Courses() {
       {!loading && loadError && <div className="course-empty-results"><FaBookOpen /><h3>Courses are unavailable</h3><p>{loadError}</p></div>}
       {!loading && !loadError && catalogCourses.length === 0 && <div className="course-empty-results"><FaBookOpen /><h3>No approved courses yet</h3><p>New tutor courses will appear here after admin approval.</p></div>}
 
-      {!loading && !loadError && catalogCourses.length > 0 && <section className="course-collection popular-course-collection" id="popular">
-        <header>
-          <div><span><FaFire /></span><div><small>STUDENT FAVORITES</small><h2>Popular Courses</h2><p>Highly rated courses learners are enjoying right now.</p></div></div>
-          <strong>Top {popularCourses.length}</strong>
-        </header>
-        <CourseList courseItems={popularCourses} savedCourses={savedCourses} onToggleSaved={toggleSaved} />
-      </section>}
-
       <section className="course-match-panel" id="course-ai-recommendation">
-        <div><span><FaRobot /></span><div><small>PERSONALIZED GUIDANCE</small><h2>Not sure where to begin?</h2><p>Tell the AI assistant what you want to learn and get a course recommendation.</p></div></div>
-        <Link to="/ai-chatbot">Ask AI</Link>
+        <div><span><FaRobot /></span><div><small>GENERAL STUDY GUIDANCE</small><h2>Not sure where to begin?</h2><p>Ask the General AI Tutor to explain a subject or help you clarify your learning goals.</p></div></div>
+        <Link to="/ai-tutor">General AI Tutor</Link>
       </section>
 
       {!loading && !loadError && catalogCourses.length > 0 && <section className="course-collection" id="available">
         <header>
-          <div><span><FaBookOpen /></span><div><small>FULL CATALOG</small><h2>Available Courses</h2><p>Explore every subject and find the right course for your goals.</p></div></div>
-          <strong>{catalogCourses.length} courses</strong>
+          <div><span>{category === "Popular" && !savedOnly ? <FaFire /> : savedOnly ? <FaHeart /> : <FaBookOpen />}</span><div><small>{sectionLabel}</small><h2>{sectionTitle}</h2><p>{sectionDescription}</p></div></div>
+          <strong>{filteredCourses.length} {filteredCourses.length === 1 ? "course" : "courses"}</strong>
         </header>
         <div className="course-results-summary"><span>{filteredCourses.length} {filteredCourses.length === 1 ? "course" : "courses"}</span>{(searchQuery || category !== "All" || savedOnly) && <button type="button" onClick={() => { setSearchQuery(""); setCategory("All"); setSavedOnly(false); }}>Clear filters</button>}</div>
-        {filteredCourses.length ? <CourseList courseItems={filteredCourses} savedCourses={savedCourses} onToggleSaved={toggleSaved} /> : <div className="course-empty-results"><FaSearch /><h3>No courses found</h3><p>Try another search or clear your filters.</p></div>}
+        {filteredCourses.length ? <CourseList courseItems={filteredCourses} savedCourses={savedCourses} onToggleSaved={toggleSaved} /> : <div className="course-empty-results"><FaSearch /><h3>{savedOnly ? "No saved courses yet" : "No courses found"}</h3><p>{savedOnly ? "Use the heart button on a course to save it here." : "Try another search or clear your filters."}</p></div>}
       </section>}
 
       <section className={`learning-paths ${learningPathsVisible ? "visible" : ""}`} id="learning-paths" aria-labelledby="learning-paths-title">
         <header>
           <div><span>CHOOSE YOUR DIRECTION</span><h2 id="learning-paths-title">Build a learning path that fits your goal</h2><p>Start with a direction and follow a small set of courses designed to help you move forward.</p></div>
-          <Link to="/ai-chatbot"><FaRobot /> Build my path with AI</Link>
+          <Link to="/ai-tutor"><FaRobot /> General AI Tutor</Link>
         </header>
         <div className="learning-path-grid">
           <article>
@@ -248,7 +247,7 @@ function Courses() {
       {showLearningPathBar && (
         <aside className="learning-path-sticky" aria-label="Learning path suggestion">
           <div><FaCompass /><span><strong>Build your learning path</strong><small>Turn your goals into a simple course plan.</small></span></div>
-          <Link to="/ai-chatbot"><FaRobot /> Ask AI</Link>
+          <Link to="/ai-tutor"><FaRobot /> General AI Tutor</Link>
         </aside>
       )}
 

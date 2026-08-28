@@ -1,25 +1,14 @@
 import { useState } from "react";
-import { FaEye, FaEyeSlash } from "react-icons/fa";
-import { Link } from "react-router-dom";
+import { FaEye, FaEyeSlash, FaTimes } from "react-icons/fa";
+import { Link, useNavigate } from "react-router-dom";
 import { API_ROOT } from "../utils/courseApi";
-
-function saveLogin(user, token) {
-  if (!user || !token) {
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
-    return false;
-  }
-
-  localStorage.setItem("user", JSON.stringify(user));
-  localStorage.setItem("token", token);
-
-  return true;
-}
+import { consumeSessionMessage, establishSession } from "../utils/authClient";
 
 function AuthCard() {
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [isLogin, setIsLogin] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(() => consumeSessionMessage());
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -73,6 +62,7 @@ function AuthCard() {
     try {
       const response = await fetch(url, {
         method: "POST",
+        credentials: "include",
 
         headers: {
           "Content-Type": "application/json",
@@ -102,7 +92,7 @@ function AuthCard() {
         return;
       }
 
-      const saved = saveLogin(data.user, data.token);
+      const saved = establishSession(data.user, data.token);
 
       if (!saved) {
         setMessage(
@@ -118,9 +108,7 @@ function AuthCard() {
       const nextPath = new URLSearchParams(window.location.search).get("next");
       const roleLanding = data.user.role === "admin"
         ? "/admin-dashboard"
-        : data.user.role === "tutor"
-          ? "/tutor-dashboard"
-          : "/home";
+        : "/home";
       window.location.href = nextPath?.startsWith("/") && !nextPath.startsWith("//")
         ? nextPath
         : roleLanding;
@@ -137,6 +125,7 @@ function AuthCard() {
         isLogin ? "login-mode" : "signup-mode"
       }`}
     >
+      <button type="button" className="auth-close" aria-label="Close and return to homepage" onClick={() => navigate("/")}><FaTimes /></button>
       <div className="signup-tabs">
         <button
           type="button"

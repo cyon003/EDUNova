@@ -4,6 +4,7 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import mathematicsImage from "../assets/images/mathematic.jpeg";
 import confusionTraining from "../data/confusionTraining";
 import { API_ROOT, courseDuration, courseThumbnail, getPublicCourse } from "../utils/courseApi";
+import { getYouTubeEmbedUrl, isYouTubeUrl } from "../utils/lessonMedia";
 import "../styles/CourseDetail.css";
 
 function UnderstandingCheck({ course, lesson }) {
@@ -61,7 +62,10 @@ function CourseLessons({ course, enrolled, completedLessons, onToggleLesson }) {
         </div>
       ) : (
         <ol className="course-lesson-list">
-          {lessons.map((lesson, index) => (
+          {lessons.map((lesson, index) => {
+            const youtubeEmbedUrl = getYouTubeEmbedUrl(lesson.videoUrl);
+            const invalidYouTubeUrl = isYouTubeUrl(lesson.videoUrl) && !youtubeEmbedUrl;
+            return (
             <li
               className="course-lesson"
               id={`lesson-${index + 1}`}
@@ -75,11 +79,22 @@ function CourseLessons({ course, enrolled, completedLessons, onToggleLesson }) {
                     <FaLock />
                     <span>Purchase this course to watch</span>
                   </div>
-                ) : (
+                ) : youtubeEmbedUrl ? (
+                  <iframe
+                    src={youtubeEmbedUrl}
+                    title={`${lesson.title} YouTube video`}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                ) : invalidYouTubeUrl ? (
+                  <div className="lesson-media-unavailable">Invalid YouTube lesson URL</div>
+                ) : lesson.videoUrl ? (
                   <video controls preload="metadata">
                     <source src={lesson.videoUrl} type="video/mp4" />
                     Your browser does not support HTML video.
                   </video>
+                ) : (
+                  <div className="lesson-media-unavailable">Lesson video unavailable</div>
                 )}
               </div>
 
@@ -93,7 +108,7 @@ function CourseLessons({ course, enrolled, completedLessons, onToggleLesson }) {
                 {enrolled && <button type="button" className={completedLessons.includes(index) ? "lesson-complete-button completed" : "lesson-complete-button"} onClick={() => onToggleLesson(index)}><FaCheck /> {completedLessons.includes(index) ? "Completed" : "Mark complete"}</button>}
               </div>
             </li>
-          ))}
+          );})}
         </ol>
       )}
     </section>
@@ -454,11 +469,10 @@ function CourseDetail() {
 
             <div className="course-detail-price">
               <span>Course price</span>
-              <strong>{isFree ? "Free" : `$${course.price}`}</strong>
+              <strong>{isFree ? "Free" : `$${Number(course.price).toFixed(2)}`}</strong>
             </div>
 
             <div className="course-detail-purchase">
-              {/* Hide cart button for free courses */}
               {!isFree && !enrolled && (
                 <button
                   type="button"
@@ -477,9 +491,8 @@ function CourseDetail() {
               >
                 <FaShoppingBag /> {enrolling ? "Processing..." : enrolled ? "Enrolled" : isFree ? "Enroll Free" : "Buy Now"}
               </button>
-              {/* Go to cart link when in cart */}
               {inCart && !enrolled && (
-                <Link to="/cart" className="course-cart-button in-cart" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <Link to="/cart" className="course-go-cart-link">
                   Go to Cart →
                 </Link>
               )}

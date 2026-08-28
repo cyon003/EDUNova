@@ -15,7 +15,7 @@ import {
 import mathematicsImage from "../assets/images/mathematic.jpeg";
 import "../styles/Home.css";
 import LanguagePreference from "../components/LanguagePreference";
-import { courseDuration, courseThumbnail, getPublicCourses } from "../utils/courseApi";
+import { courseDuration, courseThumbnail, formatCoursePrice, getPublicCourses } from "../utils/courseApi";
 
 function CourseCard({ course, isSaved, onToggleSaved, from }) {
   return (
@@ -35,7 +35,10 @@ function CourseCard({ course, isSaved, onToggleSaved, from }) {
       </div>
 
       <div className="course-information">
-        <h3 className="course-name">{course.name}</h3>
+        <div className="course-title-row">
+          <h3 className="course-name">{course.name}</h3>
+          <strong className="course-card-price">{formatCoursePrice(course.price)}</strong>
+        </div>
         <p className="course-description">{course.description}</p>
 
         <div className="course-rating-duration">
@@ -176,7 +179,7 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
                   <span>POPULAR COURSE</span>
                   <h1>{course.name}</h1>
                   <p>{course.description}</p>
-                  <div className="home-carousel-meta"><strong>★ {course.rating || 0}</strong><span>{course.reviews || 0} reviews</span><span>{courseDuration(course)}</span></div>
+                  <div className="home-carousel-meta"><strong>★ {course.rating || 0}</strong><span>{course.reviews || 0} reviews</span><span>{courseDuration(course)}</span><strong>{formatCoursePrice(course.price)}</strong></div>
                   <Link to={`/courses/${course.slug}`} state={{ from: homePath }} tabIndex={activeSlide === index ? 0 : -1}>Explore course <span aria-hidden="true">→</span></Link>
                 </div>
                 <div className="home-carousel-visual" aria-hidden="true">

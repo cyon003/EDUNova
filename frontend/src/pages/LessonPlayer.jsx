@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FaArrowLeft, FaBookOpen, FaCheck, FaChevronLeft, FaChevronRight, FaClock, FaGraduationCap, FaPlay } from "react-icons/fa";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { getYouTubeEmbedUrl, isYouTubeUrl } from "../utils/lessonMedia";
 import { API_ROOT } from "../utils/courseApi";
 import "../styles/LessonPlayer.css";
 
@@ -137,6 +138,8 @@ function LessonPlayer() {
   if (!lesson) return <main className="lesson-player-state"><FaBookOpen /><h1>No lessons available yet</h1><p>This course does not have lesson videos.</p><Link to={`/courses/${courseSlug}`}>View course details</Link></main>;
 
   const progress = Math.round(completedLessons.length / lessons.length * 100);
+  const youtubeEmbedUrl = getYouTubeEmbedUrl(lesson.videoUrl);
+  const invalidYouTubeUrl = isYouTubeUrl(lesson.videoUrl) && !youtubeEmbedUrl;
 
   return <main className="lesson-player-page">
     <header className="lesson-player-topbar">
@@ -159,7 +162,12 @@ function LessonPlayer() {
 
       <section className="lesson-workspace">
         <div className="lesson-video-shell">
-          <video
+          {youtubeEmbedUrl ? <iframe
+            src={youtubeEmbedUrl}
+            title={`${lesson.title} YouTube video`}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          /> : invalidYouTubeUrl ? <div className="lesson-media-unavailable">This YouTube lesson URL is invalid.</div> : lesson.videoUrl ? <video
             ref={videoRef}
             controls
             key={`${courseSlug}-${lessonIndex}`}
@@ -179,7 +187,7 @@ function LessonPlayer() {
           >
             <source src={lesson.videoUrl} type="video/mp4" />
             Your browser does not support HTML video.
-          </video>
+          </video> : <div className="lesson-media-unavailable">Lesson video unavailable.</div>}
         </div>
 
         <article className="lesson-player-content">

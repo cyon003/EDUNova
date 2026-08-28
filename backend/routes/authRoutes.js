@@ -183,12 +183,23 @@ router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
       await user.save();
 
       const frontendUrl = String(process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
-      await sendPasswordResetEmail({
-        to: user.email,
-        name: user.name,
-        resetUrl: `${frontendUrl}/reset-password/${token}`,
-        expiresInMinutes,
-      });
+console.info("Password reset email attempted");
+
+const delivery = await sendPasswordResetEmail({
+  to: user.email,
+  name: user.name,
+  resetUrl,
+});
+
+if (delivery.sent) {
+  console.info("Password reset email sent", {
+    transport: delivery.transport,
+  });
+} else {
+  console.error("Password reset email delivery failed", {
+    reason: delivery.reason,
+  });
+}
     }
 
     return res.status(200).json({ message: forgotPasswordResponse });

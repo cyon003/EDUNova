@@ -2,6 +2,7 @@ const express = require("express");
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
 const authenticateToken = require("../middleware/authMiddleware");
+const { restrictCourseContent } = require("../utils/courseAccess");
 
 const router = express.Router();
 
@@ -59,15 +60,7 @@ router.get("/:slug", async (req, res) => {
     }
 
     // Not enrolled in paid course — return course info but hide lesson video URLs
-    const restricted = course.toObject();
-    restricted.lessons = restricted.lessons.map((lesson) => ({
-      ...lesson,
-      videoUrl: "",        // hide video
-      resources: [],       // hide downloadable resources
-    }));
-    restricted._restricted = true;
-
-    return res.status(200).json(restricted);
+    return res.status(200).json(restrictCourseContent(course));
   } catch (error) {
     console.error("Get course error:", error);
     return res.status(500).json({ message: "Unable to load the course" });

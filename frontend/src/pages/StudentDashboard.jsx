@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  FaBell,
   FaBookOpen,
   FaBrain,
   FaBullseye,
@@ -10,7 +9,6 @@ import {
   FaCheckCircle,
   FaChevronRight,
   FaClock,
-  FaComments,
   FaFire,
   FaGraduationCap,
   FaHeart,
@@ -31,7 +29,12 @@ import {
 import "../styles/StudentDashboard.css";
 import MessageBox from "../components/MessageBox";
 import DashboardSearch from "../components/DashboardSearch";
-import { API_ROOT, getPublicCourses } from "../utils/courseApi";
+import NotificationBell from "../components/NotificationBell";
+import {
+  API_ROOT,
+  courseDuration,
+  getPublicCourses,
+} from "../utils/courseApi";
 
 const dailyPlan = [
   { id: "math", title: "Complete Quadratic Equations", detail: "Mathematics · 25 min" },
@@ -96,20 +99,14 @@ function StudentDashboard() {
   const [noteFolder, setNoteFolder] = useState("All Notes");
   const [noteSearch, setNoteSearch] = useState("");
   const [selectedSummaryId, setSelectedSummaryId] = useState(summarizedNotes[0].id);
-  const [notificationOpen, setNotificationOpen] = useState(false);
-  const [notificationsRead, setNotificationsRead] = useState(false);
   const [completedPlan, setCompletedPlan] = useState([]);
   const [continueDestination, setContinueDestination] = useState("/my-courses");
-  const [publicCourses, setPublicCourses] = useState([]);
+  const [savedCourseItems, setSavedCourseItems] = useState([]);
   const [learningStats, setLearningStats] = useState({ activeCourses: 0, studySeconds: 0, completedLessons: 0, completedCourses: 0, streak: 0, recentActivities: [], courses: [] });
   const [goals, setGoals] = useState([
     { id: "lessons", label: "Complete lessons", current: 3, target: 5 },
     { id: "hours", label: "Study hours", current: 4, target: 7 },
   ]);
-  const savedCourseSlugs = (() => {
-    try { return JSON.parse(localStorage.getItem("edunova-saved-courses")) || []; } catch { return []; }
-  })();
-  const savedCourseItems = publicCourses.filter((course) => savedCourseSlugs.includes(course.slug));
   const noteFolders = ["All Notes", ...new Set([...learningStats.courses.map((course) => course.name), ...notes.map((note) => note.course)].filter(Boolean))];
   const activeNotes = noteType === "summaries" ? summarizedNotes : notes;
   const visibleNotes = activeNotes.filter((note) => (noteFolder === "All Notes" || note.course === noteFolder) && `${note.course} ${note.title} ${note.body}`.toLowerCase().includes(noteSearch.trim().toLowerCase()));
@@ -118,7 +115,19 @@ function StudentDashboard() {
 
   useEffect(() => {
     const controller = new AbortController();
-    getPublicCourses(controller.signal).then(setPublicCourses).catch(() => {});
+    const token = localStorage.getItem("token");
+    if (!token) return () => controller.abort();
+    fetch(`${API_ROOT}/favorites`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.message || "Unable to load saved courses");
+        return data.favorites || [];
+      })
+      .then(setSavedCourseItems)
+      .catch((error) => { if (error.name !== "AbortError") setSavedCourseItems([]); });
     return () => controller.abort();
   }, []);
 
@@ -422,15 +431,7 @@ function StudentDashboard() {
           </div>
           <DashboardSearch />
           <div className="student-topbar-actions">
-            <button type="button" aria-label="Notifications" aria-expanded={notificationOpen} onClick={() => setNotificationOpen((current) => !current)}><FaBell />{!notificationsRead && <span />}</button>
-            {notificationOpen && (
-              <div className="student-notifications">
-                <header><div><strong>Notifications</strong><small>3 new updates</small></div><button type="button" onClick={() => setNotificationsRead(true)}>Mark all read</button></header>
-                <article><span><FaComments /></span><div><strong>New instructor message</strong><p>Your Mathematics tutor replied to your question.</p><small>10 min ago</small></div></article>
-                <article><span><FaBullseye /></span><div><strong>Weekly goal update</strong><p>You are two lessons away from this week’s goal.</p><small>1 hour ago</small></div></article>
-                <article><span><FaBookOpen /></span><div><strong>New lesson available</strong><p>Forces and Motion is ready to continue.</p><small>Yesterday</small></div></article>
-              </div>
-            )}
+            <NotificationBell />
             <MessageBox />
             <div className="student-avatar">{user?.name?.[0]?.toUpperCase() || "S"}</div>
           </div>
@@ -514,7 +515,7 @@ function StudentDashboard() {
 
           <section className="student-panel student-saved-panel" id="student-saved">
             <header><div><span>YOUR COLLECTION</span><h2>Saved courses</h2></div><FaHeart /></header>
-            {savedCourseItems.length ? <div className="student-saved-list">{savedCourseItems.slice(0, 3).map((course) => <Link to={`/courses/${course.slug}`} key={course.slug}><span><FaBookOpen /></span><div><strong>{course.name}</strong><small>{course.level} · {course.duration}</small></div></Link>)}</div> : <div className="student-saved-empty"><p>Save courses with the heart icon to find them here.</p><Link to="/courses">Explore courses</Link></div>}
+            {savedCourseItems.length ? <div className="student-saved-list">{savedCourseItems.slice(0, 3).map((course) => <Link to={`/courses/${course.slug}`} key={course.slug}><span><FaBookOpen /></span><div><strong>{course.name}</strong><small>{course.level} · {courseDuration(course)}</small></div></Link>)}</div> : <div className="student-saved-empty"><p>Save courses with the heart icon to find them here.</p><Link to="/courses">Explore courses</Link></div>}
           </section>
 
           <section className="student-panel student-achievements-panel" id="student-achievements">

@@ -377,6 +377,17 @@
   color: #f8f7ff;
 }
 
+.adm-price-form { display: grid; grid-template-columns: minmax(180px, 260px) 1fr auto; align-items: end; gap: 0.75rem; margin: 1.5rem 0; padding: 1rem; background: #191126; border: 1px solid #34254e; border-radius: 14px; }
+.adm-price-form label { display: grid; gap: 0.45rem; color: #d8d0e4; font-size: 0.78rem; font-weight: 700; }
+.adm-price-form input { box-sizing: border-box; width: 100%; padding: 0.75rem; color: #f8f5fc; font: inherit; background: #0d0917; border: 1px solid #49366e; border-radius: 9px; outline: none; }
+.adm-price-form input:focus { border-color: #8d63ea; box-shadow: 0 0 0 3px rgba(141,99,234,.12); }
+.adm-price-form small { align-self: center; color: #9388ad; line-height: 1.5; }
+.adm-price-form p { grid-column: 1 / -1; margin: 0; color: #f0a6b4; font-size: 0.75rem; }
+
+@media (max-width: 700px) {
+  .adm-price-form { grid-template-columns: 1fr; }
+}
+
 .adm-review-columns {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.8fr);

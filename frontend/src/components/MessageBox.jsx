@@ -67,7 +67,7 @@ function MessageBox() {
   return (
     <div className="message-box-wrap">
       <button type="button" className="message-trigger" aria-label="Messages" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
-        <FaComments /><span />
+        <FaComments />
       </button>
       {open && (
         <section className="message-box" aria-label="Messages">

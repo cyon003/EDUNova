@@ -6,6 +6,7 @@ import {
   FaGraduationCap,
   FaSearch,
   FaSignOutAlt,
+  FaShoppingCart,
   FaTimes,
 } from "react-icons/fa";
 import Home from "./Home";
@@ -142,6 +143,11 @@ function UserHome() {
 
         <div className="uhome-nav-right">
           <NotificationBell />
+          {user.role === "student" && (
+            <Link to="/cart" className="uhome-cart-link" aria-label="Open cart" title="Cart">
+              <FaShoppingCart />
+            </Link>
+          )}
           <LanguagePreference />
           <form className="uhome-nav-search" onSubmit={submitSearch}>
             <FaSearch aria-hidden="true" />

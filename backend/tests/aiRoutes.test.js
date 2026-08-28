@@ -85,7 +85,7 @@ test.beforeEach(() => {
   global.fetch = async () => ({
     ok: true,
     status: 200,
-    json: async () => ({ mode: "general", answer: "A general answer.", responseType: "generated", grounded: false, sources: [], disclaimer: "This answer uses Gemini’s general knowledge and is not verified against EDUNova course materials." }),
+    json: async () => ({ mode: "general", answer: "A general answer.", responseType: "generated", disclaimer: "This answer uses Gemini’s general knowledge and is not verified against EDUNova course materials." }),
   });
 });
 
@@ -100,7 +100,7 @@ test("general chat sends only general context and stores a general conversation"
   let providerPayload;
   global.fetch = async (_url, options) => {
     providerPayload = JSON.parse(options.body);
-    return { ok: true, status: 200, json: async () => ({ mode: "general", answer: "A general answer.", responseType: "generated", grounded: false, sources: [], disclaimer: "This answer uses Gemini’s general knowledge and is not verified against EDUNova course materials." }) };
+    return { ok: true, status: 200, json: async () => ({ mode: "general", answer: "A general answer.", responseType: "generated", disclaimer: "This answer uses Gemini’s general knowledge and is not verified against EDUNova course materials." }) };
   };
   const response = await request("POST", "/api/ai/chat", { mode: "general", message: "  Explain fractions  " });
   assert.equal(response.status, 200);
@@ -143,7 +143,7 @@ test("history clearing deletes only the authenticated user's general history", a
   assert.equal(response.status, 200);
   assert.equal(response.body.deletedCount, 2);
   assert.equal(String(deletedFilter.user), user._id);
-  assert.deepEqual({ mode: deletedFilter.mode, course: deletedFilter.course, lesson: deletedFilter.lesson }, { mode: "general", course: null, lesson: null });
+  assert.deepEqual(deletedFilter, { user: user._id, mode: "general" });
 });
 
 test("course history and course-specific history fields are rejected", async () => {

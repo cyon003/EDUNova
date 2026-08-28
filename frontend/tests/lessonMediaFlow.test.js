@@ -34,6 +34,40 @@ test("student player uses authenticated backend media and never embeds reference
   assert.doesNotMatch(player, /src=\{lesson\.videoUrl\}/);
 });
 
+test("admin moderation preview can select and play protected lessons before approval", async () => {
+  const preview = await source("src/pages/AdminCourses.jsx");
+  assert.match(preview, /adm-moderation-classroom/);
+  assert.match(preview, /lessons\/\$\{selected\}\/media-access/);
+  assert.match(preview, /Authorization:`Bearer \$\{localStorage\.getItem\("token"\)\}`/);
+  assert.match(preview, /<video[^]*controls preload="metadata"/);
+  assert.match(preview, /Downloadable Resources/);
+  assert.match(preview, /Lesson Summary/);
+  assert.match(preview, /supportsLessonTranscript\(lesson\)/);
+  assert.match(preview, /Reject[^]*Approve/);
+  assert.doesNotMatch(preview, /<iframe/);
+  assert.doesNotMatch(preview, /href=\{resource\.url\}/);
+});
+
+test("home course cards keep equal responsive dimensions with long names", async () => {
+  const styles = await source("src/styles/Home.css");
+  assert.match(styles, /\.content-courses[^]*grid-auto-rows: 1fr/);
+  assert.match(styles, /\.course-card[^]*min-height: 390px/);
+  assert.match(styles, /\.course-name[^]*-webkit-line-clamp: 2/);
+  assert.match(styles, /@media \(max-width: 1100px\)[^]*repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /@media \(max-width: 800px\)[^]*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /@media \(max-width: 600px\)[^]*grid-template-columns: 1fr/);
+});
+
+test("course catalog uses one dynamic section for popular, categories, and saved courses", async () => {
+  const catalog = await source("src/pages/Courses.jsx");
+  assert.match(catalog, /"Popular", "General Education", "Technology & Computing", "Business & Management", "Languages & Communication", "Other"/);
+  assert.match(catalog, /sectionTitle = savedOnly \? "Saved Courses"[^]*"Popular Courses"/);
+  assert.match(catalog, /setSavedOnly\(\(current\) => !current\); setCategory\("All"\)/);
+  assert.match(catalog, /id="available"/);
+  assert.doesNotMatch(catalog, /<select[^]*Sort courses/);
+  assert.doesNotMatch(catalog, /popular-course-collection" id="popular"/);
+});
+
 test("Add Lesson uses an accessible modal and matching hidden-input upload cards", async () => {
   const manager = await source("src/components/LessonManager.jsx");
   const styles = await source("src/styles/TutorDashboard.css");
@@ -66,6 +100,13 @@ test("pending publication can be cancelled by the tutor", async () => {
   const dashboard = await source("src/pages/TutorDashboard.jsx");
   assert.match(dashboard, /pending-actions[^]*disabled[^]*Pending[^]*pending-cancel[^]*act\(c,"unpublish"\)[^]*Cancel/);
   assert.doesNotMatch(dashboard, /Pending Admin Approval<\/button>/);
+});
+
+test("course Edit scrolls the opened editor into view", async () => {
+  const dashboard = await source("src/pages/TutorDashboard.jsx");
+  assert.match(dashboard, /courseEditorRef=useRef\(null\)/);
+  assert.match(dashboard, /scrollIntoView\(\{behavior:"smooth",block:"start"\}\)/);
+  assert.match(dashboard, /ref=\{editorRef\} className="panel form"/);
 });
 
 test("Edit Lesson preserves resources while replacing media and adding documents", async () => {

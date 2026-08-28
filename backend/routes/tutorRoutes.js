@@ -7,8 +7,6 @@ const bcrypt = require("bcryptjs");
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
 const User = require("../models/User");
-const LessonResourceChunk = require("../models/LessonResourceChunk");
-const { extractionLimits, processResourceExtraction, safeResourcePath, searchableContentType, validateSearchableFile } = require("../services/lessonResourceExtraction");
 const { notifyCourseSubmitted } = require("../services/notificationService");
 const authenticateToken = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
@@ -24,6 +22,12 @@ const videoDirectory = path.join(__dirname, "..", "uploads", "course-videos");
 fs.mkdirSync(videoDirectory, { recursive: true });
 const lessonResourceDirectory = path.join(__dirname, "..", "uploads", "lesson-resources");
 fs.mkdirSync(lessonResourceDirectory, { recursive: true });
+function safeResourcePath(storedName) {
+  if (typeof storedName !== "string" || !storedName || path.basename(storedName) !== storedName) throw new Error("unsafe_path");
+  const resolved = path.resolve(lessonResourceDirectory, storedName);
+  if (!resolved.startsWith(`${path.resolve(lessonResourceDirectory)}${path.sep}`)) throw new Error("unsafe_path");
+  return resolved;
+}
 const coverDirectory = path.join(__dirname, "..", "uploads", "course-covers");
 fs.mkdirSync(coverDirectory, { recursive: true });
 const uploadCover = multer({
@@ -171,7 +175,6 @@ router.delete("/courses/:courseId", async (req, res) => {
     const course = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id });
     if (!course) return res.status(404).json({ message: "Course not found" });
     if (await Enrollment.exists({ course: course._id })) return res.status(409).json({ message: "Archive courses that already have students" });
-    await LessonResourceChunk.deleteMany({ course: course._id });
     await course.deleteOne();
     return res.status(204).end();
   } catch (error) { return res.status(500).json({ message: "Unable to delete course", error: error.message }); }
@@ -192,19 +195,6 @@ router.post("/courses/:courseId/lessons", receiveLessonFiles, async (req, res) =
     }
     if (referenceContent.error) return res.status(400).json({ message: referenceContent.error });
     if (!req.body.title || (!videoFile && !externalVideoUrl && !resourceFiles.length && !referenceContent.references.length)) return res.status(400).json({ message: "Lesson title and at least one video, resource, or reference are required" });
-    const oversizedSearchable = resourceFiles.find((file) => searchableContentType({ originalName: file.originalname, mimeType: file.mimetype }) && file.size > extractionLimits().maxFileBytes);
-    if (oversizedSearchable) {
-      [...(req.files?.video || []), ...resourceFiles].forEach((file) => fs.unlink(file.path, () => {}));
-      return res.status(413).json({ message: "A searchable lesson resource exceeds the extraction size limit" });
-    }
-    const invalidSearchable = (await Promise.all(resourceFiles.map(async (file) => {
-      const descriptor = { originalName: file.originalname, mimeType: file.mimetype };
-      return searchableContentType(descriptor) && !(await validateSearchableFile(descriptor, file.path));
-    }))).some(Boolean);
-    if (invalidSearchable) {
-      [...(req.files?.video || []), ...resourceFiles].forEach((file) => fs.unlink(file.path, () => {}));
-      return res.status(400).json({ message: "A lesson resource does not match its declared PDF, DOCX, or TXT format" });
-    }
     if (externalVideoUrl) {
       try {
         const parsed = new URL(externalVideoUrl);
@@ -217,15 +207,10 @@ router.post("/courses/:courseId/lessons", receiveLessonFiles, async (req, res) =
     const duration = seconds ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}` : "Provider managed";
     const references = [...referenceContent.references];
     if (externalVideoUrl && !references.some((item) => item.url === externalVideoUrl)) references.push({ label: new URL(externalVideoUrl).hostname, url: externalVideoUrl });
-    const resources = resourceFiles.map((file) => {
-      const searchable = searchableContentType({ originalName: file.originalname, mimeType: file.mimetype });
-      return { originalName: file.originalname, storedName: file.filename, mimeType: file.mimetype, size: file.size, url: `${req.protocol}://${req.get("host")}/uploads/lesson-resources/${file.filename}`, extractionStatus: searchable ? "pending" : null };
-    });
+    const resources = resourceFiles.map((file) => ({ originalName: file.originalname, storedName: file.filename, mimeType: file.mimetype, size: file.size, url: `${req.protocol}://${req.get("host")}/uploads/lesson-resources/${file.filename}` }));
     course.lessons.push({ title: req.body.title, description: req.body.description || "", ...lessonContent.values, duration, videoUrl: "", primaryMedia: videoFile ? mediaDescriptor(videoFile) : undefined, primaryMediaRemoved: false, references, resources });
     if (course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
     await course.save();
-    const lesson = course.lessons[course.lessons.length - 1];
-    await Promise.all(lesson.resources.filter((resource) => resource.extractionStatus === "pending").map((resource) => processResourceExtraction({ courseId: course._id, lessonId: lesson._id, resourceId: resource._id })));
     return res.status(201).json(await Course.findById(course._id));
   } catch (error) {
     [...(req.files?.video || []), ...(req.files?.resources || [])].forEach((file) => fs.unlink(file.path, () => {}));
@@ -303,17 +288,10 @@ router.post("/courses/:courseId/lessons/:lessonId/resources", uploadLessonFiles.
     const course = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id });
     const lesson = course?.lessons.id(req.params.lessonId);
     if (!lesson) { files.forEach((file) => fs.unlink(file.path, () => {})); return res.status(404).json({ message: "Lesson not found" }); }
-    const oversized = files.find((file) => searchableContentType({ originalName: file.originalname, mimeType: file.mimetype }) && file.size > extractionLimits().maxFileBytes);
-    if (oversized) { files.forEach((file) => fs.unlink(file.path, () => {})); return res.status(413).json({ message: "A searchable lesson resource exceeds the extraction size limit" }); }
-    const addedResources = [];
     for (const file of files) {
-      const descriptor = { originalName: file.originalname, mimeType: file.mimetype };
-      if (searchableContentType(descriptor) && !(await validateSearchableFile(descriptor, file.path))) { files.forEach((item) => fs.unlink(item.path, () => {})); return res.status(400).json({ message: "A lesson resource does not match its declared PDF, DOCX, or TXT format" }); }
-      lesson.resources.push({ ...mediaDescriptor(file, "lesson-resources"), extractionStatus: searchableContentType(descriptor) ? "pending" : null });
-      addedResources.push(lesson.resources[lesson.resources.length - 1]);
+      lesson.resources.push(mediaDescriptor(file, "lesson-resources"));
     }
     await course.save();
-    await Promise.all(addedResources.filter((resource) => resource.extractionStatus === "pending").map((resource) => processResourceExtraction({ courseId: course._id, lessonId: lesson._id, resourceId: resource._id })));
     return res.json(await Course.findById(course._id));
   } catch (error) { (req.files || []).forEach((file) => fs.unlink(file.path, () => {})); return res.status(500).json({ message: "Unable to add lesson resources" }); }
 });
@@ -326,7 +304,6 @@ router.delete("/courses/:courseId/lessons/:lessonId", async (req, res) => {
     if (lesson.primaryMedia?.storage === "course-videos" && lesson.primaryMedia.storedName) fs.unlink(path.join(videoDirectory, path.basename(lesson.primaryMedia.storedName)), () => {});
     else if (lesson.videoUrl?.includes("/uploads/course-videos/")) fs.unlink(path.join(videoDirectory, path.basename(lesson.videoUrl)), () => {});
     lesson.resources.forEach((resource) => { try { fs.unlink(safeResourcePath(resource.storedName), () => {}); } catch { /* Invalid legacy paths are never followed. */ } });
-    await LessonResourceChunk.deleteMany({ course: course._id, lesson: lesson._id });
     lesson.deleteOne();
     if (course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
     await course.save();
@@ -340,7 +317,6 @@ router.delete("/courses/:courseId/lessons/:lessonId/resources/:resourceId", asyn
     const lesson = course?.lessons.id(req.params.lessonId);
     const resource = lesson?.resources.id(req.params.resourceId);
     if (!resource) return res.status(404).json({ message: "Lesson resource not found" });
-    await LessonResourceChunk.deleteMany({ resource: resource._id });
     if (String(lesson.primaryMedia?.resourceId || "") === String(resource._id)) lesson.primaryMedia = undefined;
     try { await fs.promises.unlink(safeResourcePath(resource.storedName)); } catch (error) { if (error.code !== "ENOENT" && error.message !== "unsafe_path") console.error("Delete lesson resource file error:", error); }
     resource.deleteOne();
@@ -348,22 +324,6 @@ router.delete("/courses/:courseId/lessons/:lessonId/resources/:resourceId", asyn
     await course.save();
     return res.json(course);
   } catch (error) { return res.status(500).json({ message: "Unable to delete lesson resource" }); }
-});
-
-router.post("/courses/:courseId/lessons/:lessonId/resources/:resourceId/retry-extraction", async (req, res) => {
-  try {
-    const course = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id });
-    const lesson = course?.lessons.id(req.params.lessonId);
-    const resource = lesson?.resources.id(req.params.resourceId);
-    if (!resource) return res.status(404).json({ message: "Lesson resource not found" });
-    if (!searchableContentType(resource)) return res.status(400).json({ message: "This resource does not support text extraction" });
-    if (["pending", "processing"].includes(resource.extractionStatus)) return res.status(409).json({ message: "Text extraction is already in progress" });
-    await Course.updateOne({ _id: course._id }, { $set: { "lessons.$[lesson].resources.$[resource].extractionStatus": "pending", "lessons.$[lesson].resources.$[resource].extractionFailureReason": "" } }, { arrayFilters: [{ "lesson._id": lesson._id }, { "resource._id": resource._id }] });
-    const result = await processResourceExtraction({ courseId: course._id, lessonId: lesson._id, resourceId: resource._id });
-    const updated = await Course.findById(course._id);
-    const updatedResource = updated.lessons.id(lesson._id).resources.id(resource._id);
-    return res.status(result.status === "completed" ? 200 : 422).json({ message: result.status === "completed" ? "Text extraction completed" : result.reason, resource: updatedResource });
-  } catch (error) { return res.status(500).json({ message: "Unable to retry text extraction" }); }
 });
 
 router.get("/students", async (req, res) => {

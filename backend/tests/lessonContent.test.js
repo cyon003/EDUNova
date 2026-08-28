@@ -1,5 +1,7 @@
 const assert = require("node:assert/strict");
 const http = require("node:http");
+const fs = require("node:fs");
+const path = require("node:path");
 const test = require("node:test");
 const jwt = require("jsonwebtoken");
 
@@ -34,6 +36,22 @@ function request(method, requestPath, body, authorization = token) {
     outgoing.on("error", reject);
     if (payload) outgoing.write(payload);
     outgoing.end();
+  });
+}
+
+function multipartRequest(requestPath, fields, files, authorization = token) {
+  return new Promise((resolve, reject) => {
+    const boundary = `----edunova-${Date.now()}`;
+    const parts = [];
+    for (const [name, value] of Object.entries(fields)) parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`));
+    for (const file of files) parts.push(Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${file.field}"; filename="${file.name}"\r\nContent-Type: ${file.type}\r\n\r\n`), file.content, Buffer.from("\r\n")]));
+    parts.push(Buffer.from(`--${boundary}--\r\n`));
+    const payload = Buffer.concat(parts);
+    const address = server.address();
+    const outgoing = http.request({ hostname: "127.0.0.1", port: address.port, path: requestPath, method: "POST", headers: { Authorization: `Bearer ${authorization}`, "Content-Type": `multipart/form-data; boundary=${boundary}`, "Content-Length": payload.length } }, (response) => {
+      let text = ""; response.setEncoding("utf8"); response.on("data", (chunk) => { text += chunk; }); response.on("end", () => resolve({ status: response.statusCode, body: text ? JSON.parse(text) : null }));
+    });
+    outgoing.on("error", reject); outgoing.end(payload);
   });
 }
 
@@ -91,6 +109,25 @@ test("tutor can save summary and transcript while creating a lesson", async () =
   assert.equal(response.status, 201);
   assert.equal(course.lessons[0].summary, "Tutor-written summary");
   assert.equal(course.lessons[0].transcript, "Tutor-written transcript");
+});
+
+test("tutor can upload main video and supporting document without extraction", async () => {
+  const course = fakeCourse();
+  Course.findOne = async () => course;
+  Course.findById = async () => course;
+  const response = await multipartRequest(`/api/tutor/courses/${course._id}/lessons`, { title: "Uploaded lesson", references: "[]" }, [
+    { field: "video", name: "lesson.mp4", type: "video/mp4", content: Buffer.from("test-video") },
+    { field: "resources", name: "guide.pdf", type: "application/pdf", content: Buffer.from("%PDF-test") },
+  ]);
+  assert.equal(response.status, 201);
+  const lesson = course.lessons[0];
+  assert.equal(lesson.primaryMedia.originalName, "lesson.mp4");
+  assert.equal(lesson.resources[0].originalName, "guide.pdf");
+  assert.equal(Object.keys(lesson.resources[0]).some((key) => key.startsWith("extract")), false);
+  await Promise.all([
+    fs.promises.unlink(path.join(__dirname, "..", "uploads", "course-videos", lesson.primaryMedia.storedName)),
+    fs.promises.unlink(path.join(__dirname, "..", "uploads", "lesson-resources", lesson.resources[0].storedName)),
+  ]);
 });
 
 test("owning tutor can edit persisted lesson content", async () => {

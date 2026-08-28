@@ -468,11 +468,56 @@
   border-top: 1px solid #302442;
 }
 
+.adm-moderation-classroom { display: grid; grid-template-columns: minmax(230px,.72fr) minmax(0,1.8fr); gap: 1rem; margin-top: 1.5rem; }
+.adm-moderation-classroom > aside,.adm-moderation-classroom > main { overflow: hidden; background: #0e0918; border: 1px solid #302442; border-radius: 16px; }
+.adm-moderation-classroom > aside { align-self: start; }
+.adm-moderation-classroom > aside header { padding: 1rem; border-bottom: 1px solid #302442; }
+.adm-moderation-classroom > aside h3 { margin: 0 0 .25rem; color: #fff; }
+.adm-moderation-classroom > aside header span { color: #948ba9; font-size: .72rem; }
+.adm-moderation-classroom > aside > button { display: grid; width: 100%; grid-template-columns: 34px minmax(0,1fr) auto; align-items: center; gap: .7rem; padding: .9rem 1rem; color: #cfc6da; text-align: left; cursor: pointer; background: transparent; border: 0; border-bottom: 1px solid #241a31; }
+.adm-moderation-classroom > aside > button:hover,.adm-moderation-classroom > aside > button.active { color: #fff; background: #211630; }
+.adm-moderation-classroom > aside > button.active { box-shadow: inset 3px 0 #9f75ed; }
+.adm-moderation-classroom > aside > button b { color: #a78bfa; }
+.adm-moderation-classroom > aside > button span { display: grid; min-width: 0; gap: .25rem; }
+.adm-moderation-classroom > aside > button strong,.adm-moderation-classroom > aside > button small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-moderation-classroom > aside > button small { color: #8f849d; font-size: .67rem; }
+.adm-moderation-classroom > aside > button svg { color: #a78bfa; font-size: .7rem; }
+.adm-lesson-player { display: grid; min-height: 330px; overflow: hidden; place-items: center; background: #07040c; }
+.adm-lesson-player video { display: block; width: 100%; max-height: 520px; background: #000; }
+.adm-audio-player,.adm-lesson-empty { display: grid; width: 100%; min-height: 300px; box-sizing: border-box; align-content: center; justify-items: center; gap: .8rem; padding: 2rem; color: #9589a6; text-align: center; background: radial-gradient(circle at center,#211631,#09050f 70%); }
+.adm-audio-player > svg,.adm-lesson-empty > svg { color: #9d74e5; font-size: 2.4rem; }
+.adm-audio-player audio { width: min(480px,90%); margin-top: .8rem; }
+.adm-lesson-empty strong { color: #ddd5e7; }
+.adm-lesson-empty span { font-size: .72rem; }
+.adm-lesson-copy { padding: 1.25rem; border-bottom: 1px solid #302442; }
+.adm-lesson-copy > span { color: #a78bfa; font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; }
+.adm-lesson-copy h3 { margin: .35rem 0 .5rem; color: #fff; font-size: 1.35rem; }
+.adm-lesson-copy p,.adm-preview-copy p { margin: 0; color: #aaa1b6; line-height: 1.65; white-space: pre-wrap; }
+.adm-preview-section { display: grid; gap: .65rem; padding: 1.2rem; border-bottom: 1px solid #302442; }
+.adm-preview-section:last-child { border-bottom: 0; }
+.adm-preview-section h4 { margin: 0; color: #f4effa; }
+.adm-preview-section > small { color: #91869f; }
+.adm-preview-section > a { display: flex; align-items: center; gap: .6rem; width: fit-content; color: #b990f2; text-decoration: none; }
+.adm-preview-section > a:hover { text-decoration: underline; }
+.adm-preview-section article { display: grid; grid-template-columns: 24px minmax(0,1fr) auto; align-items: center; gap: .7rem; padding: .75rem; background: #181022; border: 1px solid #34254e; border-radius: 10px; }
+.adm-preview-section article > svg { color: #a78bfa; }
+.adm-preview-section article > span { display: grid; min-width: 0; gap: .2rem; }
+.adm-preview-section article strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-preview-section article small { color: #91869f; }
+.adm-preview-section article div { display: flex; gap: .4rem; }
+.adm-preview-section article button { display: inline-flex; align-items: center; gap: .35rem; padding: .48rem .65rem; color: #e5daf5; cursor: pointer; background: #291c3b; border: 1px solid #573f74; border-radius: 7px; }
+.adm-resource-error { margin: 0; color: #f0a6b4; font-size: .75rem; }
+
 @media (max-width: 800px) {
   .adm-review-summary,
   .adm-review-columns {
     grid-template-columns: 1fr;
   }
+  .adm-moderation-classroom { grid-template-columns: 1fr; }
+  .adm-moderation-classroom > aside { max-height: 250px; overflow-y: auto; }
+  .adm-lesson-player { min-height: 230px; }
+  .adm-preview-section article { grid-template-columns: 22px minmax(0,1fr); }
+  .adm-preview-section article div { grid-column: 2; flex-wrap: wrap; }
 }
 
 /* ── STAT CARDS ── */

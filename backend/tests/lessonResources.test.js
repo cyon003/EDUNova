@@ -15,13 +15,14 @@ const ids = { student: "507f1f77bcf86cd799439041", tutor: "507f1f77bcf86cd799439
 let currentUser;
 let enrolled;
 let server;
+let activeCourse;
 const originals = {};
 
 function token(id, role) { return jwt.sign({ id, role, tokenVersion: 0 }, process.env.JWT_SECRET); }
-function request(pathname, auth) {
+function request(pathname, auth, method = "GET") {
   return new Promise((resolve, reject) => {
     const address = server.address();
-    const outgoing = http.request({ hostname: "127.0.0.1", port: address.port, path: pathname, headers: { Authorization: `Bearer ${auth}` } }, (response) => {
+    const outgoing = http.request({ hostname: "127.0.0.1", port: address.port, path: pathname, method, headers: { Authorization: `Bearer ${auth}` } }, (response) => {
       let body = ""; response.on("data", (chunk) => { body += chunk; }); response.on("end", () => resolve({ status: response.statusCode, body }));
     });
     outgoing.on("error", reject); outgoing.end();
@@ -29,19 +30,23 @@ function request(pathname, auth) {
 }
 
 function fakeCourse() {
-  const resources = [{ _id: "507f1f77bcf86cd799439050", originalName: "missing.pdf", storedName: "missing.pdf", mimeType: "application/pdf", size: 10, toObject() { return { ...this }; } }];
+  const resources = [{ _id: "507f1f77bcf86cd799439050", originalName: "missing.pdf", storedName: "missing.pdf", mimeType: "application/pdf", size: 10, toObject() { return { ...this }; }, deleteOne() { resources.splice(resources.indexOf(this), 1); } }];
   resources.id = (id) => resources.find((item) => String(item._id) === String(id));
-  return { _id: "507f1f77bcf86cd799439044", slug: "protected-course", tutor: ids.tutor, lessons: [{ resources, primaryMedia: { originalName: "missing.mp4", storedName: "missing.mp4", mimeType: "video/mp4", storage: "course-videos" } }] };
+  const lessons = [{ _id: "507f1f77bcf86cd799439049", resources, primaryMedia: { originalName: "missing.mp4", storedName: "missing.mp4", mimeType: "video/mp4", storage: "course-videos" } }];
+  lessons.id = (id) => lessons.find((item) => String(item._id) === String(id));
+  return { _id: "507f1f77bcf86cd799439044", slug: "protected-course", tutor: ids.tutor, moderationStatus: "published", lessons, save: async function save() { return this; } };
 }
 
 test.before(async () => {
   originals.userFind = User.findById; originals.courseFind = Course.findOne; originals.enrollment = Enrollment.exists;
   User.findById = () => ({ select: async () => currentUser });
-  Course.findOne = async () => fakeCourse();
+  activeCourse = fakeCourse();
+  Course.findOne = async () => activeCourse;
   Enrollment.exists = async () => enrolled;
   server = app.listen(0, "127.0.0.1"); await new Promise((resolve) => server.once("listening", resolve));
 });
 test.after(async () => { User.findById = originals.userFind; Course.findOne = originals.courseFind; Enrollment.exists = originals.enrollment; await new Promise((resolve) => server.close(resolve)); });
+test.beforeEach(() => { activeCourse = fakeCourse(); });
 
 test("non-enrolled students cannot view or download protected lesson files", async () => {
   currentUser = { _id: ids.student, role: "student", tokenVersion: 0, accountStatus: "approved" }; enrolled = false;
@@ -70,10 +75,20 @@ test("authorized users receive a short-lived backend media URL", async () => {
   assert.doesNotMatch(payload.url, /localhost:5173/);
 });
 
-test("schema preserves primary media metadata and reference roles", () => {
-  const course = new Course({ slug: "media-schema", name: "Media", category: "Test", description: "Test", level: "Beginner", duration: "1:00", rating: 0, lessons: [{ title: "Lesson", primaryMedia: { originalName: "lesson.mp4", storedName: "uuid.mp4", mimeType: "video/mp4", size: 123, url: "/uploads/course-videos/uuid.mp4", storage: "course-videos" }, references: [{ label: "YouTube", url: "https://youtube.com/watch?v=dQw4w9WgXcQ" }] }] });
+test("owning tutor can delete a supporting document without deleting primary media", async () => {
+  currentUser = { _id: ids.tutor, role: "tutor", tokenVersion: 0, accountStatus: "approved" };
+  const response = await request(`/api/tutor/courses/${activeCourse._id}/lessons/${activeCourse.lessons[0]._id}/resources/507f1f77bcf86cd799439050`, token(ids.tutor, "tutor"), "DELETE");
+  assert.equal(response.status, 200);
+  assert.equal(activeCourse.lessons[0].resources.length, 0);
+  assert.equal(activeCourse.lessons[0].primaryMedia.storedName, "missing.mp4");
+});
+
+test("schema preserves uploaded resources, primary media metadata and reference roles without extraction fields", () => {
+  const course = new Course({ slug: "media-schema", name: "Media", category: "Test", description: "Test", level: "Beginner", duration: "1:00", rating: 0, lessons: [{ title: "Lesson", primaryMedia: { originalName: "lesson.mp4", storedName: "uuid.mp4", mimeType: "video/mp4", size: 123, url: "/uploads/course-videos/uuid.mp4", storage: "course-videos" }, references: [{ label: "YouTube", url: "https://youtube.com/watch?v=dQw4w9WgXcQ" }], resources: [{ originalName: "guide.pdf", storedName: "uuid.pdf", mimeType: "application/pdf", size: 321, url: "/uploads/lesson-resources/uuid.pdf" }] }] });
   assert.equal(course.lessons[0].primaryMedia.originalName, "lesson.mp4");
   assert.equal(course.lessons[0].references[0].label, "YouTube");
   course.lessons[0].primaryMediaRemoved = true;
   assert.equal(course.lessons[0].primaryMediaRemoved, true);
+  assert.equal(course.lessons[0].resources[0].originalName, "guide.pdf");
+  assert.equal(Object.keys(course.lessons[0].resources[0].toObject()).some((key) => key.startsWith("extract")), false);
 });

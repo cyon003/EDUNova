@@ -172,11 +172,10 @@
 
 .course-search input { width: 100%; min-width: 0; padding: 10px 0; color: white; font: inherit; font-size: 11px; background: transparent; border: 0; outline: none; }
 .course-category-filters { display: flex; gap: 5px; overflow-x: auto; }
-.course-category-filters button, .course-filter-actions button, .course-filter-actions select { flex-shrink: 0; padding: 9px 11px; color: #a8afd8; font: inherit; font-size: 10px; font-weight: 700; cursor: pointer; background: transparent; border: 1px solid transparent; border-radius: 8px; }
+.course-category-filters button, .course-filter-actions button { flex-shrink: 0; padding: 9px 11px; color: #a8afd8; font: inherit; font-size: 10px; font-weight: 700; cursor: pointer; background: transparent; border: 1px solid transparent; border-radius: 8px; }
 .course-category-filters button:hover, .course-category-filters button.active, .course-filter-actions button.active { color: white; background: rgba(141, 99, 234, 0.18); border-color: rgba(141, 99, 234, 0.28); }
 .course-filter-actions { display: flex; align-items: center; gap: 6px; }
 .course-filter-actions button { display: flex; align-items: center; gap: 6px; }
-.course-filter-actions select { color: white; background: #100c1d; border-color: rgba(141, 99, 234, 0.24); outline: none; }
 .course-results-summary { display: flex; align-items: center; justify-content: space-between; margin: 0 2px 13px; color: #a8afd8; font-size: 10px; }
 .course-results-summary button { color: #a78bfa; font: inherit; font-size: 10px; cursor: pointer; background: transparent; border: 0; }
 .course-empty-results { display: grid; min-height: 230px; color: #a8afd8; text-align: center; background: #151124; border: 1px dashed rgba(141, 99, 234, 0.3); border-radius: 18px; place-content: center; }

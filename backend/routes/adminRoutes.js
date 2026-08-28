@@ -3,7 +3,6 @@ const bcrypt = require("bcryptjs");
 
 const User = require("../models/User");
 const Course = require("../models/Course");
-const LessonResourceChunk = require("../models/LessonResourceChunk");
 const Enrollment = require("../models/Enrollment");
 const Note = require("../models/Note");
 const Report = require("../models/Report");
@@ -545,7 +544,7 @@ router.delete("/courses/:courseId", async (req,res) => {
   try {
     const course = await Course.findById(req.params.courseId);
     if (!course) return res.status(404).json({ message: "Course not found" });
-    await Promise.all([Enrollment.deleteMany({ course: course._id }), Note.deleteMany({ course: course._id }), Notification.deleteMany({ course: course._id }), LessonResourceChunk.deleteMany({ course: course._id })]);
+    await Promise.all([Enrollment.deleteMany({ course: course._id }), Note.deleteMany({ course: course._id }), Notification.deleteMany({ course: course._id })]);
     await recordAudit(req.user._id, "Deleted course", course.name);
     await course.deleteOne();
     return res.json({ message: "Course deleted permanently" });

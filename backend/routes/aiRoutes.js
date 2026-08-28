@@ -44,7 +44,7 @@ function historyScope(req, res) {
     res.status(400).json({ message: "General AI Tutor history does not accept courseId, lessonId, documents, sources, or followUp" });
     return null;
   }
-  return { user: req.user._id, mode: "general", course: null, lesson: null };
+  return { user: req.user._id, mode: "general" };
 }
 
 function contextMessages(records) {
@@ -130,17 +130,17 @@ router.post("/chat", validateGeneralRequest, generalLimiter, async (req, res) =>
 
     const contextLimit = Math.min(Math.max(Number(process.env.AI_CHATBOT_RECENT_CONTEXT_LIMIT || 3), 0), 5);
     const records = contextLimit
-      ? await ChatbotConversation.find({ user: req.user._id, mode: "general", course: null, lesson: null, answerMode: "generated" })
+      ? await ChatbotConversation.find({ user: req.user._id, mode: "general", answerMode: "generated" })
         .select("userMessage assistantAnswer").sort({ createdAt: -1 }).limit(contextLimit).lean()
       : [];
     const result = await callFlask({ mode: "general", message: cleaned, conversation: contextMessages(records) });
-    if (result.mode !== "general" || result.grounded !== false || result.responseType !== "generated" || typeof result.answer !== "string" || !result.answer.trim() || !Array.isArray(result.sources) || result.sources.length || result.disclaimer !== GENERAL_DISCLAIMER) {
+    if (result.mode !== "general" || result.responseType !== "generated" || typeof result.answer !== "string" || !result.answer.trim() || result.disclaimer !== GENERAL_DISCLAIMER) {
       return res.status(503).json({ message: GENERAL_UNAVAILABLE_MESSAGE });
     }
     if (result.answer.trim().length > MAX_ANSWER_LENGTH) return res.status(503).json({ message: GENERAL_UNAVAILABLE_MESSAGE });
 
-    const saved = await ChatbotConversation.create({ user: req.user._id, mode: "general", course: null, lesson: null, userMessage: cleaned, assistantAnswer: result.answer.trim(), confidence: 0, source: undefined, sources: [], fallback: false, answerMode: "generated" });
-    return res.status(200).json({ mode: "general", answer: saved.assistantAnswer, responseType: saved.answerMode, grounded: false, sources: [], disclaimer: GENERAL_DISCLAIMER, conversationId: saved._id, createdAt: saved.createdAt });
+    const saved = await ChatbotConversation.create({ user: req.user._id, mode: "general", userMessage: cleaned, assistantAnswer: result.answer.trim(), answerMode: "generated" });
+    return res.status(200).json({ mode: "general", answer: saved.assistantAnswer, responseType: saved.answerMode, disclaimer: GENERAL_DISCLAIMER, conversationId: saved._id, createdAt: saved.createdAt });
   } catch (error) {
     console.error("General AI Tutor error:", error.category || error.message);
     return res.status(error.status || 500).json({ message: error.publicMessage || GENERAL_UNAVAILABLE_MESSAGE });

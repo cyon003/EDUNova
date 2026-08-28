@@ -29,4 +29,4 @@ The service listens on `127.0.0.1:5001` by default. `GET /health` reports provid
 {"mode":"general","message":"What is Python?","conversation":[]}
 ```
 
-The old TF-IDF implementation and `scikit-learn` dependency remain dormant for Phase 1 compatibility. They are not reachable from `/chat` and are scheduled for Phase 2 removal.
+The service contains only the Gemini-powered General AI Tutor path. It does not retrieve course documents or expose source/confidence metadata.

@@ -56,10 +56,6 @@ PYTHON_CHATBOT_URL=http://127.0.0.1:5001
 PYTHON_CHATBOT_TIMEOUT_MS=70000
 AI_GENERAL_RATE_LIMIT_PER_MINUTE=5
 AI_CHATBOT_RECENT_CONTEXT_LIMIT=3
-RESOURCE_EXTRACTION_MAX_FILE_BYTES=15728640
-RESOURCE_EXTRACTION_MAX_CHARACTERS=200000
-RESOURCE_EXTRACTION_MAX_CHUNKS=200
-RESOURCE_EXTRACTION_CHUNK_SIZE=1200
 ```
 
 The Python service uses:
@@ -77,16 +73,7 @@ Optional service variables include `CHATBOT_HOST`, `CHATBOT_PORT`, `CHATBOT_MAX_
 
 Express verifies the JWT, applies the General AI Tutor rate limit, loads only that user’s bounded general-mode history, and sends the question and context to the private Flask service. Course identifiers, lesson identifiers, documents, sources, follow-up retrieval metadata, and `mode=course` are rejected. Answers are labeled as unverified general knowledge. Existing course-mode records are left untouched until an approved database migration.
 
-TF-IDF functions and their Python dependency remain dormant during Phase 1 and are scheduled for Phase 2 removal; they are not reachable through `POST /chat`.
-
-PDF, DOCX, and TXT lesson resources are extracted locally during upload. PDF.js preserves page numbers, Mammoth reads raw DOCX text, and Node reads TXT files. Normalized bounded chunks are stored in the separate `lessonresourcechunks` MongoDB collection. Tutors can see extraction state and retry failed resources. Extraction failure does not fail lesson creation.
-
-To safely process resources uploaded before this feature, or reprocess all supported resources after changing limits, run:
-
-```bash
-cd backend
-npm run reprocess:lesson-resources
-```
+Supporting lesson files remain normal protected uploads. They can be viewed or downloaded by authorized users, but their contents are not extracted or sent to the General AI Tutor.
 
 The command is idempotent: chunks are upserted by resource and chunk number, and stale chunks are removed.
 

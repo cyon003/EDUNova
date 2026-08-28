@@ -41,31 +41,11 @@ GEMINI_MAX_ANSWER_LENGTH=8000
 
 Store the key only in the Flask service environment or ignored `.env`; never expose it to Express, React, logs, or health responses. Allow outbound HTTPS from Flask to the Gemini API. Set Express `PYTHON_CHATBOT_TIMEOUT_MS=70000` so it safely exceeds the default Gemini timeout.
 
-General AI Tutor requests contain no course identifiers, lesson identifiers, documents, sources, or retrieval metadata. Express remains responsible for JWT verification, MongoDB access, rate limiting, timeouts, and user-owned general history. General failures return a fixed safe response. Keep outbound Gemini access restricted to the Flask service and monitor quota usage. Dormant TF-IDF code remains packaged only until Phase 2 and is not reachable through the active endpoint.
+General AI Tutor requests contain no course identifiers, lesson identifiers, documents, sources, or retrieval metadata. Express remains responsible for JWT verification, MongoDB access, rate limiting, timeouts, and user-owned general history. General failures return a fixed safe response. Keep outbound Gemini access restricted to the Flask service and monitor quota usage.
 
-## Lesson-resource extraction
+## Lesson resources
 
-The Express process extracts PDF, DOCX, and TXT text locally and stores bounded chunks in MongoDB. Configure:
-
-```env
-RESOURCE_EXTRACTION_MAX_FILE_BYTES=15728640
-RESOURCE_EXTRACTION_MAX_CHARACTERS=200000
-RESOURCE_EXTRACTION_MAX_CHUNKS=200
-RESOURCE_EXTRACTION_CHUNK_SIZE=1200
-AI_CHATBOT_MAX_TOTAL_TEXT=100000
-AI_CHATBOT_MAX_DOCUMENTS=100
-```
-
-The upload directory must be persistent and writable by Express. Keep it outside the public deployment artifact and back it up together with MongoDB. Generated stored names are resolved only inside `backend/uploads/lesson-resources`; unsafe paths are rejected.
-
-After deploying the schema and extractor dependencies, process older resources once:
-
-```bash
-cd backend
-npm run reprocess:lesson-resources
-```
-
-The command is safe to rerun. Monitor failed statuses from the tutor interface. Image-only PDFs are not OCR-processed, and password-protected or damaged files may fail without affecting the lesson record.
+The lesson-resource upload directory must be persistent and writable by Express. Keep it outside the public deployment artifact and back it up together with MongoDB. Generated stored names are resolved only inside `backend/uploads/lesson-resources`; unsafe paths are rejected. Resource contents are not extracted or sent to Gemini.
 
 ## Frontend environment
 

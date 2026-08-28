@@ -62,7 +62,7 @@ function AiChatbot() {
       const response = await fetch(`${API_ROOT}/ai/chat`, { method: "POST", headers: requestHeaders(), body: JSON.stringify(submittedRequest) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Unable to ask the General AI Tutor");
-      if (data.mode !== "general" || data.grounded !== false) throw new Error("The General AI Tutor returned an incompatible response.");
+      if (data.mode !== "general" || data.responseType !== "generated") throw new Error("The General AI Tutor returned an incompatible response.");
       setMessages((current) => [...current, { id: data.conversationId, role: "assistant", text: data.answer, responseType: data.responseType, disclaimer: data.disclaimer || GENERAL_DISCLAIMER }]);
       setLastRequest(null);
     } catch (requestError) {

@@ -18,7 +18,7 @@ class GeneralAiTutorRoutesTest(unittest.TestCase):
         self.assertEqual(response.get_json()["service"], "edunova-general-ai-tutor")
 
     def test_chat_accepts_general_requests(self):
-        generated = {"mode": "general", "answer": "A safe answer.", "responseType": "generated", "grounded": False, "sources": [], "disclaimer": chatbot.GENERAL_DISCLAIMER}
+        generated = {"mode": "general", "answer": "A safe answer.", "responseType": "generated", "disclaimer": chatbot.GENERAL_DISCLAIMER}
         with patch.object(chatbot, "answer_general_question", return_value=generated) as answer:
             response = self.client.post("/chat", json={"mode": "general", "message": " Explain fractions ", "conversation": []})
         self.assertEqual(response.status_code, 200)

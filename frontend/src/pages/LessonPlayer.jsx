@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { canPreviewResource, fileType, formatFileSize, getLessonPrimaryMedia, lessonReferences, supportingResources, supportsLessonTranscript } from "../utils/lessonMedia";
 import { API_ROOT } from "../utils/courseApi";
 import { LessonSummaryPanel, VideoTranscriptPanel } from "../components/Summaries";
+import { useLearningSignal } from "../hooks/useLearningSignal";
 import "../styles/LessonPlayer.css";
 
 function readArray(key) {
@@ -48,6 +49,7 @@ function LessonPlayer() {
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaLessonIndex, setMediaLessonIndex] = useState(-1);
   const [mediaError, setMediaError] = useState("");
+  const learningSignal = useLearningSignal({ courseId: course?._id, lessonId: lesson?._id });
 
   useEffect(() => {
     const primary = getLessonPrimaryMedia(lesson);
@@ -156,6 +158,7 @@ function LessonPlayer() {
     playStartedAt.current = null;
     saveVideoPosition(videoRef.current?.currentTime);
     syncProgress({ index: lessonIndex, seconds: videoRef.current?.currentTime, studiedSeconds });
+    learningSignal.flush({ keepalive: true });
     setActiveTool("content");
     navigate(`/courses/${courseSlug}/learn/${index + 1}`);
   };
@@ -190,15 +193,19 @@ function LessonPlayer() {
 
       <section className="lesson-workspace">
         <div className="lesson-video-shell">
-          {primaryMedia && mediaUrl && mediaLessonIndex===lessonIndex && !mediaError && String(primaryMedia.mimeType || "").startsWith("audio/") ? <audio ref={videoRef} src={mediaUrl} controls /> : primaryMedia && mediaUrl && mediaLessonIndex===lessonIndex && !mediaError ? <video
+          {primaryMedia && mediaUrl && mediaLessonIndex===lessonIndex && !mediaError && String(primaryMedia.mimeType || "").startsWith("audio/") ? <audio ref={videoRef} src={mediaUrl} controls {...learningSignal.mediaHandlers} /> : primaryMedia && mediaUrl && mediaLessonIndex===lessonIndex && !mediaError ? <video
             ref={videoRef}
             controls
             key={`${courseSlug}-${lessonIndex}`}
-            onLoadedMetadata={(event) => { const savedPosition = Number(videoPositions[lessonIndex]) || 0; if (savedPosition < event.currentTarget.duration - 1) event.currentTarget.currentTime = savedPosition; syncProgress({ index: lessonIndex, activity: { activityType: "lesson_opened", lessonIndex, lessonTitle: lesson.title } }); }}
-            onPlay={() => { if (!playStartedAt.current) playStartedAt.current = Date.now(); }}
-            onTimeUpdate={(event) => { if (event.currentTarget.currentTime - lastLocalSave.current >= 3) { lastLocalSave.current = event.currentTarget.currentTime; saveVideoPosition(event.currentTarget.currentTime); } }}
-            onPause={(event) => { const studiedSeconds = playStartedAt.current ? Math.max(Math.round((Date.now() - playStartedAt.current) / 1000), 1) : 0; playStartedAt.current = null; saveVideoPosition(event.currentTarget.currentTime); syncProgress({ index: lessonIndex, seconds: event.currentTarget.currentTime, studiedSeconds }); }}
+            onLoadedMetadata={(event) => { const savedPosition = Number(videoPositions[lessonIndex]) || 0; if (savedPosition < event.currentTarget.duration - 1) event.currentTarget.currentTime = savedPosition; learningSignal.mediaHandlers.onLoadedMetadata(event); syncProgress({ index: lessonIndex, activity: { activityType: "lesson_opened", lessonIndex, lessonTitle: lesson.title } }); }}
+            onPlay={(event) => { learningSignal.mediaHandlers.onPlay(event); if (!playStartedAt.current) playStartedAt.current = Date.now(); }}
+            onPointerDown={learningSignal.mediaHandlers.onPointerDown}
+            onKeyDown={learningSignal.mediaHandlers.onKeyDown}
+            onSeeking={learningSignal.mediaHandlers.onSeeking}
+            onTimeUpdate={(event) => { learningSignal.mediaHandlers.onTimeUpdate(event); if (event.currentTarget.currentTime - lastLocalSave.current >= 3) { lastLocalSave.current = event.currentTarget.currentTime; saveVideoPosition(event.currentTarget.currentTime); } }}
+            onPause={(event) => { learningSignal.mediaHandlers.onPause(event); const studiedSeconds = playStartedAt.current ? Math.max(Math.round((Date.now() - playStartedAt.current) / 1000), 1) : 0; playStartedAt.current = null; saveVideoPosition(event.currentTarget.currentTime); syncProgress({ index: lessonIndex, seconds: event.currentTarget.currentTime, studiedSeconds }); }}
             onEnded={() => {
+              learningSignal.mediaHandlers.onEnded();
               const studiedSeconds = playStartedAt.current ? Math.max(Math.round((Date.now() - playStartedAt.current) / 1000), 1) : 0;
               playStartedAt.current = null;
               const updatedLessons = completedLessons.includes(lessonIndex) ? completedLessons : [...completedLessons, lessonIndex];
@@ -220,6 +227,7 @@ function LessonPlayer() {
           {resources.length>0&&<section className="lesson-materials"><h2>Downloadable Resources</h2>{resources.map(resource=><div className="lesson-resource-row" key={resource._id}><div><strong>{resource.originalName}</strong><small>{fileType(resource)} · {formatFileSize(resource.size)}</small></div><span>{canPreviewResource(resource)&&<button type="button" onClick={()=>openResource(resource,"view")}>View</button>}<button type="button" onClick={()=>openResource(resource,"download")}>Download</button></span></div>)}</section>}
           <div className="lesson-player-status"><span>{syncMessage || "Your position is saved automatically"}</span><span><FaClock /> {lesson.duration}</span></div>
           <nav className="lesson-tool-tabs" aria-label="Lesson tools">{[["content","Lesson"],["summary","Summary"],...(transcriptSupported?[["transcript","Transcript"]]:[]),["notes","Personal Notes"]].map(([id,label])=><button type="button" className={activeTool===id?"active":""} aria-pressed={activeTool===id} onClick={()=>setActiveTool(id)} key={id}>{label}</button>)}</nav>
+          {activeTool==="content"&&<section className="lesson-clarity-feedback" aria-labelledby="lesson-clarity-title"><div><h3 id="lesson-clarity-title">Was this lesson clear?</h3><p>Your answer is optional and helps your tutor improve the course.</p></div><div role="group" aria-label="Lesson clarity feedback"><button type="button" className={learningSignal.signal.confusionFeedback==="clear"?"selected":""} aria-pressed={learningSignal.signal.confusionFeedback==="clear"} disabled={learningSignal.feedbackState==="saving"} onClick={()=>learningSignal.saveFeedback("clear")}>Clear</button><button type="button" className={learningSignal.signal.confusionFeedback==="confused"?"selected":""} aria-pressed={learningSignal.signal.confusionFeedback==="confused"} disabled={learningSignal.feedbackState==="saving"} onClick={()=>learningSignal.saveFeedback("confused")}>I’m confused</button></div><small className={learningSignal.feedbackState==="error"?"error":""} role="status" aria-live="polite">{learningSignal.feedbackState==="saving"?"Saving…":learningSignal.feedbackState==="saved"?"Saved":learningSignal.feedbackState==="error"?learningSignal.trackingError:""}</small></section>}
           {activeTool==="summary"&&<LessonSummaryPanel lesson={lesson}/>}
           {activeTool==="transcript"&&transcriptSupported&&<VideoTranscriptPanel lesson={lesson}/>}
           {activeTool==="notes"&&<div className="lesson-tool-placeholder"><h3>Personal Notes</h3><p>Create and manage your private notes from Dashboard → Notes.</p><Link to="/student-dashboard">Open My Notes</Link></div>}

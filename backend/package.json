@@ -6,7 +6,7 @@
     "start": "node server.js",
     "dev": "node server.js",
     "test": "node --test tests/*.test.js",
-    "check": "node --check app.js && node --check server.js && node --check routes/authRoutes.js && node --check routes/adminRoutes.js && node --check routes/aiRoutes.js && node --check routes/courseRoutes.js && node --check routes/tutorRoutes.js && node --check models/RefreshSession.js && node --check models/ChatbotConversation.js && node --check services/sessionService.js",
+    "check": "node --check app.js && node --check server.js && node --check routes/authRoutes.js && node --check routes/adminRoutes.js && node --check routes/aiRoutes.js && node --check routes/courseRoutes.js && node --check routes/tutorRoutes.js && node --check routes/learningSignalRoutes.js && node --check models/RefreshSession.js && node --check models/ChatbotConversation.js && node --check models/LearningSignal.js && node --check services/sessionService.js && node --check services/learningSignalService.js",
     "migrate:tutor-applications": "node scripts/migrateTutorApplications.js",
     "seed:courses": "node scripts/seedCourses.js"
   },

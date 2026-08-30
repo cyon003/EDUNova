@@ -6,6 +6,7 @@ const multer = require("multer");
 const bcrypt = require("bcryptjs");
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
+const LearningSignal = require("../models/LearningSignal");
 const User = require("../models/User");
 const { notifyCourseSubmitted } = require("../services/notificationService");
 const authenticateToken = require("../middleware/authMiddleware");
@@ -175,6 +176,7 @@ router.delete("/courses/:courseId", async (req, res) => {
     const course = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id });
     if (!course) return res.status(404).json({ message: "Course not found" });
     if (await Enrollment.exists({ course: course._id })) return res.status(409).json({ message: "Archive courses that already have students" });
+    await LearningSignal.deleteMany({ course: course._id });
     await course.deleteOne();
     return res.status(204).end();
   } catch (error) { return res.status(500).json({ message: "Unable to delete course", error: error.message }); }
@@ -307,6 +309,7 @@ router.delete("/courses/:courseId/lessons/:lessonId", async (req, res) => {
     lesson.deleteOne();
     if (course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
     await course.save();
+    await LearningSignal.deleteMany({ course: course._id, lessonId: req.params.lessonId });
     return res.json(course);
   } catch (error) { return res.status(500).json({ message: "Unable to delete lesson", error: error.message }); }
 });

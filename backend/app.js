@@ -21,6 +21,7 @@ const favoriteRoutes = require("./routes/favoriteRoutes");
 const cartRoutes = require("./routes/cartRoutes");
 const orderRoutes = require("./routes/orderRoutes");
 const aiRoutes = require("./routes/aiRoutes");
+const checkoutRoutes = require("./routes/checkoutRoutes");
 
 const app = express();
 const configuredOrigins = allowedOrigins();
@@ -39,7 +40,6 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization", "X-Application-Token"],
 }));
 app.use(express.json({ limit: "1mb" }));
-// Lesson media and resources are served only by authenticated course routes.
 app.use("/uploads/course-covers", express.static(path.join(__dirname, "uploads", "course-covers")));
 app.use("/uploads/profile-photos", express.static(path.join(__dirname, "uploads", "profile-photos")));
 
@@ -60,6 +60,7 @@ app.use("/api/favorites", favoriteRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/checkout", checkoutRoutes);
 
 app.get("/", (_req, res) => res.send("EduNova backend is running"));
 app.get("/api/health", (_req, res) => res.json({ status: "ok", environment: process.env.NODE_ENV || "development" }));

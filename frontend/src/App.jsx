@@ -12,14 +12,16 @@ import AdminTutors from "./pages/AdminTutors";
 import AiChatbot from "./pages/AiChatbot";
 import Auth from "./pages/Auth";
 import CartPage from "./pages/CartPage";
+import CheckoutPage from "./pages/CheckoutPage";
 import CourseDetail from "./pages/CourseDetail";
 import Courses from "./pages/Courses";
+import ForgotPassword from "./pages/ForgotPassword";
 import Home from "./pages/Home";
 import LessonPlayer from "./pages/LessonPlayer";
 import MyCourses from "./pages/MyCourses";
 import MyTutorApplications from "./pages/MyTutorApplications";
+import OrderSuccess from "./pages/OrderSuccess";
 import Profile from "./pages/Profile";
-import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import StudentDashboard from "./pages/StudentDashboard";
 import TutorApplication from "./pages/TutorApplication";
@@ -92,6 +94,8 @@ function App() {
         <Route path="/courses/:courseSlug" element={<CourseDetail />} />
         <Route path="/courses/:courseSlug/learn/:lessonNumber?" element={<RoleRoute user={user} allowedRoles={["student"]}><LessonPlayer /></RoleRoute>} />
         <Route path="/cart" element={<RoleRoute user={user} allowedRoles={["student"]}><CartPage /></RoleRoute>} />
+        <Route path="/checkout" element={<RoleRoute user={user} allowedRoles={["student"]}><CheckoutPage /></RoleRoute>} />
+        <Route path="/order-success" element={<RoleRoute user={user} allowedRoles={["student"]}><OrderSuccess /></RoleRoute>} />
         <Route path="/popular-courses" element={<Navigate to="/courses#popular" replace />} />
         <Route path="/ai-tutor" element={<RoleRoute user={user} allowedRoles={["student", "tutor", "admin"]}><AiChatbot /></RoleRoute>} />
         <Route path="/ai-chatbot" element={<Navigate to="/ai-tutor" replace />} />

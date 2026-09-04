@@ -89,7 +89,7 @@ function UserHome() {
   const submitSearch = (event) => {
     event.preventDefault();
     const query = searchQuery.trim();
-    navigate(query ? `/courses?search=${encodeURIComponent(query)}` : "/courses");
+    navigate(query ? `/courses?search=${encodeURIComponent(query)}#available` : "/courses#available");
   };
 
   if (!user) return null;
@@ -124,7 +124,7 @@ function UserHome() {
             Home
           </Link>
           <Link
-            to="/home#courses"
+            to="/courses#available"
             className={activeTab === "courses" ? "active" : undefined}
             aria-current={activeTab === "courses" ? "page" : undefined}
             onClick={() => setActiveTab("courses")}
@@ -148,6 +148,20 @@ function UserHome() {
           >
             My Dashboard
           </Link>
+          {user.role === "student" && (
+            <Link
+              to="/my-courses"
+              className={activeTab === "learning" ? "active" : undefined}
+              aria-current={activeTab === "learning" ? "page" : undefined}
+              onClick={() => setActiveTab("learning")}
+              onFocus={() => setActiveTab("learning")}
+            >
+              My Learning
+            </Link>
+          )}
+          <a href="mailto:support@edunova.com" className={activeTab === "help" ? "active" : undefined} onClick={() => setActiveTab("help")} onFocus={() => setActiveTab("help")}>
+            Help
+          </a>
         </div>
 
         <div className="uhome-nav-right">

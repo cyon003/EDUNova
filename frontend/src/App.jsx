@@ -75,7 +75,7 @@ function App() {
         <Route path="/profile" element={<RoleRoute user={user} allowedRoles={["student"]}><Profile /></RoleRoute>} />
 
         <Route path="/tutor-dashboard" element={<RoleRoute user={user} allowedRoles={["tutor"]}><TutorDashboard /></RoleRoute>} />
-        <Route path="/tutor-application" element={<RoleRoute user={user} allowedRoles={["student", "tutor"]}><TutorApplication /></RoleRoute>} />
+        <Route path="/tutor-application" element={<TutorApplication />} />
         <Route path="/tutor-courses/*" element={<Navigate to="/tutor-dashboard" replace />} />
         <Route path="/tutor-students" element={<Navigate to="/tutor-dashboard" replace />} />
         <Route path="/tutor-analytics" element={<Navigate to="/tutor-dashboard" replace />} />

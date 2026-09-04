@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { FaBookOpen, FaCompass, FaFire, FaGraduationCap, FaHeart, FaLaptopCode, FaRegHeart, FaRobot, FaSearch, FaStar } from "react-icons/fa";
 import mathematicsImage from "../assets/images/mathematic.jpeg";
 import { API_ROOT, courseDuration, courseThumbnail, formatCoursePrice, getPublicCourses } from "../utils/courseApi";
@@ -37,6 +37,7 @@ export function CourseList({ courseItems, savedCourses, onToggleSaved, from = "/
 }
 
 function Courses() {
+  const { hash } = useLocation();
   const [catalogCourses, setCatalogCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -98,10 +99,11 @@ function Courses() {
   }, []);
 
   useEffect(() => {
-    const sectionId = window.location.hash === "#popular" ? "available" : window.location.hash.slice(1);
-    if (!sectionId) return;
-    requestAnimationFrame(() => document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth" }));
-  }, []);
+    const sectionId = hash === "#popular" ? "available" : hash.slice(1);
+    if (!sectionId || loading) return;
+    const frame = requestAnimationFrame(() => document.getElementById(sectionId)?.scrollIntoView({ behavior: "auto", block: "start" }));
+    return () => cancelAnimationFrame(frame);
+  }, [hash, loading, catalogCourses.length]);
 
   useEffect(() => {
     const paths = document.getElementById("learning-paths");

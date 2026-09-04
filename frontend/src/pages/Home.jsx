@@ -104,7 +104,7 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
   const submitCourseSearch = (event) => {
     event.preventDefault();
     const query = navSearch.trim();
-    navigate(query ? `/courses?search=${encodeURIComponent(query)}` : "/courses");
+    navigate(query ? `/courses?search=${encodeURIComponent(query)}#available` : "/courses#available");
   };
   return (
     <main className={`home ${showFooter ? "home--guest" : "home--user"}`} id="top">
@@ -128,7 +128,7 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
               Home
             </Link>
             <Link
-              to="/#courses"
+              to="/courses#available"
               className={activeTab === "courses" ? "active" : undefined}
               aria-current={activeTab === "courses" ? "page" : undefined}
               onClick={() => setActiveTab("courses")}
@@ -145,14 +145,17 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
               General AI Tutor
             </Link>
             <Link
-              to="/#about"
-              className={activeTab === "about" ? "active" : undefined}
-              aria-current={activeTab === "about" ? "page" : undefined}
-              onClick={() => setActiveTab("about")}
-              onFocus={() => setActiveTab("about")}
+              to="/tutor-application"
+              className={activeTab === "instructors" ? "active" : undefined}
+              aria-current={activeTab === "instructors" ? "page" : undefined}
+              onClick={() => setActiveTab("instructors")}
+              onFocus={() => setActiveTab("instructors")}
             >
-              About
+              For Instructors
             </Link>
+            <a href="mailto:support@edunova.com" className={activeTab === "help" ? "active" : undefined} onClick={() => setActiveTab("help")} onFocus={() => setActiveTab("help")}>
+              Help
+            </a>
             <form className="home-nav-search" onSubmit={submitCourseSearch}>
               <FaSearch aria-hidden="true" />
               <input
@@ -222,7 +225,7 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
           <p>Find your next course and start building skills that move you forward.</p>
         </div>
         <div className="home-final-actions">
-          <Link to="/courses">Explore courses</Link>
+          <Link to="/courses#available">Explore courses</Link>
           <Link to={showFooter ? "/auth" : dashboardPath}>{showFooter ? "Get started" : "My dashboard"}</Link>
         </div>
       </section>

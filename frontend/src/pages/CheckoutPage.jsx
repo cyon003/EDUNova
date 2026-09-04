@@ -25,7 +25,13 @@ export default function CheckoutPage() {
   const [step, setStep] = useState(STEP.EMAIL);
   const [cart, setCart] = useState({ items: [], total: 0 });
   const [cartLoading, setCartLoading] = useState(true);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user"))?.email || "";
+    } catch {
+      return "";
+    }
+  });
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
@@ -99,21 +105,6 @@ export default function CheckoutPage() {
       cancelled = true;
     };
   }, [navigate]);
-
-  // --------------------------------------------------
-  // Pre-fill email from stored user
-  // --------------------------------------------------
-  useEffect(() => {
-    try {
-      const user = JSON.parse(localStorage.getItem("user"));
-
-      if (user?.email) {
-        setEmail(user.email);
-      }
-    } catch {
-      // Ignore invalid localStorage data
-    }
-  }, []);
 
   // --------------------------------------------------
   // OTP countdown

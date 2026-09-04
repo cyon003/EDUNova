@@ -3,12 +3,12 @@ import {
   FaArrowLeft,
   FaCartPlus,
   FaCheck,
+  FaLock,
   FaShoppingBag,
   FaTrash,
 } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { API_ROOT, apiAssetUrl, formatCoursePrice } from "../utils/courseApi";
-import { storedUser } from "../utils/authClient";
 import "../styles/CartPage.css";
 
 function getToken() {
@@ -17,12 +17,10 @@ function getToken() {
 
 export default function CartPage() {
   const navigate = useNavigate();
-  const [cart,        setCart]        = useState({ items: [], total: 0 });
-  const [loading,     setLoading]     = useState(true);
-  const [removing,    setRemoving]    = useState(null);
-  const [checkingOut, setCheckingOut] = useState(false);
-  const [message,     setMessage]     = useState("");
-  const [orderDone,   setOrderDone]   = useState(null);
+  const [cart,     setCart]     = useState({ items: [], total: 0 });
+  const [loading,  setLoading]  = useState(true);
+  const [removing, setRemoving] = useState(null);
+  const [message,  setMessage]  = useState("");
 
   useEffect(() => {
     const token = getToken();
@@ -56,65 +54,8 @@ export default function CartPage() {
     }
   };
 
-  const checkout = async () => {
-    setCheckingOut(true);
-    setMessage("");
-    try {
-      const res = await fetch(`${API_ROOT}/orders/checkout`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
-        },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-
-      const enrolled = data.enrolledCourses || [];
-      if (enrolled.length) {
-        const userId = storedUser()?.id;
-        const enrollmentKey = userId ? `edunova-enrolled-courses-${userId}` : null;
-        const existing = enrollmentKey ? JSON.parse(localStorage.getItem(enrollmentKey) || "[]") : [];
-        const merged = [...new Set([...existing, ...enrolled])];
-        if (enrollmentKey) localStorage.setItem(enrollmentKey, JSON.stringify(merged));
-      }
-
-      setOrderDone(data.order);
-      setCart({ items: [], total: 0 });
-    } catch (error) {
-      setMessage(error.message || "Checkout failed. Please try again.");
-    } finally {
-      setCheckingOut(false);
-    }
-  };
-
-  if (orderDone) {
-    return (
-      <main className="cart-page">
-        <div className="cart-success">
-          <div className="cart-success-icon"><FaCheck /></div>
-          <h1>Purchase Successful!</h1>
-          <p>You are now enrolled in {orderDone.items.length} course{orderDone.items.length !== 1 ? "s" : ""}.</p>
-          <div className="cart-success-courses">
-            {orderDone.items.map((item) => (
-              <Link
-                key={item.course._id}
-                to={`/courses/${item.course.slug}`}
-                className="cart-success-course"
-              >
-                {item.course.name}
-                {item.price === 0 && <span className="cart-free-badge">Free</span>}
-              </Link>
-            ))}
-          </div>
-          <div className="cart-success-total">
-            Total paid: <strong>{formatCoursePrice(orderDone.totalAmount)}</strong>
-          </div>
-          <Link to="/my-courses" className="cart-btn-primary">Go to My Courses</Link>
-        </div>
-      </main>
-    );
-  }
+  // ── Navigate to checkout page instead of calling API directly ──
+  const goToCheckout = () => navigate("/checkout");
 
   return (
     <main className="cart-page">
@@ -152,24 +93,22 @@ export default function CartPage() {
               return (
                 <article key={course._id} className="cart-item">
                   <div className="cart-item-thumb">
-  {course.thumbnail ? (
-    <img
-      src={apiAssetUrl(course.thumbnail)}
-      alt={course.name}
-    />
-  ) : (
-    <div className="cart-item-thumb-placeholder">
-      <FaShoppingBag />
-    </div>
-  )}
-</div>
+                    {course.thumbnail ? (
+                      <img src={apiAssetUrl(course.thumbnail)} alt={course.name} />
+                    ) : (
+                      <div className="cart-item-thumb-placeholder"><FaShoppingBag /></div>
+                    )}
+                  </div>
                   <div className="cart-item-info">
                     <h3>
                       <Link to={`/courses/${course.slug}`}>{course.name}</Link>
                     </h3>
                     <span className="cart-item-meta">{course.level} · {course.category}</span>
                     <span className="cart-item-price">
-                      {course.price > 0 ? formatCoursePrice(course.price) : <span className="cart-free-badge">Free</span>}
+                      {course.price > 0
+                        ? formatCoursePrice(course.price)
+                        : <span className="cart-free-badge">Free</span>
+                      }
                     </span>
                   </div>
                   <button
@@ -203,10 +142,9 @@ export default function CartPage() {
             <button
               type="button"
               className="cart-btn-primary"
-              onClick={checkout}
-              disabled={checkingOut}
+              onClick={goToCheckout}
             >
-              {checkingOut ? "Processing..." : cart.total === 0 ? "Enroll Free" : `Pay ${formatCoursePrice(cart.total)}`}
+              <FaLock /> {cart.total === 0 ? "Enroll Free" : `Checkout — ${formatCoursePrice(cart.total)}`}
             </button>
             <p className="cart-secure-note"><FaCheck /> Secure checkout · Lifetime access</p>
           </aside>

@@ -109,9 +109,12 @@ function AuthCard() {
       const roleLanding = data.user.role === "admin"
         ? "/admin-dashboard"
         : "/home";
-      window.location.href = nextPath?.startsWith("/") && !nextPath.startsWith("//")
+      const destination =
+        nextPath?.startsWith("/") && !nextPath.startsWith("//")
         ? nextPath
         : roleLanding;
+
+navigate(destination);
     } catch (error) {
       console.error(error);
       setMessage("Backend server is not running");

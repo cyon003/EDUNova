@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const http = require("node:http");
 const test = require("node:test");
 const jwt = require("jsonwebtoken");
+const { io: createSocketClient } = require("socket.io-client");
 
 process.env.NODE_ENV = "test";
 process.env.JWT_SECRET = "message-route-test-secret-at-least-32-characters";
@@ -11,6 +12,7 @@ const Enrollment = require("../models/Enrollment");
 const Message = require("../models/Message");
 const User = require("../models/User");
 const app = require("../app");
+const { attachMessageSocket } = require("../realtime/messageSocket");
 
 const ids = {
   tutor: "507f1f77bcf86cd799439101",
@@ -28,6 +30,8 @@ let currentUser = tutor;
 let tutorCourses = [course];
 let courseEnrollments = [{ student, course: ids.course }];
 let server;
+let messageIo;
+const socketClients = [];
 const originals = {};
 
 function authToken(user = currentUser) {
@@ -65,6 +69,28 @@ function leanQuery(value) {
   return query;
 }
 
+function socketEvent(socket, event, timeout = 2000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Timed out waiting for ${event}`)), timeout);
+    socket.once(event, (payload) => {
+      clearTimeout(timer);
+      resolve(payload);
+    });
+  });
+}
+
+async function connectSocket(user) {
+  const address = server.address();
+  const socket = createSocketClient(`http://127.0.0.1:${address.port}`, {
+    auth: { token: authToken(user) },
+    transports: ["websocket"],
+    forceNew: true,
+  });
+  socketClients.push(socket);
+  await socketEvent(socket, "connect");
+  return socket;
+}
+
 test.before(async () => {
   originals.userFindById = User.findById;
   originals.courseFind = Course.find;
@@ -75,10 +101,14 @@ test.before(async () => {
   originals.messageFind = Message.find;
   originals.messageFindOneAndUpdate = Message.findOneAndUpdate;
 
-  User.findById = () => ({ select: async () => currentUser });
+  User.findById = (id) => ({
+    select: async () => [tutor, student].find((user) => String(user._id) === String(id)) || null,
+  });
   Course.find = () => leanQuery(tutorCourses);
   Enrollment.find = () => leanQuery(courseEnrollments);
-  server = app.listen(0, "127.0.0.1");
+  server = http.createServer(app);
+  messageIo = attachMessageSocket(server, app);
+  server.listen(0, "127.0.0.1");
   await new Promise((resolve) => server.once("listening", resolve));
 });
 
@@ -91,7 +121,8 @@ test.after(async () => {
   Message.updateMany = originals.messageUpdateMany;
   Message.find = originals.messageFind;
   Message.findOneAndUpdate = originals.messageFindOneAndUpdate;
-  await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  for (const socket of socketClients) socket.disconnect();
+  await new Promise((resolve) => messageIo.close(resolve));
 });
 
 test.beforeEach(() => {
@@ -177,4 +208,67 @@ test("only a message sender can soft-delete their message", async () => {
   Message.findOneAndUpdate = async () => null;
   const denied = await request("DELETE", `/api/messages/${ids.message}`);
   assert.equal(denied.status, 404);
+});
+
+test("authenticated private rooms receive live message, unread, read and delete updates", async () => {
+  const tutorSocket = await connectSocket(tutor);
+  const studentSocket = await connectSocket(student);
+
+  let savedBeforeEvent = false;
+  Message.create = async (record) => {
+    savedBeforeEvent = true;
+    return { _id: ids.message, ...record, read: false, createdAt: new Date() };
+  };
+  Message.countDocuments = async () => 1;
+
+  const newMessageEvent = socketEvent(studentSocket, "message:new");
+  const unreadEvent = socketEvent(studentSocket, "unread:update");
+  currentUser = tutor;
+  const sent = await request("POST", "/api/messages", {
+    recipientId: ids.student,
+    courseId: ids.course,
+    content: "Live hello",
+  });
+  const [liveMessage, unread] = await Promise.all([newMessageEvent, unreadEvent]);
+  assert.equal(sent.status, 201);
+  assert.equal(savedBeforeEvent, true);
+  assert.equal(liveMessage.content, "Live hello");
+  assert.equal(String(liveMessage.sender), ids.tutor);
+  assert.equal(unread.count, 1);
+
+  currentUser = student;
+  courseEnrollments = [{ course: { ...course, tutor } }];
+  Message.countDocuments = async () => 0;
+  const readEvent = socketEvent(tutorSocket, "message:read");
+  const readUnreadEvent = socketEvent(studentSocket, "unread:update");
+  const opened = await request("GET", `/api/messages/${ids.tutor}`);
+  const [readUpdate, clearedUnread] = await Promise.all([readEvent, readUnreadEvent]);
+  assert.equal(opened.status, 200);
+  assert.equal(readUpdate.readerId, ids.student);
+  assert.equal(clearedUnread.count, 0);
+
+  currentUser = tutor;
+  Message.findOneAndUpdate = async () => ({
+    _id: ids.message,
+    sender: ids.tutor,
+    recipient: ids.student,
+  });
+  const deletedEvent = socketEvent(studentSocket, "message:deleted");
+  const deleted = await request("DELETE", `/api/messages/${ids.message}`);
+  const deletion = await deletedEvent;
+  assert.equal(deleted.status, 200);
+  assert.equal(deletion.messageId, ids.message);
+});
+
+test("socket connections reject invalid JWTs", async () => {
+  const address = server.address();
+  const socket = createSocketClient(`http://127.0.0.1:${address.port}`, {
+    auth: { token: "invalid-token" },
+    transports: ["websocket"],
+    forceNew: true,
+    reconnection: false,
+  });
+  socketClients.push(socket);
+  const error = await socketEvent(socket, "connect_error");
+  assert.equal(error.message, "Authentication failed");
 });

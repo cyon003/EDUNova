@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const http = require("node:http");
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
@@ -6,6 +7,7 @@ const app = require("./app");
 const { validateEnvironment } = require("./config/environment");
 const TutorApplication = require("./models/TutorApplication");
 const RefreshSession = require("./models/RefreshSession");
+const { attachMessageSocket } = require("./realtime/messageSocket");
 
 async function startServer() {
   const { port } = validateEnvironment();
@@ -13,10 +15,12 @@ async function startServer() {
   await Promise.all([TutorApplication.syncIndexes(), RefreshSession.syncIndexes()]);
   console.log("MongoDB Connected");
 
-  const server = app.listen(port, () => console.log(`Server running on port ${port}`));
+  const server = http.createServer(app);
+  const io = attachMessageSocket(server, app);
+  server.listen(port, () => console.log(`Server running on port ${port}`));
   const shutdown = (signal) => {
     console.log(`${signal} received. Shutting down safely.`);
-    server.close(async () => {
+    io.close(async () => {
       await mongoose.disconnect();
       process.exit(0);
     });

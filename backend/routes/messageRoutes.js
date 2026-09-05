@@ -4,10 +4,28 @@ const authenticateToken = require("../middleware/authMiddleware");
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
 const Message = require("../models/Message");
+const { userRoom } = require("../realtime/messageSocket");
 
 const router = express.Router();
 
 router.use(authenticateToken);
+
+function emitToUsers(req, userIds, event, payload) {
+  const io = req.app.get("messageIo");
+  if (!io) return;
+  for (const userId of new Set(userIds.map(String))) io.to(userRoom(userId)).emit(event, payload);
+}
+
+async function emitUnreadUpdate(req, userId) {
+  const io = req.app.get("messageIo");
+  if (!io) return;
+  try {
+    const count = await Message.countDocuments({ recipient: userId, read: false, deletedAt: null });
+    io.to(userRoom(userId)).emit("unread:update", { count });
+  } catch (error) {
+    console.error("Unable to emit unread count:", error.message);
+  }
+}
 
 function addContact(contactMap, user, course) {
   if (!user || !course) return;
@@ -131,6 +149,12 @@ router.get("/:contactId", async (req, res) => {
       { sender: req.params.contactId, recipient: req.user._id, read: false, deletedAt: null },
       { $set: { read: true, readAt } }
     );
+    emitToUsers(req, [req.params.contactId], "message:read", {
+      readerId: String(req.user._id),
+      senderId: String(req.params.contactId),
+      readAt,
+    });
+    await emitUnreadUpdate(req, req.user._id);
     const messages = await Message.find({
       deletedAt: null,
       $or: [
@@ -168,6 +192,9 @@ router.post("/", async (req, res) => {
       course: course._id,
       content,
     });
+    const payload = typeof message.toObject === "function" ? message.toObject() : message;
+    emitToUsers(req, [req.user._id, recipientId], "message:new", payload);
+    await emitUnreadUpdate(req, recipientId);
     return res.status(201).json(message);
   } catch (error) {
     return res.status(500).json({ message: "Unable to send message", error: error.message });
@@ -179,16 +206,24 @@ router.patch("/:messageId/read", async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.messageId)) return res.status(400).json({ message: "Invalid message" });
     if (!["student", "tutor"].includes(req.user.role)) return res.status(403).json({ message: "Messaging is available only to students and tutors" });
 
+    const readAt = new Date();
     const message = await Message.findOneAndUpdate(
       {
         _id: req.params.messageId,
         recipient: req.user._id,
         deletedAt: null,
       },
-      { $set: { read: true, readAt: new Date() } },
+      { $set: { read: true, readAt } },
       { new: true, runValidators: true }
     );
     if (!message) return res.status(404).json({ message: "Message not found" });
+    emitToUsers(req, [message.sender], "message:read", {
+      messageIds: [String(message._id)],
+      readerId: String(req.user._id),
+      senderId: String(message.sender),
+      readAt,
+    });
+    await emitUnreadUpdate(req, req.user._id);
     return res.json(message);
   } catch (error) {
     return res.status(500).json({ message: "Unable to mark message as read", error: error.message });
@@ -211,6 +246,13 @@ router.delete("/:messageId", async (req, res) => {
       { new: true, runValidators: true }
     );
     if (!message) return res.status(404).json({ message: "Message not found or you are not allowed to delete it" });
+    emitToUsers(req, [message.sender, message.recipient], "message:deleted", {
+      messageId: String(message._id),
+      senderId: String(message.sender),
+      recipientId: String(message.recipient),
+      deletedAt,
+    });
+    await emitUnreadUpdate(req, message.recipient);
     return res.json({ message: "Message deleted", messageId: message._id, deletedAt });
   } catch (error) {
     return res.status(500).json({ message: "Unable to delete message", error: error.message });

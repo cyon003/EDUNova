@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FaCheck,
   FaEye,
@@ -20,6 +20,13 @@ import "../styles/AdminLayout.css";
 import "../styles/AdminPaymentVerification.css";
 
 const PAGE_SIZE = 10;
+
+const tabStatusMap = {
+    all: null,
+    pending: "awaiting_verification",
+    approved: "approved",
+    rejected: "rejected",
+  };
 
 const STATUS_META = {
   awaiting_verification: { label: "Awaiting Verification", className: "pv-badge--pending" },
@@ -99,59 +106,33 @@ export default function AdminPaymentVerification() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [copied, setCopied] = useState(false);
 
-  const loadOrders = async (showRefresh = false) => {
-    const token = getToken();
-
-    if (!token) {
-      setError("You are not logged in.");
-      setLoading(false);
-      return;
-    }
-
-    if (showRefresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-
-    setError("");
-
-    try {
-      const response = await fetch(
-        `${API_ROOT}/admin/payment-verification`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+  const loadOrders = useCallback(() => {
+    return fetch(`${API_ROOT}/admin/payment-verification`, {
+      headers: { Authorization: `Bearer ${getToken() || ""}` },
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.message || "Unable to load payment verification orders.");
         }
-      );
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Unable to load payment verification orders."
-        );
-      }
-
-      setOrders(Array.isArray(data.orders) ? data.orders : []);
-    } catch (err) {
-      setError(
-        err.message || "Unable to load payment verification orders."
-      );
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    loadOrders();
+        setOrders(Array.isArray(data.orders) ? data.orders : []);
+      })
+      .catch((err) => setError(err.message || "Unable to load payment verification orders."))
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
   }, []);
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [activeTab, searchTerm]);
+    loadOrders();
+  }, [loadOrders]);
+
+  const refreshOrders = () => {
+    setRefreshing(true);
+    setError("");
+    return loadOrders();
+  };
 
   const openOrder = async (order) => {
     setSelectedOrder(order);
@@ -247,7 +228,7 @@ export default function AdminPaymentVerification() {
 
       closeOrder();
 
-      await loadOrders(true);
+      await refreshOrders();
     } catch (err) {
       setError(err.message || "Unable to approve payment.");
     } finally {
@@ -303,7 +284,7 @@ export default function AdminPaymentVerification() {
 
       closeOrder();
 
-      await loadOrders(true);
+      await refreshOrders();
     } catch (err) {
       setError(err.message || "Unable to reject payment.");
     } finally {
@@ -330,12 +311,7 @@ export default function AdminPaymentVerification() {
     return result;
   }, [orders]);
 
-  const tabStatusMap = {
-    all: null,
-    pending: "awaiting_verification",
-    approved: "approved",
-    rejected: "rejected",
-  };
+
 
   const filteredOrders = useMemo(() => {
     const targetStatus = tabStatusMap[activeTab];
@@ -388,7 +364,7 @@ export default function AdminPaymentVerification() {
           <button
             type="button"
             className="pv-refresh-btn"
-            onClick={() => loadOrders(true)}
+            onClick={() => refreshOrders()}
             disabled={refreshing}
           >
             <FaSyncAlt className={refreshing ? "pv-spin" : ""} />
@@ -442,28 +418,28 @@ export default function AdminPaymentVerification() {
             <button
               type="button"
               className={activeTab === "all" ? "pv-tab pv-tab--active" : "pv-tab"}
-              onClick={() => setActiveTab("all")}
+              onClick={() => { setActiveTab("all"); setCurrentPage(1); }}
             >
               All Orders ({counts.all})
             </button>
             <button
               type="button"
               className={activeTab === "pending" ? "pv-tab pv-tab--active" : "pv-tab"}
-              onClick={() => setActiveTab("pending")}
+              onClick={() => { setActiveTab("pending"); setCurrentPage(1); }}
             >
               Pending ({counts.awaiting_verification})
             </button>
             <button
               type="button"
               className={activeTab === "approved" ? "pv-tab pv-tab--active" : "pv-tab"}
-              onClick={() => setActiveTab("approved")}
+              onClick={() => { setActiveTab("approved"); setCurrentPage(1); }}
             >
               Approved ({counts.approved})
             </button>
             <button
               type="button"
               className={activeTab === "rejected" ? "pv-tab pv-tab--active" : "pv-tab"}
-              onClick={() => setActiveTab("rejected")}
+              onClick={() => { setActiveTab("rejected"); setCurrentPage(1); }}
             >
               Rejected ({counts.rejected})
             </button>
@@ -475,7 +451,7 @@ export default function AdminPaymentVerification() {
               type="text"
               placeholder="Search order ID, student name or email..."
               value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
+              onChange={(event) => { setSearchTerm(event.target.value); setCurrentPage(1); }}
             />
           </div>
         </div>

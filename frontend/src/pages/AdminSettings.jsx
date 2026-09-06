@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   FaBullhorn,
   FaHistory,
@@ -60,15 +60,12 @@ export default function AdminSettings() {
   // Load all admin settings
   // --------------------------------------------------
 
-  const load = async () => {
-    try {
-      const [config, notices, activity, payment] = await Promise.all([
+  const load = useCallback(() => Promise.all([
         adminApi("/settings"),
         adminApi("/announcements"),
         adminApi("/audit"),
         adminApi("/payment-settings"),
-      ]);
-
+      ]).then(([config, notices, activity, payment]) => {
       setSettings(config);
       setAnnouncements(notices);
       setAudit(activity);
@@ -80,70 +77,48 @@ export default function AdminSettings() {
         accountNumber: payment?.accountNumber || "",
         isActive: payment?.isActive ?? true,
       });
-    } catch (error) {
+    }).catch((error) => {
       setMessage(error.message || "Unable to load settings.");
-    }
-  };
+    }), []);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   // --------------------------------------------------
   // Load QR preview
   // --------------------------------------------------
 
-  const loadQrPreview = async () => {
-    const token = getToken();
+  const loadQrPreview = useCallback(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return Promise.resolve();
 
-    if (!token) {
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `${API_ROOT}/admin/payment-settings/qr`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+    return fetch(`${API_ROOT}/admin/payment-settings/qr`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          setQrPreview("");
+          return;
         }
-      );
-
-      if (!response.ok) {
+        const blob = await response.blob();
+        setQrPreview(URL.createObjectURL(blob));
+      })
+      .catch((error) => {
+        console.error("Load QR preview error:", error);
         setQrPreview("");
-        return;
-      }
-
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-
-      setQrPreview((oldUrl) => {
-        if (oldUrl) {
-          URL.revokeObjectURL(oldUrl);
-        }
-
-        return objectUrl;
       });
-    } catch (error) {
-      console.error("Load QR preview error:", error);
-      setQrPreview("");
-    }
-  };
+  }, []);
 
   useEffect(() => {
     loadQrPreview();
+  }, [loadQrPreview]);
 
+  useEffect(() => {
     return () => {
-      setQrPreview((oldUrl) => {
-        if (oldUrl) {
-          URL.revokeObjectURL(oldUrl);
-        }
-
-        return "";
-      });
+      if (qrPreview) URL.revokeObjectURL(qrPreview);
     };
-  }, []);
+  }, [qrPreview]);
 
   // --------------------------------------------------
   // Save platform settings

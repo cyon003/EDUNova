@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FaComments, FaPaperPlane, FaSearch, FaTimes, FaTrash } from "react-icons/fa";
+import { io } from "socket.io-client";
 import "../styles/MessageBox.css";
 
 import { API_ROOT } from "../utils/courseApi";
 
 const API_URL = `${API_ROOT}/messages`;
+const SOCKET_URL = API_ROOT.replace(/\/api$/, "");
+
+function mergeMessages(current, incoming) {
+  const byId = new Map(current.map((message) => [String(message._id), message]));
+  for (const message of incoming) byId.set(String(message._id), { ...byId.get(String(message._id)), ...message });
+  return [...byId.values()].sort((left, right) => new Date(left.createdAt) - new Date(right.createdAt));
+}
 
 async function apiRequest(token, path = "", options = {}) {
   const response = await fetch(`${API_URL}${path}`, {
@@ -48,6 +56,7 @@ function MessageBox() {
   const [status, setStatus] = useState("");
   const messageEndRef = useRef(null);
   const activeContactIdRef = useRef("");
+  const openRef = useRef(false);
 
   const activeContact = contacts.find((contact) => String(contact._id) === String(activeContactId)) || null;
   const filteredContacts = useMemo(() => {
@@ -92,6 +101,23 @@ function MessageBox() {
     }
   }, [token]);
 
+  const loadMessages = useCallback(async (contactId, showLoading = false) => {
+    if (!token || !contactId) return;
+    if (showLoading) setLoadingMessages(true);
+    try {
+      const items = await apiRequest(token, `/${contactId}`);
+      if (String(activeContactIdRef.current) === String(contactId)) {
+        setMessages((current) => mergeMessages(current, items));
+        setStatus("");
+      }
+      await loadUnreadCount();
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      if (showLoading) setLoadingMessages(false);
+    }
+  }, [token, loadUnreadCount]);
+
   const selectContact = (contact) => {
     activeContactIdRef.current = contact._id;
     setActiveContactId(contact._id);
@@ -102,49 +128,76 @@ function MessageBox() {
 
   useEffect(() => {
     const initialTimer = window.setTimeout(loadUnreadCount, 0);
-    const timer = window.setInterval(loadUnreadCount, 15000);
-    return () => {
-      window.clearTimeout(initialTimer);
-      window.clearInterval(timer);
-    };
+    return () => window.clearTimeout(initialTimer);
   }, [loadUnreadCount]);
 
   useEffect(() => {
     if (!open || !token) return undefined;
     const initialTimer = window.setTimeout(() => loadContacts(true), 0);
-    const timer = window.setInterval(() => loadContacts(false), 15000);
-    return () => {
-      window.clearTimeout(initialTimer);
-      window.clearInterval(timer);
-    };
+    return () => window.clearTimeout(initialTimer);
   }, [open, token, loadContacts]);
 
   useEffect(() => {
     if (!open || !activeContactId || !token) return undefined;
-    let active = true;
-    const loadMessages = async (showLoading = false) => {
-      if (showLoading) setLoadingMessages(true);
-      try {
-        const items = await apiRequest(token, `/${activeContactId}`);
-        if (active) {
-          setMessages(items);
-          setStatus("");
-          loadUnreadCount();
-        }
-      } catch (error) {
-        if (active) setStatus(error.message);
-      } finally {
-        if (active && showLoading) setLoadingMessages(false);
+    const initialTimer = window.setTimeout(() => loadMessages(activeContactId, true), 0);
+    return () => window.clearTimeout(initialTimer);
+  }, [open, activeContactId, token, loadMessages]);
+
+  useEffect(() => { openRef.current = open; }, [open]);
+
+  useEffect(() => {
+    if (!token || !userId) return undefined;
+    const socket = io(SOCKET_URL || undefined, {
+      auth: { token },
+      transports: ["websocket", "polling"],
+      reconnection: true,
+    });
+
+    const recoverFromRest = () => {
+      loadUnreadCount();
+      loadContacts(false);
+      if (openRef.current && activeContactIdRef.current) loadMessages(activeContactIdRef.current, false);
+    };
+
+    socket.on("connect", recoverFromRest);
+    socket.on("message:new", (message) => {
+      const senderId = String(message.sender);
+      const recipientId = String(message.recipient);
+      const contactId = senderId === String(userId) ? recipientId : senderId;
+      const isOpenConversation = openRef.current && String(activeContactIdRef.current) === contactId;
+
+      if (isOpenConversation) {
+        setMessages((current) => mergeMessages(current, [message]));
+        if (recipientId === String(userId)) loadMessages(contactId, false);
       }
-    };
-    const initialTimer = window.setTimeout(() => loadMessages(true), 0);
-    const timer = window.setInterval(() => loadMessages(false), 8000);
-    return () => {
-      active = false;
-      window.clearTimeout(initialTimer);
-      window.clearInterval(timer);
-    };
-  }, [open, activeContactId, token, loadUnreadCount]);
+      setContacts((current) => current.map((contact) => String(contact._id) === contactId
+        ? {
+            ...contact,
+            lastMessage: message,
+            unreadCount: recipientId === String(userId) && !isOpenConversation
+              ? Number(contact.unreadCount || 0) + 1
+              : contact.unreadCount,
+          }
+        : contact));
+    });
+    socket.on("unread:update", ({ count }) => setUnreadCount(Number(count) || 0));
+    socket.on("message:read", ({ messageIds, readerId, readAt }) => {
+      setMessages((current) => current.map((message) => {
+        const selectedById = Array.isArray(messageIds) && messageIds.map(String).includes(String(message._id));
+        const selectedConversation = !messageIds && String(message.sender) === String(userId)
+          && String(message.recipient) === String(readerId);
+        return selectedById || selectedConversation ? { ...message, read: true, readAt } : message;
+      }));
+      loadContacts(false);
+    });
+    socket.on("message:deleted", ({ messageId }) => {
+      setMessages((current) => current.filter((message) => String(message._id) !== String(messageId)));
+      loadContacts(false);
+    });
+    socket.on("connect_error", (error) => setStatus(error.data?.message || "Real-time messaging is reconnecting…"));
+
+    return () => socket.disconnect();
+  }, [token, userId, loadContacts, loadMessages, loadUnreadCount]);
 
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -159,7 +212,7 @@ function MessageBox() {
         method: "POST",
         body: JSON.stringify({ recipientId: activeContact._id, courseId: selectedCourseId, content: draft.trim() }),
       });
-      setMessages((current) => [...current, message]);
+      setMessages((current) => mergeMessages(current, [message]));
       setDraft("");
       setStatus("");
       loadContacts(false);

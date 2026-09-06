@@ -42,9 +42,6 @@ __pycache__/
 backend/uploads/
 
 # Generated confusion-model files and private datasets
-# Phase 3B generated datasets, models, reports, and local Python environments
 confusion-service/data/generated/
 confusion-service/models/generated/
 confusion-service/reports/generated/
-confusion-service/.env
-confusion-service/venv/

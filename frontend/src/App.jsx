@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import NavigationManager from "./components/NavigationManager";
+import AdminPaymentVerification from "./pages/AdminPaymentVerification";
 import AdminCourses from "./pages/AdminCourses";
 import AdminOverview from "./pages/AdminOverview";
 import AdminReports from "./pages/AdminReports";
@@ -87,6 +88,7 @@ function App() {
         <Route path="/admin-dashboard/tutor-applications" element={<RoleRoute user={user} allowedRoles={["admin"]}><AdminTutorApplications /></RoleRoute>} />
         <Route path="/admin-dashboard/students" element={<RoleRoute user={user} allowedRoles={["admin"]}><AdminStudents /></RoleRoute>} />
         <Route path="/admin-dashboard/courses" element={<RoleRoute user={user} allowedRoles={["admin"]}><AdminCourses /></RoleRoute>} />
+        <Route path="/admin-dashboard/payment-verification" element={<RoleRoute user={user} allowedRoles={["admin"]}><AdminPaymentVerification /></RoleRoute>} />
         <Route path="/admin-dashboard/reports" element={<RoleRoute user={user} allowedRoles={["admin"]}><AdminReports /></RoleRoute>} />
         <Route path="/admin-dashboard/settings" element={<RoleRoute user={user} allowedRoles={["admin"]}><AdminSettings /></RoleRoute>} />
 

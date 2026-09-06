@@ -2,79 +2,127 @@ import { useEffect, useState } from "react";
 import {
   FaArrowLeft,
   FaCheckCircle,
-  FaEnvelope,
+  FaCloudUploadAlt,
+  FaHome,
   FaLock,
+  FaQrcode,
   FaShoppingBag,
   FaSpinner,
+  FaTimesCircle,
 } from "react-icons/fa";
-import { Link, useNavigate } from "react-router-dom";
-import { API_ROOT } from "../utils/courseApi";
+import { useLocation, useNavigate } from "react-router-dom";
+import {
+  API_ROOT,
+  apiAssetUrl,
+  formatCoursePrice,
+} from "../utils/courseApi";
 import "../styles/CheckoutPage.css";
 
 const API = API_ROOT;
 
-const STEP = {
-  EMAIL: "email",
-  OTP: "otp",
-  PROCESSING: "processing",
-};
-
 export default function CheckoutPage() {
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const [step, setStep] = useState(STEP.EMAIL);
-  const [cart, setCart] = useState({ items: [], total: 0 });
-  const [cartLoading, setCartLoading] = useState(true);
-  const [email, setEmail] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("user"))?.email || "";
-    } catch {
-      return "";
-    }
-  });
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const query = new URLSearchParams(location.search);
+  const orderId = query.get("orderId");
+  const checkoutSource = query.get("from");
+
+  const [order, setOrder] = useState(null);
+  const [paymentSettings, setPaymentSettings] = useState(null);
+  const [qrObjectUrl, setQrObjectUrl] = useState("");
+  const [qrLoading, setQrLoading] = useState(true);
+
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+
+  const [selectedFile, setSelectedFile] = useState(null);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [sending, setSending] = useState(false);
-  const [countdown, setCountdown] = useState(0);
 
   // --------------------------------------------------
-  // Load cart
+  // Load order
   // --------------------------------------------------
+
   useEffect(() => {
     let cancelled = false;
 
-    const loadCart = async () => {
+    const loadOrder = async () => {
       try {
-        /*
-         * IMPORTANT:
-         * Do NOT manually add Authorization here.
-         *
-         * authClient.js intercepts fetch() and automatically
-         * adds the real in-memory JWT.
-         */
-        const res = await fetch(`${API}/cart`, {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-          },
-        });
+        setLoading(true);
+        setError("");
 
-        const data = await res.json().catch(() => ({}));
+        const token = localStorage.getItem("token");
 
-        if (cancelled) return;
-
-        if (res.status === 401) {
-          setError(
-            "Your login session has expired. Please log in again."
-          );
-          setCartLoading(false);
+        if (!token) {
+          navigate("/auth");
           return;
         }
 
-        if (!res.ok) {
+        // --------------------------------------------------
+        // Existing order / Buy Now
+        // --------------------------------------------------
+
+        if (orderId) {
+          const response = await fetch(
+            `${API}/orders/${encodeURIComponent(orderId)}`,
+            {
+              headers: {
+                Accept: "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+
+          const data = await response.json().catch(() => ({}));
+
+          if (cancelled) return;
+
+          if (response.status === 401) {
+            setError(
+              "Your login session has expired. Please log in again."
+            );
+            setLoading(false);
+            return;
+          }
+
+          if (!response.ok) {
+            setError(data.message || "Unable to load this order.");
+            setLoading(false);
+            return;
+          }
+
+          setOrder(data);
+          setLoading(false);
+          return;
+        }
+
+        // --------------------------------------------------
+        // Cart checkout
+        // --------------------------------------------------
+
+        const response = await fetch(`${API}/cart`, {
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (cancelled) return;
+
+        if (response.status === 401) {
+          setError(
+            "Your login session has expired. Please log in again."
+          );
+          setLoading(false);
+          return;
+        }
+
+        if (!response.ok) {
           setError(data.message || "Unable to load your cart.");
-          setCartLoading(false);
+          setLoading(false);
           return;
         }
 
@@ -83,598 +131,794 @@ export default function CheckoutPage() {
           return;
         }
 
-        setCart({
-          items: data.items,
-          total: Number(data.total || 0),
-        });
+        // Create an order from the cart.
+        const checkoutResponse = await fetch(
+          `${API}/orders/checkout`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              courseIds: data.items
+                .filter((item) => item.course?._id)
+                .map((item) => item.course._id),
+            }),
+          }
+        );
 
-        setCartLoading(false);
+        const checkoutData = await checkoutResponse
+          .json()
+          .catch(() => ({}));
+
+        if (cancelled) return;
+
+        if (!checkoutResponse.ok) {
+          setError(
+            checkoutData.message || "Unable to create your order."
+          );
+          setLoading(false);
+          return;
+        }
+
+        if (!checkoutData.order?._id) {
+          setError("The server did not return an order.");
+          setLoading(false);
+          return;
+        }
+
+        setOrder(checkoutData.order);
+
+        // Keep track that this order came from cart checkout.
+        navigate(
+          `/checkout?orderId=${encodeURIComponent(
+            checkoutData.order._id
+          )}&from=cart`,
+          { replace: true }
+        );
+
+        setLoading(false);
       } catch (err) {
-        console.error("Checkout cart error:", err);
+        console.error("Load checkout error:", err);
 
         if (!cancelled) {
-          setError("Unable to connect to the server.");
-          setCartLoading(false);
+          setError(
+            "Unable to connect to the server. Please try again."
+          );
+          setLoading(false);
         }
       }
     };
 
-    loadCart();
+    loadOrder();
 
     return () => {
       cancelled = true;
     };
-  }, [navigate]);
+  }, [navigate, orderId]);
 
   // --------------------------------------------------
-  // OTP countdown
+  // Load payment settings
   // --------------------------------------------------
+
   useEffect(() => {
-    if (countdown <= 0) return;
+    let cancelled = false;
+    let createdUrl = "";
 
-    const timer = setTimeout(() => {
-      setCountdown((current) => current - 1);
-    }, 1000);
+    const loadPaymentSettings = async () => {
+      try {
+        const token = localStorage.getItem("token");
 
-    return () => clearTimeout(timer);
-  }, [countdown]);
+        if (!token) return;
 
-  // --------------------------------------------------
-  // Send OTP
-  // --------------------------------------------------
-  const sendOtp = async (e) => {
-    e.preventDefault();
+        const response = await fetch(`${API}/payment-settings`, {
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-    setError("");
-    setInfo("");
+        const data = await response.json().catch(() => ({}));
 
-    const trimmedEmail = email.trim();
+        if (cancelled) return;
 
-    if (
-      !trimmedEmail ||
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)
-    ) {
-      setError("Please enter a valid email address.");
-      return;
-    }
+        if (!response.ok) {
+          console.error(
+            "Unable to load payment settings:",
+            data.message || response.statusText
+          );
+          setQrLoading(false);
+          return;
+        }
 
-    setSending(true);
+        setPaymentSettings({
+          receiverName: data.receiverName || "",
+          paymentMethod: data.paymentMethod || "",
+          accountName: data.accountName || "",
+          accountNumber: data.accountNumber || "",
+          isActive: data.isActive ?? true,
+        });
 
-    try {
-      /*
-       * IMPORTANT:
-       * Do NOT manually add Authorization here.
-       *
-       * authClient.js intercepts fetch() and automatically
-       * adds the real in-memory JWT.
-       */
-      const res = await fetch(`${API}/checkout/send-otp`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          email: trimmedEmail,
-        }),
-      });
+        // The QR image lives behind an authenticated endpoint,
+        // so fetch it manually with the auth header.
+        if (!data.qrUrl) {
+          setQrLoading(false);
+          return;
+        }
 
-      const data = await res.json().catch(() => ({}));
-
-      if (res.status === 401) {
-        setError(
-          "Your login session has expired. Please log in again."
-        );
-        return;
-      }
-
-      if (!res.ok) {
-        setError(
-          data.message || "Unable to send verification code."
-        );
-        return;
-      }
-
-      setEmail(trimmedEmail);
-      setOtp(["", "", "", "", "", ""]);
-      setStep(STEP.OTP);
-
-      setInfo(
-        `A 6-digit verification code was sent to ${trimmedEmail}.`
-      );
-
-      setCountdown(60);
-    } catch (err) {
-      console.error("Send OTP error:", err);
-
-      setError(
-        "Unable to connect to the server. Please try again."
-      );
-    } finally {
-      setSending(false);
-    }
-  };
-
-  // --------------------------------------------------
-  // OTP input
-  // --------------------------------------------------
-  const handleOtpChange = (value, index) => {
-    const cleaned = value.replace(/\D/g, "");
-
-    if (cleaned.length > 1) return;
-
-    const nextOtp = [...otp];
-
-    nextOtp[index] = cleaned;
-
-    setOtp(nextOtp);
-
-    if (cleaned && index < 5) {
-      document
-        .getElementById(`otp-${index + 1}`)
-        ?.focus();
-    }
-  };
-
-  const handleOtpKeyDown = (e, index) => {
-    if (
-      e.key === "Backspace" &&
-      !otp[index] &&
-      index > 0
-    ) {
-      document
-        .getElementById(`otp-${index - 1}`)
-        ?.focus();
-    }
-  };
-
-  const handleOtpPaste = (e) => {
-    e.preventDefault();
-
-    const pasted = e.clipboardData
-      .getData("text")
-      .replace(/\D/g, "")
-      .slice(0, 6);
-
-    if (pasted.length === 0) return;
-
-    const nextOtp = ["", "", "", "", "", ""];
-
-    pasted.split("").forEach((digit, index) => {
-      nextOtp[index] = digit;
-    });
-
-    setOtp(nextOtp);
-
-    const focusIndex = Math.min(pasted.length - 1, 5);
-
-    document
-      .getElementById(`otp-${focusIndex}`)
-      ?.focus();
-  };
-
-  // --------------------------------------------------
-  // Verify OTP and pay
-  // --------------------------------------------------
-  const verifyAndPay = async (e) => {
-    e.preventDefault();
-
-    setError("");
-    setInfo("");
-
-    const otpString = otp.join("");
-
-    if (otpString.length !== 6) {
-      setError("Please enter all 6 digits.");
-      return;
-    }
-
-    setStep(STEP.PROCESSING);
-
-    try {
-      /*
-       * IMPORTANT:
-       * Do NOT manually add Authorization here.
-       *
-       * authClient.js intercepts fetch() and automatically
-       * adds the real in-memory JWT.
-       */
-      const res = await fetch(`${API}/checkout/verify-and-pay`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          otp: otpString,
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (res.status === 401) {
-        setStep(STEP.OTP);
-        setError(
-          "Your login session has expired. Please log in again."
-        );
-        return;
-      }
-
-      if (!res.ok) {
-        setStep(STEP.OTP);
-
-        setError(
-          data.message || "Payment failed. Please try again."
-        );
-
-        return;
-      }
-
-      // --------------------------------------------------
-      // Update enrolled course cache
-      // --------------------------------------------------
-      const enrolledCourses = data.enrolledCourses || [];
-
-      if (enrolledCourses.length > 0) {
         try {
-          const existing = JSON.parse(
-            localStorage.getItem(
-              "edunova-enrolled-courses"
-            ) || "[]"
+          const qrResponse = await fetch(
+            `${API}/payment-settings/qr`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
           );
 
-          const merged = [
-            ...new Set([
-              ...existing,
-              ...enrolledCourses,
-            ]),
-          ];
+          if (!qrResponse.ok) {
+            throw new Error("QR code request failed");
+          }
 
-          localStorage.setItem(
-            "edunova-enrolled-courses",
-            JSON.stringify(merged)
-          );
-        } catch {
-          // Ignore localStorage errors
+          const blob = await qrResponse.blob();
+          createdUrl = URL.createObjectURL(blob);
+
+          if (cancelled) {
+            URL.revokeObjectURL(createdUrl);
+          } else {
+            setQrObjectUrl(createdUrl);
+          }
+        } catch (qrErr) {
+          console.error("Load payment QR error:", qrErr);
+        } finally {
+          if (!cancelled) {
+            setQrLoading(false);
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Load payment settings error:", err);
+          setQrLoading(false);
         }
       }
+    };
 
-      // --------------------------------------------------
-      // Payment successful
-      // --------------------------------------------------
-      navigate("/order-success", {
-        state: {
-          order: data.order,
-        },
-      });
+    loadPaymentSettings();
+
+    return () => {
+      cancelled = true;
+
+      if (createdUrl) {
+        URL.revokeObjectURL(createdUrl);
+      }
+    };
+  }, []);
+
+  // --------------------------------------------------
+  // Upload payment slip
+  // --------------------------------------------------
+
+  const uploadPaymentSlip = async () => {
+    setError("");
+    setInfo("");
+
+    if (!order?._id) {
+      setError("Order information is missing.");
+      return;
+    }
+
+    if (!selectedFile) {
+      setError("Please select your payment slip first.");
+      return;
+    }
+
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      setError("Payment slip must be 5 MB or smaller.");
+      return;
+    }
+
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "application/pdf",
+    ];
+
+    if (!allowedTypes.includes(selectedFile.type)) {
+      setError(
+        "Please upload a JPG, PNG, WEBP, or PDF payment slip."
+      );
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      navigate("/auth");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("paymentSlip", selectedFile);
+
+    setUploading(true);
+
+    try {
+      const response = await fetch(
+        `${API}/payment/${encodeURIComponent(order._id)}/slip`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.status === 401) {
+        setError(
+          "Your login session has expired. Please log in again."
+        );
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Unable to upload payment slip."
+        );
+      }
+
+      setOrder({
+        ...order,
+         ...(data.order || {}),
+         status: "awaiting_verification",
+        });
+
+      setSelectedFile(null);
+
+      const fileInput = document.getElementById(
+        "payment-slip-input"
+      );
+
+      if (fileInput) {
+        fileInput.value = "";
+      }
+
+      setInfo(
+        "Payment slip submitted successfully. Your payment is now awaiting verification."
+      );
     } catch (err) {
-      console.error("Payment error:", err);
-
-      setStep(STEP.OTP);
+      console.error("Payment slip upload error:", err);
 
       setError(
-        "Unable to connect to the server. Please try again."
+        err.message ||
+          "Unable to upload your payment slip. Please try again."
       );
+    } finally {
+      setUploading(false);
     }
   };
 
   // --------------------------------------------------
-  // Loading screen
+  // Back navigation
   // --------------------------------------------------
-  if (cartLoading) {
+
+  const handleBack = () => {
+    // Cart checkout -> Cart
+    if (checkoutSource === "cart") {
+      navigate("/cart");
+      return;
+    }
+
+    // Buy Now -> Course Detail
+    if (orderId) {
+      const firstCourse = order?.items?.[0]?.course;
+
+      if (firstCourse?.slug) {
+        navigate(`/courses/${firstCourse.slug}`);
+        return;
+      }
+    }
+
+    navigate("/cart");
+  };
+
+  // --------------------------------------------------
+  // Home navigation
+  // --------------------------------------------------
+
+  const handleHome = () => {
+    navigate("/home");
+  };
+
+  // --------------------------------------------------
+  // Loading
+  // --------------------------------------------------
+
+  if (loading) {
     return (
       <main className="checkout-page">
         <div className="checkout-loading">
           <FaSpinner className="spin" />
-          Loading checkout...
+          Loading payment...
         </div>
       </main>
     );
   }
 
   // --------------------------------------------------
-  // Checkout page
+  // Error
   // --------------------------------------------------
+
+  if (!order) {
+    return (
+      <main className="checkout-page">
+        <div className="checkout-header">
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+            }}
+          >
+            <button
+              type="button"
+              className="checkout-back"
+              onClick={handleBack}
+            >
+              <FaArrowLeft />
+              Back
+            </button>
+
+            <button
+              type="button"
+              className="checkout-back"
+              onClick={handleHome}
+            >
+              <FaHome />
+              Home
+            </button>
+          </div>
+
+          <h1>
+            <FaLock />
+            Payment
+          </h1>
+        </div>
+
+        <div className="checkout-card">
+          <div className="checkout-card-title">
+            <FaTimesCircle />
+            Unable to load payment
+          </div>
+
+          <p className="checkout-card-sub">
+            {error || "The order could not be loaded."}
+          </p>
+
+          <button
+            type="button"
+            className="checkout-btn-primary"
+            onClick={handleBack}
+          >
+            Go Back
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  const isCompleted = order.status === "completed";
+  const isAwaitingVerification =
+    order.status === "awaiting_verification";
+  const isRejected = order.status === "rejected";
+  const isPending = order.status === "pending";
+
+  const totalAmount = Number(order.totalAmount || 0);
+
+  // --------------------------------------------------
+  // Main payment page
+  // --------------------------------------------------
+
   return (
     <main className="checkout-page">
-
       {/* Header */}
       <div className="checkout-header">
-        <Link
-          to="/cart"
-          className="checkout-back"
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+          }}
         >
-          <FaArrowLeft />
-          Back to Cart
-        </Link>
+          <button
+            type="button"
+            className="checkout-back"
+            onClick={handleBack}
+          >
+            <FaArrowLeft />
+            Back
+          </button>
+
+          <button
+            type="button"
+            className="checkout-back"
+            onClick={handleHome}
+          >
+            <FaHome />
+            Home
+          </button>
+        </div>
 
         <h1>
           <FaLock />
-          Secure Checkout
+          Secure Payment
         </h1>
       </div>
 
       <div className="checkout-layout">
-
-        {/* Left side */}
+        {/* LEFT */}
         <div className="checkout-form-wrap">
-
-          {/* Step indicator */}
-          <div className="checkout-steps">
-
-            <div
-              className={`checkout-step ${
-                step !== STEP.EMAIL
-                  ? "done"
-                  : "active"
-              }`}
-            >
-              <div className="step-circle">
-                {step !== STEP.EMAIL
-                  ? <FaCheckCircle />
-                  : "1"}
-              </div>
-
-              <span>Verify Email</span>
-            </div>
-
-            <div className="step-line" />
-
-            <div
-              className={`checkout-step ${
-                step === STEP.PROCESSING
-                  ? "done"
-                  : step === STEP.OTP
-                  ? "active"
-                  : ""
-              }`}
-            >
-              <div className="step-circle">
-                {step === STEP.PROCESSING
-                  ? <FaCheckCircle />
-                  : "2"}
-              </div>
-
-              <span>Enter Code</span>
-            </div>
-
-            <div className="step-line" />
-
-            <div
-              className={`checkout-step ${
-                step === STEP.PROCESSING
-                  ? "active"
-                  : ""
-              }`}
-            >
-              <div className="step-circle">
-                3
-              </div>
-
-              <span>Pay</span>
-            </div>
-
-          </div>
-
-          {/* Error */}
+          {/* Status message */}
           {error && (
             <div className="checkout-error">
               {error}
             </div>
           )}
 
-          {/* Info */}
           {info && (
             <div className="checkout-info">
               {info}
             </div>
           )}
 
-          {/* ---------------------------------------- */}
-          {/* STEP 1: EMAIL */}
-          {/* ---------------------------------------- */}
+          {/* ------------------------------------------------ */}
+          {/* COMPLETED */}
+          {/* ------------------------------------------------ */}
 
-          {step === STEP.EMAIL && (
-            <form
-              className="checkout-card"
-              onSubmit={sendOtp}
-            >
+          {isCompleted && (
+            <div className="checkout-card checkout-processing">
+              <FaCheckCircle className="processing-icon" />
 
-              <div className="checkout-card-title">
-                <FaEnvelope />
-                Enter your email
-              </div>
+              <h2>Payment Completed</h2>
 
-              <p className="checkout-card-sub">
-                We'll send a 6-digit verification code
-                to confirm your payment.
+              <p>
+                Your payment has been approved and your
+                course access is available.
               </p>
-
-              <div className="checkout-field">
-                <label htmlFor="checkout-email">
-                  Email Address
-                </label>
-
-                <input
-                  id="checkout-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) =>
-                    setEmail(e.target.value)
-                  }
-                  placeholder="you@example.com"
-                  required
-                  autoFocus
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="checkout-btn-primary"
-                disabled={sending}
-              >
-                {sending ? (
-                  <>
-                    <FaSpinner className="spin" />
-                    Sending...
-                  </>
-                ) : (
-                  "Send Verification Code"
-                )}
-              </button>
-
-            </form>
-          )}
-
-          {/* ---------------------------------------- */}
-          {/* STEP 2: OTP */}
-          {/* ---------------------------------------- */}
-
-          {step === STEP.OTP && (
-            <form
-              className="checkout-card"
-              onSubmit={verifyAndPay}
-            >
-
-              <div className="checkout-card-title">
-                <FaLock />
-                Enter verification code
-              </div>
-
-              <p className="checkout-card-sub">
-                Enter the 6-digit code sent to{" "}
-                <strong>{email}</strong>
-              </p>
-
-              <div
-                className="otp-boxes"
-                onPaste={handleOtpPaste}
-              >
-                {otp.map((digit, i) => (
-                  <input
-                    key={i}
-                    id={`otp-${i}`}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) =>
-                      handleOtpChange(
-                        e.target.value,
-                        i
-                      )
-                    }
-                    onKeyDown={(e) =>
-                      handleOtpKeyDown(e, i)
-                    }
-                    className="otp-box"
-                    autoFocus={i === 0}
-                  />
-                ))}
-              </div>
-
-              <button
-                type="submit"
-                className="checkout-btn-primary"
-                disabled={otp.join("").length !== 6}
-              >
-                <FaLock />
-                Confirm &amp; Pay{" "}
-                {cart.total > 0
-                  ? `$${cart.total.toFixed(2)}`
-                  : "(Free)"}
-              </button>
-
-              <div className="otp-resend">
-                {countdown > 0 ? (
-                  <span>
-                    Resend code in {countdown}s
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    className="otp-resend-btn"
-                    onClick={sendOtp}
-                    disabled={sending}
-                  >
-                    {sending
-                      ? "Sending..."
-                      : "Resend code"}
-                  </button>
-                )}
-              </div>
 
               <button
                 type="button"
-                className="checkout-btn-ghost"
+                className="checkout-btn-primary"
                 onClick={() => {
-                  setStep(STEP.EMAIL);
-                  setOtp([
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                  ]);
-                  setError("");
-                  setInfo("");
+                  const firstCourse =
+                    order.items?.[0]?.course;
+
+                  if (firstCourse?.slug) {
+                    navigate(
+                      `/courses/${firstCourse.slug}`
+                    );
+                  } else {
+                    navigate("/courses");
+                  }
                 }}
               >
-                ← Change email
+                Go to Course
               </button>
-
-            </form>
-          )}
-
-          {/* ---------------------------------------- */}
-          {/* STEP 3: PROCESSING */}
-          {/* ---------------------------------------- */}
-
-          {step === STEP.PROCESSING && (
-            <div className="checkout-card checkout-processing">
-
-              <FaSpinner className="spin processing-icon" />
-
-              <h2>
-                Processing your payment...
-              </h2>
-
-              <p>
-                Please wait while we confirm your order.
-              </p>
-
             </div>
           )}
 
+          {/* ------------------------------------------------ */}
+          {/* AWAITING VERIFICATION */}
+          {/* ------------------------------------------------ */}
+
+          {isAwaitingVerification && (
+            <div className="checkout-card checkout-processing">
+              <FaCheckCircle className="processing-icon" />
+
+              <h2>Payment Submitted</h2>
+
+              <p>
+                Your payment slip has been submitted
+                successfully.
+              </p>
+
+              <p>
+                Your order is now{" "}
+                <strong>Awaiting Verification</strong>.
+                An administrator will check your payment.
+              </p>
+
+              <div
+                style={{
+                  marginTop: "20px",
+                  padding: "16px",
+                  borderRadius: "12px",
+                  background: "rgba(139, 92, 246, 0.10)",
+                }}
+              >
+                <strong>Order Reference</strong>
+
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontSize: "18px",
+                    fontWeight: "700",
+                  }}
+                >
+                  {order.orderReference}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ------------------------------------------------ */}
+          {/* REJECTED */}
+          {/* ------------------------------------------------ */}
+
+          {isRejected && (
+            <div className="checkout-card">
+              <div className="checkout-card-title">
+                <FaTimesCircle />
+                Payment Rejected
+              </div>
+
+              <p className="checkout-card-sub">
+                Your previous payment slip was rejected.
+                You can upload a new slip below.
+              </p>
+
+              {order.rejectionReason && (
+                <div
+                  className="checkout-error"
+                  style={{ marginTop: "16px" }}
+                >
+                  <strong>Reason:</strong>{" "}
+                  {order.rejectionReason}
+                </div>
+              )}
+
+              <PaymentUploadSection
+                selectedFile={selectedFile}
+                setSelectedFile={setSelectedFile}
+                uploading={uploading}
+                uploadPaymentSlip={uploadPaymentSlip}
+              />
+            </div>
+          )}
+
+          {/* ------------------------------------------------ */}
+          {/* PENDING PAYMENT */}
+          {/* ------------------------------------------------ */}
+
+          {isPending && (
+            <>
+              {/* QR Payment */}
+              <div className="checkout-card">
+                <div className="checkout-card-title">
+                  <FaQrcode />
+                  Pay by QR Code
+                </div>
+
+                <p className="checkout-card-sub">
+                  Transfer the exact amount shown below to
+                  the receiver, then upload your payment
+                  slip.
+                </p>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    margin: "24px 0",
+                  }}
+                >
+                  <div
+                    style={{
+                      background: "#fff",
+                      padding: "18px",
+                      borderRadius: "16px",
+                      minWidth: "250px",
+                      minHeight: "250px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {qrLoading ? (
+                      <FaSpinner
+                        className="spin"
+                        style={{
+                          fontSize: "48px",
+                          color: "#111",
+                        }}
+                      />
+                    ) : qrObjectUrl ? (
+                      <img
+                        src={qrObjectUrl}
+                        alt="Payment QR Code"
+                        style={{
+                          width: "220px",
+                          height: "220px",
+                          objectFit: "contain",
+                        }}
+                      />
+                    ) : (
+                      <FaQrcode
+                        style={{
+                          fontSize: "180px",
+                          color: "#111",
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    textAlign: "center",
+                    marginBottom: "24px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      opacity: 0.75,
+                    }}
+                  >
+                    Amount to transfer
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: "30px",
+                      fontWeight: "800",
+                      marginTop: "4px",
+                    }}
+                  >
+                    {formatCoursePrice(totalAmount)}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    padding: "18px",
+                    borderRadius: "12px",
+                    background:
+                      "rgba(139, 92, 246, 0.10)",
+                  }}
+                >
+                  <div>
+                    <strong>Receiver</strong>
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: "8px",
+                      display: "grid",
+                      gap: "6px",
+                    }}
+                  >
+                    <div>
+                      <strong>Receiver Name:</strong>{" "}
+                      {paymentSettings?.receiverName ||
+                        "Not configured"}
+                    </div>
+
+                    <div>
+                      <strong>Payment Method:</strong>{" "}
+                      {paymentSettings?.paymentMethod ||
+                        "Not configured"}
+                    </div>
+
+                    <div>
+                      <strong>Account Name:</strong>{" "}
+                      {paymentSettings?.accountName ||
+                        "Not configured"}
+                    </div>
+
+                    <div>
+                      <strong>Account Number:</strong>{" "}
+                      {paymentSettings?.accountNumber ||
+                        "Not configured"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Order reference */}
+              <div className="checkout-card">
+                <div className="checkout-card-title">
+                  <FaShoppingBag />
+                  Order Information
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gap: "14px",
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        opacity: 0.7,
+                      }}
+                    >
+                      Order Reference
+                    </div>
+
+                    <strong>
+                      {order.orderReference}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        opacity: 0.7,
+                      }}
+                    >
+                      Payment Status
+                    </div>
+
+                    <strong>
+                      Waiting for payment slip
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Upload */}
+              <div className="checkout-card">
+                <div className="checkout-card-title">
+                  <FaCloudUploadAlt />
+                  Upload Payment Slip
+                </div>
+
+                <p className="checkout-card-sub">
+                  After completing the bank transfer, upload
+                  your payment slip here.
+                </p>
+
+                <PaymentUploadSection
+                  selectedFile={selectedFile}
+                  setSelectedFile={setSelectedFile}
+                  uploading={uploading}
+                  uploadPaymentSlip={uploadPaymentSlip}
+                />
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Right side - Order summary */}
+        {/* RIGHT - ORDER SUMMARY */}
         <aside className="checkout-summary">
-
-          <h2>
-            Order Summary
-          </h2>
+          <h2>Order Summary</h2>
 
           <div className="checkout-summary-items">
-
-            {cart.items.map(
-              (item) =>
+            {order.items?.map(
+              (item, index) =>
                 item.course && (
                   <div
-                    key={item.course._id}
+                    key={
+                      item.course._id ||
+                      `${item.course.slug}-${index}`
+                    }
                     className="checkout-summary-item"
                   >
-
                     <div className="checkout-summary-thumb">
-
                       {item.course.thumbnail ? (
                         <img
-                          src={`${
-                            import.meta.env.VITE_API_ORIGIN ||
-                            "http://localhost:5050"
-                          }${item.course.thumbnail}`}
+                          src={apiAssetUrl(
+                            item.course.thumbnail
+                          )}
                           alt={item.course.name}
                         />
                       ) : (
@@ -682,54 +926,138 @@ export default function CheckoutPage() {
                           <FaShoppingBag />
                         </div>
                       )}
-
                     </div>
 
                     <div className="checkout-summary-info">
-
                       <span className="checkout-summary-name">
                         {item.course.name}
                       </span>
 
-                      <span className="checkout-summary-level">
-                        {item.course.level}
-                      </span>
-
+                      {item.course.level && (
+                        <span className="checkout-summary-level">
+                          {item.course.level}
+                        </span>
+                      )}
                     </div>
 
                     <span className="checkout-summary-price">
-                      {item.course.price > 0
-                        ? `$${Number(
-                            item.course.price
-                          ).toFixed(2)}`
+                      {Number(item.price || 0) > 0
+                        ? formatCoursePrice(item.price)
                         : "Free"}
                     </span>
-
                   </div>
                 )
             )}
-
           </div>
 
           <div className="checkout-summary-total">
             <span>Total</span>
 
             <strong>
-              {cart.total > 0
-                ? `$${Number(cart.total).toFixed(2)}`
+              {totalAmount > 0
+                ? formatCoursePrice(totalAmount)
                 : "Free"}
             </strong>
           </div>
 
           <div className="checkout-secure-note">
             <FaLock />
-            Secured &amp; verified payment
+            Manual payment verified by admin
           </div>
-
         </aside>
-
       </div>
-
     </main>
+  );
+}
+
+// --------------------------------------------------
+// Payment upload component
+// --------------------------------------------------
+
+function PaymentUploadSection({
+  selectedFile,
+  setSelectedFile,
+  uploading,
+  uploadPaymentSlip,
+}) {
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      setSelectedFile(null);
+      return;
+    }
+
+    setSelectedFile(file);
+  };
+
+  return (
+    <div style={{ marginTop: "20px" }}>
+      <label
+        htmlFor="payment-slip-input"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "10px",
+          padding: "30px 20px",
+          border: "1px dashed rgba(167, 139, 250, 0.6)",
+          borderRadius: "14px",
+          cursor: "pointer",
+          textAlign: "center",
+        }}
+      >
+        <FaCloudUploadAlt
+          style={{
+            fontSize: "38px",
+            color: "#a78bfa",
+          }}
+        />
+
+        <strong>
+          {selectedFile
+            ? selectedFile.name
+            : "Choose your payment slip"}
+        </strong>
+
+        <span
+          style={{
+            fontSize: "13px",
+            opacity: 0.7,
+          }}
+        >
+          JPG, PNG, WEBP or PDF — maximum 5 MB
+        </span>
+      </label>
+
+      <input
+        id="payment-slip-input"
+        type="file"
+        accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
+        onChange={handleFileChange}
+        style={{ display: "none" }}
+      />
+
+      <button
+        type="button"
+        className="checkout-btn-primary"
+        onClick={uploadPaymentSlip}
+        disabled={!selectedFile || uploading}
+        style={{ marginTop: "16px" }}
+      >
+        {uploading ? (
+          <>
+            <FaSpinner className="spin" />
+            Uploading...
+          </>
+        ) : (
+          <>
+            <FaCloudUploadAlt />
+            Submit Payment Slip
+          </>
+        )}
+      </button>
+    </div>
   );
 }

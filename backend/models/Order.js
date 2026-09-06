@@ -1,14 +1,18 @@
 const mongoose = require("mongoose");
 
 // One order document per purchase session.
-// Records which student bought which courses, the amount paid, and payment status.
+// Stores the courses, server-side prices, payment reference,
+// uploaded slip information, and admin verification status.
+
 const orderSchema = new mongoose.Schema(
   {
     student: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
+
     items: [
       {
         course: {
@@ -16,6 +20,8 @@ const orderSchema = new mongoose.Schema(
           ref: "Course",
           required: true,
         },
+
+        // Price copied from the Course document by the backend.
         price: {
           type: Number,
           required: true,
@@ -23,27 +29,109 @@ const orderSchema = new mongoose.Schema(
         },
       },
     ],
+
+    // Total calculated by the backend from the course prices.
     totalAmount: {
       type: Number,
       required: true,
       min: 0,
     },
+
+    // Unique reference shown to the student and checked by admin.
+    orderReference: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      index: true,
+    },
+
     status: {
       type: String,
-      enum: ["pending", "completed", "failed", "refunded"],
+      enum: [
+        "pending",
+        "awaiting_verification",
+        "completed",
+        "rejected",
+        "failed",
+        "refunded",
+      ],
       default: "pending",
+      index: true,
     },
-    // Payment provider reference (Stripe payment intent id, etc.)
+
+    paymentMethod: {
+      type: String,
+      enum: ["manual_qr", "free", "stripe", "mock"],
+      default: "manual_qr",
+    },
+
+    // Kept for compatibility with older orders / payment systems.
     paymentReference: {
       type: String,
       default: "",
       trim: true,
     },
-    paymentMethod: {
-      type: String,
-      enum: ["stripe", "mock", "free"],
-      default: "mock",
+
+    // Payment slip information.
+    paymentSlip: {
+      originalName: {
+        type: String,
+        default: "",
+        trim: true,
+      },
+
+      storedName: {
+        type: String,
+        default: "",
+        trim: true,
+      },
+
+      mimeType: {
+        type: String,
+        default: "",
+        trim: true,
+      },
+
+      size: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
+      uploadedAt: {
+        type: Date,
+        default: null,
+      },
     },
+
+    // Student submits the slip.
+    submittedAt: {
+      type: Date,
+      default: null,
+    },
+
+    // Admin verification information.
+    verifiedAt: {
+      type: Date,
+      default: null,
+    },
+
+    verifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    // Filled when admin rejects the payment slip.
+    rejectionReason: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 1000,
+    },
+
+    // Set when payment is successfully approved.
     paidAt: {
       type: Date,
       default: null,

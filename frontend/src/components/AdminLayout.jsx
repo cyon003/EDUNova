@@ -1,52 +1,133 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { FaBell, FaBookOpen, FaChartBar, FaChalkboardTeacher, FaCog, FaFileAlt, FaGraduationCap, FaHome, FaIdCard, FaSignOutAlt, FaUsers } from "react-icons/fa";
+import {
+  FaBell,
+  FaBookOpen,
+  FaChartBar,
+  FaChalkboardTeacher,
+  FaCog,
+  FaFileAlt,
+  FaGraduationCap,
+  FaHome,
+  FaIdCard,
+  FaMoneyCheckAlt,
+  FaSignOutAlt,
+  FaUsers,
+} from "react-icons/fa";
 import { adminApi, formatAdminDate } from "../utils/adminApi";
 import { logout } from "../utils/authClient";
 import "../styles/AdminLayout.css";
 
 function getStoredUser() {
-  try { return JSON.parse(localStorage.getItem("user")); }
-  catch { return null; }
+  try {
+    return JSON.parse(localStorage.getItem("user"));
+  } catch {
+    return null;
+  }
 }
 
 const NAV = [
-  { icon: <FaHome />, label: "Home", to: "/home" },
-  { icon: <FaChartBar />, label: "Overview", to: "/admin-dashboard" },
-  { icon: <FaChalkboardTeacher />, label: "Tutors", to: "/admin-dashboard/tutors" },
-  { icon: <FaIdCard />, label: "Applications", to: "/admin-dashboard/tutor-applications" },
-  { icon: <FaUsers />, label: "Students", to: "/admin-dashboard/students" },
-  { icon: <FaBookOpen />, label: "Courses", to: "/admin-dashboard/courses" },
-  { icon: <FaFileAlt />, label: "Reports", to: "/admin-dashboard/reports" },
-  { icon: <FaCog />, label: "Settings", to: "/admin-dashboard/settings" },
+  {
+    icon: <FaHome />,
+    label: "Home",
+    to: "/home",
+  },
+  {
+    icon: <FaChartBar />,
+    label: "Overview",
+    to: "/admin-dashboard",
+  },
+  {
+    icon: <FaChalkboardTeacher />,
+    label: "Tutors",
+    to: "/admin-dashboard/tutors",
+  },
+  {
+    icon: <FaIdCard />,
+    label: "Applications",
+    to: "/admin-dashboard/tutor-applications",
+  },
+  {
+    icon: <FaUsers />,
+    label: "Students",
+    to: "/admin-dashboard/students",
+  },
+  {
+    icon: <FaBookOpen />,
+    label: "Courses",
+    to: "/admin-dashboard/courses",
+  },
+  {
+    icon: <FaMoneyCheckAlt />,
+    label: "Payment Verification",
+    to: "/admin-dashboard/payment-verification",
+  },
+  {
+    icon: <FaFileAlt />,
+    label: "Reports",
+    to: "/admin-dashboard/reports",
+  },
+  {
+    icon: <FaCog />,
+    label: "Settings",
+    to: "/admin-dashboard/settings",
+  },
 ];
 
 export default function AdminLayout({ children, title, subtitle }) {
   const user = getStoredUser();
   const location = useLocation();
+
   const [notifications, setNotifications] = useState([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [lastSeen, setLastSeen] = useState(() => localStorage.getItem("edunova-admin-notifications-seen") || new Date(0).toISOString());
+
+  const [lastSeen, setLastSeen] = useState(
+    () =>
+      localStorage.getItem("edunova-admin-notifications-seen") ||
+      new Date(0).toISOString()
+  );
 
   useEffect(() => {
     let active = true;
-    const loadNotifications = () => adminApi("/notifications")
-      .then((items) => { if (active) setNotifications(items); })
-      .catch(() => {});
+
+    const loadNotifications = () =>
+      adminApi("/notifications")
+        .then((items) => {
+          if (active) {
+            setNotifications(items);
+          }
+        })
+        .catch(() => {});
+
     loadNotifications();
+
     const interval = window.setInterval(loadNotifications, 20000);
-    return () => { active = false; window.clearInterval(interval); };
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, []);
 
-  const unreadCount = notifications.filter((item) => new Date(item.createdAt) > new Date(lastSeen)).length;
+  const unreadCount = notifications.filter(
+    (item) => new Date(item.createdAt) > new Date(lastSeen)
+  ).length;
+
   const toggleNotifications = () => {
     setNotificationsOpen((open) => !open);
+
     if (!notificationsOpen) {
       const seenAt = new Date().toISOString();
-      localStorage.setItem("edunova-admin-notifications-seen", seenAt);
+
+      localStorage.setItem(
+        "edunova-admin-notifications-seen",
+        seenAt
+      );
+
       setLastSeen(seenAt);
     }
   };
+
   const handleLogout = async () => {
     await logout();
     window.location.href = "/auth";
@@ -55,35 +136,167 @@ export default function AdminLayout({ children, title, subtitle }) {
   return (
     <div className="adm-shell">
       <aside className="adm-sidebar">
-        <Link className="adm-logo" to="/home" aria-label="EDUNOVA home"><span className="adm-logo-mark"><FaGraduationCap /></span><strong>EDUNOVA</strong></Link>
+        <Link
+          className="adm-logo"
+          to="/home"
+          aria-label="EDUNOVA home"
+        >
+          <span className="adm-logo-mark">
+            <FaGraduationCap />
+          </span>
+
+          <strong>EDUNOVA</strong>
+        </Link>
+
         <nav className="adm-nav">
-          {NAV.map((item) => <Link key={item.label} to={item.to} className={`adm-nav-item ${location.pathname === item.to ? "adm-nav-active" : ""}`}><span className="adm-nav-icon">{item.icon}</span>{item.label}</Link>)}
+          {NAV.map((item) => (
+            <Link
+              key={item.label}
+              to={item.to}
+              className={`adm-nav-item ${
+                location.pathname === item.to
+                  ? "adm-nav-active"
+                  : ""
+              }`}
+            >
+              <span className="adm-nav-icon">
+                {item.icon}
+              </span>
+
+              {item.label}
+            </Link>
+          ))}
         </nav>
+
         <div className="adm-sidebar-bottom">
-          <div className="adm-user-row"><div className="adm-avatar">{user?.name?.[0] ?? "A"}</div><div><div className="adm-user-name">{user?.name ?? "Administrator"}</div><div className="adm-user-role">Super Admin</div></div></div>
-          <button className="adm-logout-btn" onClick={handleLogout}><FaSignOutAlt /> Log out</button>
+          <div className="adm-user-row">
+            <div className="adm-avatar">
+              {user?.name?.[0] ?? "A"}
+            </div>
+
+            <div>
+              <div className="adm-user-name">
+                {user?.name ?? "Administrator"}
+              </div>
+
+              <div className="adm-user-role">
+                Super Admin
+              </div>
+            </div>
+          </div>
+
+          <button
+            className="adm-logout-btn"
+            onClick={handleLogout}
+          >
+            <FaSignOutAlt />
+            Log out
+          </button>
         </div>
       </aside>
 
       <main className="adm-main">
         <div className="adm-topbar">
-          <div><h1 className="adm-heading">{title}</h1>{subtitle && <p className="adm-sub">{subtitle}</p>}</div>
+          <div>
+            <h1 className="adm-heading">
+              {title}
+            </h1>
+
+            {subtitle && (
+              <p className="adm-sub">
+                {subtitle}
+              </p>
+            )}
+          </div>
+
           <div className="adm-notif-wrap">
-            <button className="adm-notif" aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`} aria-expanded={notificationsOpen} onClick={toggleNotifications}>
+            <button
+              className="adm-notif"
+              aria-label={`Notifications${
+                unreadCount
+                  ? `, ${unreadCount} unread`
+                  : ""
+              }`}
+              aria-expanded={notificationsOpen}
+              onClick={toggleNotifications}
+            >
               <FaBell />
-              {unreadCount > 0 && <span className="adm-notif-count">{unreadCount > 9 ? "9+" : unreadCount}</span>}
+
+              {unreadCount > 0 && (
+                <span className="adm-notif-count">
+                  {unreadCount > 9
+                    ? "9+"
+                    : unreadCount}
+                </span>
+              )}
             </button>
+
             {notificationsOpen && (
               <section className="adm-notif-panel">
-                <header><div><strong>Notifications</strong><small>Applications and new accounts</small></div><span>{notifications.length}</span></header>
+                <header>
+                  <div>
+                    <strong>Notifications</strong>
+                    <small>
+                      Applications and new accounts
+                    </small>
+                  </div>
+
+                  <span>
+                    {notifications.length}
+                  </span>
+                </header>
+
                 <div className="adm-notif-list">
-                  {notifications.map((item) => <Link to={item.type === "tutor_application" ? "/admin-dashboard/tutor-applications" : item.role === "tutor" ? "/admin-dashboard/tutors" : "/admin-dashboard/students"} className="adm-notif-item" key={`${item.type}-${item.id}`} onClick={() => setNotificationsOpen(false)}><span className="adm-notif-avatar">{item.detail.charAt(0).toUpperCase()}</span><span><strong>{item.title}</strong><small>{item.detail}</small><time>{formatAdminDate(item.createdAt)}</time></span></Link>)}
-                  {!notifications.length && <p className="adm-empty">No notifications yet.</p>}
+                  {notifications.map((item) => (
+                    <Link
+                      to={
+                        item.type === "tutor_application"
+                          ? "/admin-dashboard/tutor-applications"
+                          : item.role === "tutor"
+                          ? "/admin-dashboard/tutors"
+                          : "/admin-dashboard/students"
+                      }
+                      className="adm-notif-item"
+                      key={`${item.type}-${item.id}`}
+                      onClick={() =>
+                        setNotificationsOpen(false)
+                      }
+                    >
+                      <span className="adm-notif-avatar">
+                        {item.detail
+                          .charAt(0)
+                          .toUpperCase()}
+                      </span>
+
+                      <span>
+                        <strong>
+                          {item.title}
+                        </strong>
+
+                        <small>
+                          {item.detail}
+                        </small>
+
+                        <time>
+                          {formatAdminDate(
+                            item.createdAt
+                          )}
+                        </time>
+                      </span>
+                    </Link>
+                  ))}
+
+                  {!notifications.length && (
+                    <p className="adm-empty">
+                      No notifications yet.
+                    </p>
+                  )}
                 </div>
               </section>
             )}
           </div>
         </div>
+
         {children}
       </main>
     </div>

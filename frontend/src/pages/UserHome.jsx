@@ -11,7 +11,6 @@ import {
 } from "react-icons/fa";
 import Home from "./Home";
 import "../styles/UserHome.css";
-import LanguagePreference from "../components/LanguagePreference";
 import NotificationBell from "../components/NotificationBell";
 import { API_ROOT } from "../utils/courseApi";
 import { logout } from "../utils/authClient";
@@ -138,7 +137,7 @@ function UserHome() {
             onClick={() => setActiveTab("chatbot")}
             onFocus={() => setActiveTab("chatbot")}
           >
-            General AI Tutor
+            AskAI
           </Link>
           <Link
             to={dashboardPath}
@@ -156,7 +155,7 @@ function UserHome() {
               onClick={() => setActiveTab("learning")}
               onFocus={() => setActiveTab("learning")}
             >
-              My Learning
+              My Courses
             </Link>
           )}
 
@@ -169,7 +168,6 @@ function UserHome() {
               <FaShoppingCart />
             </Link>
           )}
-          <LanguagePreference />
           <form className="uhome-nav-search" onSubmit={submitSearch}>
             <FaSearch aria-hidden="true" />
             <input

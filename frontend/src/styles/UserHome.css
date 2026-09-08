@@ -11,10 +11,10 @@
   gap: clamp(12px, 2vw, 28px);
   margin: 12px auto 0;
   padding: 9px clamp(14px, 3vw, 34px);
-  background: rgba(21, 17, 36, 0.88);
-  border: 1px solid rgba(141, 99, 234, 0.3);
+  background: linear-gradient(115deg, rgba(29, 23, 49, 0.94), rgba(17, 14, 31, 0.86));
+  border: 1px solid rgba(174, 140, 242, 0.34);
   border-radius: 18px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 24px rgba(141, 99, 234, 0.08);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.42), 0 0 28px rgba(141, 99, 234, 0.11), inset 0 1px rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(20px);
 }
 
@@ -134,43 +134,49 @@
 
 .uhome-nav-center a {
   position: relative;
+  isolation: isolate;
   padding: 9px clamp(8px, 1vw, 13px);
   color: #a8afd8;
   font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
   border-radius: 9px;
-  transition: color 0.25s ease, background 0.25s ease;
+  transition: color 0.25s ease, background 0.25s ease, transform 0.25s ease;
 }
 
 .uhome-nav-center a::after {
   position: absolute;
-  bottom: 3px;
-  left: 50%;
-  width: 0;
-  height: 2px;
-  background: #8d63ea;
-  border-radius: 2px;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(135deg, rgba(163, 117, 255, 0.8), rgba(107, 71, 209, 0.8));
+  border-radius: inherit;
   content: "";
-  transition: width 0.25s ease, left 0.25s ease;
+  opacity: 0;
+  transform: scale(0.88);
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
 .uhome-nav-center a:hover,
 .uhome-nav-center a.active {
   color: white;
-  background: rgba(141, 99, 234, 0.16);
+  background: transparent;
+  transform: translateY(-1px);
 }
 
 .uhome-nav-center a:hover::after,
 .uhome-nav-center a.active::after {
-  left: 30%;
-  width: 40%;
+  opacity: 1;
+  transform: scale(1);
 }
 
 .uhome-nav-right {
   display: flex;
   align-items: center;
   gap: clamp(8px, 1.4vw, 18px);
+  padding: 4px 6px;
+  background: rgba(6, 5, 14, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
 }
 
 .uhome-cart-link {
@@ -207,9 +213,9 @@
   width: clamp(130px, 14vw, 200px);
   padding: 0 11px;
   color: #a8afd8;
-  background: #151124;
-  border: 1px solid rgba(141, 99, 234, 0.25);
-  border-radius: 10px;
+  background: rgba(8, 6, 17, 0.36);
+  border: 1px solid rgba(167, 139, 250, 0.22);
+  border-radius: 999px;
 }
 
 .uhome-nav-search svg {
@@ -231,6 +237,7 @@
 
 .uhome-nav-search:focus-within {
   border-color: #8d63ea;
+  background: rgba(20, 14, 38, 0.8);
   box-shadow: 0 0 0 3px rgba(141, 99, 234, 0.2);
 }
 
@@ -423,7 +430,7 @@
 .uhome-nav-center { min-width: 0; }
 .uhome-nav-center a { font-size: 13px; padding-inline: 10px; }
 .uhome-nav-right { min-width: 0; gap: 8px; }
-.uhome-nav-search { width: clamp(100px, 10vw, 150px); min-width: 0; }
+.uhome-nav-search { width: clamp(120px, 12vw, 170px); min-width: 0; }
 .uhome-brand { font-size: 20px; letter-spacing: 1px; }
 .uhome-logo { gap: 10px; }
 .uhome-brand-icon { width: 40px; height: 40px; border-radius: 10px; }

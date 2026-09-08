@@ -425,9 +425,8 @@ function StudentDashboard() {
           </div>
           <DashboardSearch />
           <div className="student-topbar-actions">
-            <NotificationBell />
             <MessageBox />
-            <div className="student-avatar">{user?.name?.[0]?.toUpperCase() || "S"}</div>
+            <NotificationBell />
           </div>
         </header>
 

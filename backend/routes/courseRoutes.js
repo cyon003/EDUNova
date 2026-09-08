@@ -9,7 +9,9 @@ const { restrictCourseContent } = require("../utils/courseAccess");
 
 const router = express.Router();
 
-const publiclyVisible = { moderationStatus: "published" };
+// A course is discoverable only after its first lesson is ready. This prevents
+// students from enrolling in a published shell with no learning content.
+const publiclyVisible = { moderationStatus: "published", "lessons.0": { $exists: true } };
 const uploadRoot = path.resolve(__dirname, "..", "uploads");
 const mediaExtensions = /\.(mp4|webm|ogv|mov|m4v|mp3|wav|m4a|ogg)$/i;
 

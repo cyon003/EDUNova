@@ -42,6 +42,6 @@ __pycache__/
 backend/uploads/
 
 # Generated confusion-model files and private datasets
-confusion-ai-service/models/generated/
-confusion-ai-service/data/raw/
-confusion-ai-service/data/processed/
+confusion-service/data/generated/
+confusion-service/models/generated/
+confusion-service/reports/generated/

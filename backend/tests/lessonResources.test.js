@@ -22,7 +22,7 @@ function token(id, role) { return jwt.sign({ id, role, tokenVersion: 0 }, proces
 function request(pathname, auth, method = "GET") {
   return new Promise((resolve, reject) => {
     const address = server.address();
-    const outgoing = http.request({ hostname: "127.0.0.1", port: address.port, path: pathname, method, headers: { Authorization: `Bearer ${auth}` } }, (response) => {
+    const outgoing = http.request({ hostname: "127.0.0.1", port: address.port, path: pathname, method, headers: auth ? { Authorization: `Bearer ${auth}` } : {} }, (response) => {
       let body = ""; response.on("data", (chunk) => { body += chunk; }); response.on("end", () => resolve({ status: response.statusCode, body }));
     });
     outgoing.on("error", reject); outgoing.end();
@@ -52,6 +52,16 @@ test("non-enrolled students cannot view or download protected lesson files", asy
   currentUser = { _id: ids.student, role: "student", tokenVersion: 0, accountStatus: "approved" }; enrolled = false;
   const response = await request("/api/courses/protected-course/lessons/0/resources/507f1f77bcf86cd799439050/download", token(ids.student, "student"));
   assert.equal(response.status, 403);
+});
+
+test("the first published lesson has an anonymous media preview, while later lessons stay protected", async () => {
+  currentUser = { _id: ids.student, role: "student", tokenVersion: 0, accountStatus: "approved" }; enrolled = false;
+  const preview = await request("/api/courses/protected-course/lessons/0/media-access");
+  assert.equal(preview.status, 200);
+  const previewToken = new URL(JSON.parse(preview.body).url).searchParams.get("token");
+  assert.equal(jwt.verify(previewToken, process.env.JWT_SECRET).previewAccess, true);
+  activeCourse.lessons.push({ _id: "507f1f77bcf86cd799439051", resources: [], primaryMedia: { originalName: "second.mp4", storedName: "second.mp4", mimeType: "video/mp4", storage: "course-videos" } });
+  assert.equal((await request("/api/courses/protected-course/lessons/1/media-access")).status, 401);
 });
 
 test("a tutor cannot access another tutor's course resources", async () => {

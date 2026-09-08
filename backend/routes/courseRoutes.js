@@ -47,6 +47,7 @@ async function authorizedLesson(req, res) {
   if (!course) { res.status(404).json({ message: "Course not found" }); return null; }
   const lessonIndex = Number.parseInt(req.params.lessonIndex, 10);
   if (!Number.isInteger(lessonIndex) || lessonIndex < 0 || lessonIndex >= course.lessons.length) { res.status(404).json({ message: "Lesson not found" }); return null; }
+  if (req.previewAccess && course.moderationStatus === "published" && lessonIndex === 0) return { course, lesson: course.lessons[lessonIndex] };
   const ownsCourse = req.user.role === "tutor" && String(course.tutor) === String(req.user._id);
   const enrolled = req.user.role === "student" && await Enrollment.exists({ student: req.user._id, course: course._id });
   if (req.user.role !== "admin" && !ownsCourse && !enrolled) { res.status(403).json({ message: "You do not have access to this lesson resource" }); return null; }
@@ -70,6 +71,7 @@ function mediaTokenAuth(req, res, next) {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     if (decoded.mediaScope !== `${req.params.slug.toLowerCase()}:${req.params.lessonIndex}`) return res.status(403).json({ message: "Invalid media access" });
+    if (decoded.previewAccess === true) { req.previewAccess = true; req.user = { role: "preview" }; return next(); }
     req.headers.authorization = `Bearer ${token}`;
     return authenticateToken(req, res, next);
   } catch { return res.status(401).json({ message: "Media access has expired" }); }
@@ -102,12 +104,8 @@ router.get("/:slug", async (req, res) => {
       return res.status(404).json({ message: "Course not found" });
     }
 
-    // If course is free, return everything
-    if (!course.price || course.price === 0) {
-      return res.status(200).json(course);
-    }
-
-    // For paid courses — check if user is authenticated and enrolled
+    // Every course keeps lessons 2+ private until the student enrolls. Free
+    // courses can still be enrolled in at no cost through the normal flow.
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
       try {
@@ -126,7 +124,7 @@ router.get("/:slug", async (req, res) => {
       }
     }
 
-    // Not enrolled in paid course — return course info but hide lesson video URLs
+    // Not enrolled — return course info and the first preview only.
     return res.status(200).json(restrictCourseContent(course));
   } catch (error) {
     console.error("Get course error:", error);
@@ -150,19 +148,16 @@ router.get("/:slug/lessons/:lessonIndex", authenticateToken, async (req, res) =>
       return res.status(404).json({ message: "Lesson not found" });
     }
 
-    // For paid courses — require enrollment
-    if (course.price && course.price > 0) {
-      const enrolled = await Enrollment.exists({
-        student: req.user._id,
-        course: course._id,
+    const enrolled = await Enrollment.exists({
+      student: req.user._id,
+      course: course._id,
+    });
+    if (!enrolled) {
+      return res.status(403).json({
+        message: "Enroll in this course to access lessons",
+        requiresPurchase: Boolean(course.price && course.price > 0),
+        courseSlug: course.slug,
       });
-      if (!enrolled) {
-        return res.status(403).json({
-          message: "You must purchase this course to access lessons",
-          requiresPurchase: true,
-          courseSlug: course.slug,
-        });
-      }
     }
 
     return res.status(200).json(course.lessons[lessonIndex]);
@@ -172,14 +167,22 @@ router.get("/:slug/lessons/:lessonIndex", authenticateToken, async (req, res) =>
   }
 });
 
-router.get("/:slug/lessons/:lessonIndex/media-access", authenticateToken, async (req, res) => {
+async function createMediaAccess(req, res) {
   try {
     const access = await authorizedLesson(req, res);
     if (!access) return;
     if (!primaryMediaFor(access.lesson)) return res.status(404).json({ message: "Lesson media not found" });
-    const token = jwt.sign({ id: req.user._id, role: req.user.role, tokenVersion: req.user.tokenVersion || 0, mediaScope: `${req.params.slug.toLowerCase()}:${req.params.lessonIndex}` }, process.env.JWT_SECRET, { expiresIn: "10m" });
+    const token = jwt.sign(req.previewAccess
+      ? { previewAccess: true, mediaScope: `${req.params.slug.toLowerCase()}:${req.params.lessonIndex}` }
+      : { id: req.user._id, role: req.user.role, tokenVersion: req.user.tokenVersion || 0, mediaScope: `${req.params.slug.toLowerCase()}:${req.params.lessonIndex}` }, process.env.JWT_SECRET, { expiresIn: "10m" });
     return res.json({ url: `${req.protocol}://${req.get("host")}/api/courses/${encodeURIComponent(req.params.slug.toLowerCase())}/lessons/${req.params.lessonIndex}/media?token=${encodeURIComponent(token)}` });
   } catch (error) { console.error("Create media access error:", error); return res.status(500).json({ message: "Unable to create media access" }); }
+}
+
+router.get("/:slug/lessons/:lessonIndex/media-access", async (req, res, next) => {
+  const lessonIndex = Number.parseInt(req.params.lessonIndex, 10);
+  if (lessonIndex === 0) { req.previewAccess = true; return createMediaAccess(req, res); }
+  return authenticateToken(req, res, () => createMediaAccess(req, res, next));
 });
 
 router.get("/:slug/lessons/:lessonIndex/media", mediaTokenAuth, async (req, res) => {

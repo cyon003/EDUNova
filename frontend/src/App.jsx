@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import NavigationManager from "./components/NavigationManager";
+import AdminPaymentVerification from "./pages/AdminPaymentVerification";
 import AdminCourses from "./pages/AdminCourses";
 import AdminOverview from "./pages/AdminOverview";
 import AdminReports from "./pages/AdminReports";
@@ -12,20 +13,23 @@ import AdminTutors from "./pages/AdminTutors";
 import AiChatbot from "./pages/AiChatbot";
 import Auth from "./pages/Auth";
 import CartPage from "./pages/CartPage";
+import CheckoutPage from "./pages/CheckoutPage";
 import CourseDetail from "./pages/CourseDetail";
 import Courses from "./pages/Courses";
+import ForgotPassword from "./pages/ForgotPassword";
 import Home from "./pages/Home";
 import LessonPlayer from "./pages/LessonPlayer";
 import MyCourses from "./pages/MyCourses";
 import MyTutorApplications from "./pages/MyTutorApplications";
+import OrderSuccess from "./pages/OrderSuccess";
 import Profile from "./pages/Profile";
-import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import StudentDashboard from "./pages/StudentDashboard";
 import TutorApplication from "./pages/TutorApplication";
 import TutorDashboard from "./pages/TutorDashboard";
 import UserHome from "./pages/UserHome";
-import { AUTH_EVENT, restoreSession, storedUser } from "./utils/authClient";
+import { restoreSession } from "./utils/authClient";
+import { useAuth } from "./hooks/useAuth";
 
 function RoleRoute({ user, allowedRoles, children }) {
   if (!user) return <Navigate to="/auth" replace />;
@@ -39,29 +43,23 @@ function getRoleLanding(user) {
 }
 
 function App() {
-  const [auth, setAuth] = useState({ loading: true, user: storedUser() });
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    const update = (event) => active && setAuth({ loading: false, user: event.detail.user });
-    window.addEventListener(AUTH_EVENT, update);
-    restoreSession().then((user) => active && setAuth({ loading: false, user }));
-    return () => {
-      active = false;
-      window.removeEventListener(AUTH_EVENT, update);
-    };
+    restoreSession().finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, []);
 
-  if (auth.loading) {
+  if (loading) {
     return <div className="app-session-loading" role="status">Restoring your EDUNova session…</div>;
   }
-
-  const user = auth.user;
 
   return (
     <BrowserRouter>
       <NavigationManager />
-      <Routes>
+      <Routes key={user?.id || "signed-out"}>
         <Route path="/" element={user ? <Navigate to={getRoleLanding(user)} replace /> : <Home />} />
         <Route path="/auth" element={user ? <Navigate to={getRoleLanding(user)} replace /> : <Auth />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -85,6 +83,7 @@ function App() {
         <Route path="/admin-dashboard/tutor-applications" element={<RoleRoute user={user} allowedRoles={["admin"]}><AdminTutorApplications /></RoleRoute>} />
         <Route path="/admin-dashboard/students" element={<RoleRoute user={user} allowedRoles={["admin"]}><AdminStudents /></RoleRoute>} />
         <Route path="/admin-dashboard/courses" element={<RoleRoute user={user} allowedRoles={["admin"]}><AdminCourses /></RoleRoute>} />
+        <Route path="/admin-dashboard/payment-verification" element={<RoleRoute user={user} allowedRoles={["admin"]}><AdminPaymentVerification /></RoleRoute>} />
         <Route path="/admin-dashboard/reports" element={<RoleRoute user={user} allowedRoles={["admin"]}><AdminReports /></RoleRoute>} />
         <Route path="/admin-dashboard/settings" element={<RoleRoute user={user} allowedRoles={["admin"]}><AdminSettings /></RoleRoute>} />
 
@@ -92,6 +91,8 @@ function App() {
         <Route path="/courses/:courseSlug" element={<CourseDetail />} />
         <Route path="/courses/:courseSlug/learn/:lessonNumber?" element={<RoleRoute user={user} allowedRoles={["student"]}><LessonPlayer /></RoleRoute>} />
         <Route path="/cart" element={<RoleRoute user={user} allowedRoles={["student"]}><CartPage /></RoleRoute>} />
+        <Route path="/checkout" element={<RoleRoute user={user} allowedRoles={["student"]}><CheckoutPage /></RoleRoute>} />
+        <Route path="/order-success" element={<RoleRoute user={user} allowedRoles={["student"]}><OrderSuccess /></RoleRoute>} />
         <Route path="/popular-courses" element={<Navigate to="/courses#popular" replace />} />
         <Route path="/ai-tutor" element={<RoleRoute user={user} allowedRoles={["student", "tutor", "admin"]}><AiChatbot /></RoleRoute>} />
         <Route path="/ai-chatbot" element={<Navigate to="/ai-tutor" replace />} />

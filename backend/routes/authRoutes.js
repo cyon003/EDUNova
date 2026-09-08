@@ -8,7 +8,7 @@ const authenticateToken = require(
   "../middleware/authMiddleware"
 );
 const { sendPasswordResetEmail } = require("../services/emailService");
-const { createResetToken, hashResetToken, validatePassword } = require("../utils/passwordSecurity");
+const { buildPasswordResetUrl, createResetToken, hashResetToken, validatePassword } = require("../utils/passwordSecurity");
 const { RefreshSession, accessToken, clearRefreshCookie, createSession, hashToken, publicUser, readCookie, revokeUserSessions, setRefreshCookie } = require("../services/sessionService");
 
 const router = express.Router();
@@ -217,24 +217,23 @@ router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
       user.passwordResetExpiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000);
       await user.save();
 
-      const frontendUrl = String(process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
-console.info("Password reset email attempted");
+      const resetUrl = buildPasswordResetUrl(process.env.FRONTEND_URL, token);
+      console.info("Password reset email attempted");
 
-const delivery = await sendPasswordResetEmail({
-  to: user.email,
-  name: user.name,
-  resetUrl,
-});
+      const delivery = await sendPasswordResetEmail({
+        to: user.email,
+        name: user.name,
+        resetUrl,
+        expiresInMinutes,
+      });
 
-if (delivery.sent) {
-  console.info("Password reset email sent", {
-    transport: delivery.transport,
-  });
-} else {
-  console.error("Password reset email delivery failed", {
-    reason: delivery.reason,
-  });
-}
+      if (delivery.sent) {
+        console.info("Password reset email sent");
+      } else {
+        console.error("Password reset email delivery failed", {
+          reason: delivery.reason,
+        });
+      }
     }
 
     return res.status(200).json({ message: forgotPasswordResponse });

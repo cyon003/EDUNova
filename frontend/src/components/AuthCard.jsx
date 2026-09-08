@@ -2,7 +2,7 @@ import { useState } from "react";
 import { FaEye, FaEyeSlash, FaTimes } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { API_ROOT } from "../utils/courseApi";
-import { consumeSessionMessage, establishSession } from "../utils/authClient";
+import { consumeSessionMessage, login } from "../utils/authClient";
 
 function AuthCard() {
   const navigate = useNavigate();
@@ -60,48 +60,22 @@ function AuthCard() {
         };
 
     try {
-      const response = await fetch(url, {
-        method: "POST",
-        credentials: "include",
-
-        headers: {
-          "Content-Type": "application/json",
-        },
-
-        body: JSON.stringify(bodyData),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setMessage(data.message || "Something went wrong");
-        setLoading(false);
-        return;
-      }
-
       if (!isLogin) {
-        setMessage(data.message);
-        setLoading(false);
-
-        setFormData({
-          name: "",
-          email: "",
-          password: "",
+        const response = await fetch(url, {
+          method: "POST", credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bodyData),
         });
-
-        return;
-      }
-
-      const saved = establishSession(data.user, data.token);
-
-      if (!saved) {
-        setMessage(
-          "Login succeeded, but user information was not returned."
-        );
-
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || "Unable to create account");
+        setMessage(data.message);
+        setIsLogin(true);
+        setFormData({ name: "", email: formData.email, password: "" });
         setLoading(false);
         return;
       }
+
+      const data = await login(bodyData);
 
       setMessage(data.message);
 
@@ -109,12 +83,15 @@ function AuthCard() {
       const roleLanding = data.user.role === "admin"
         ? "/admin-dashboard"
         : "/home";
-      window.location.href = nextPath?.startsWith("/") && !nextPath.startsWith("//")
+      const destination =
+        nextPath?.startsWith("/") && !nextPath.startsWith("//")
         ? nextPath
         : roleLanding;
+
+      navigate(destination);
     } catch (error) {
       console.error(error);
-      setMessage("Backend server is not running");
+      setMessage(error.message || "Unable to connect to the server");
       setLoading(false);
     }
   };

@@ -1,6 +1,6 @@
 .courses-page {
   min-height: 100vh;
-  padding: clamp(24px, 5vw, 72px) clamp(10px, 3vw, 48px);
+  padding: 12px clamp(10px, 3vw, 48px) clamp(24px, 5vw, 72px);
   color: whitesmoke;
   font-family: "Inter", sans-serif;
   background: #000;
@@ -17,7 +17,7 @@
   line-height: 1;
 }
 
-.courses-header-hero { position: relative; display: flex; align-items: center; justify-content: space-between; min-height: 275px; gap: 35px; margin-top: 26px; padding: clamp(82px, 8vw, 96px) clamp(32px, 5vw, 62px) clamp(32px, 5vw, 62px); overflow: hidden; background: radial-gradient(circle at 82% 18%, rgba(167, 139, 250, 0.28), transparent 22%), linear-gradient(120deg, #151124, #382469); border: 1px solid rgba(141, 99, 234, 0.38); border-radius: 24px; box-shadow: 0 20px 55px rgba(0, 0, 0, 0.42); }
+.courses-header-hero { position: relative; display: flex; align-items: center; justify-content: space-between; min-height: 275px; gap: 35px; margin-top: 0; padding: clamp(82px, 8vw, 96px) clamp(32px, 5vw, 62px) clamp(32px, 5vw, 62px); overflow: hidden; background: radial-gradient(circle at 82% 18%, rgba(167, 139, 250, 0.28), transparent 22%), linear-gradient(120deg, #151124, #382469); border: 1px solid rgba(141, 99, 234, 0.38); border-radius: 24px; box-shadow: 0 20px 55px rgba(0, 0, 0, 0.42); }
 .courses-header-hero::before { position: absolute; top: -90px; right: 12%; width: 220px; height: 220px; border: 1px solid rgba(167, 139, 250, 0.16); border-radius: 50%; content: ""; }
 .courses-header-hero::after { position: absolute; right: -45px; bottom: -80px; width: 180px; height: 180px; background: rgba(141, 99, 234, 0.14); border-radius: 50%; content: ""; }
 .courses-brand-logo { position: absolute; top: 24px; left: clamp(32px, 5vw, 62px); z-index: 2; display: inline-flex; align-items: center; gap: 10px; color: white; text-decoration: none; }

@@ -2,10 +2,13 @@ const express = require("express");
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const { execFile } = require("child_process");
+const { promisify } = require("util");
 const multer = require("multer");
 const bcrypt = require("bcryptjs");
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
+const LearningSignal = require("../models/LearningSignal");
 const User = require("../models/User");
 const { notifyCourseSubmitted } = require("../services/notificationService");
 const authenticateToken = require("../middleware/authMiddleware");
@@ -20,6 +23,9 @@ const MAX_REFERENCES = 20;
 const mediaExtensions = new Set([".mp4", ".webm", ".ogv", ".mov", ".m4v", ".mp3", ".wav", ".m4a", ".ogg"]);
 const videoDirectory = path.join(__dirname, "..", "uploads", "course-videos");
 fs.mkdirSync(videoDirectory, { recursive: true });
+const posterDirectory = path.join(__dirname, "..", "uploads", "lesson-posters");
+fs.mkdirSync(posterDirectory, { recursive: true });
+const execFileAsync = promisify(execFile);
 const lessonResourceDirectory = path.join(__dirname, "..", "uploads", "lesson-resources");
 fs.mkdirSync(lessonResourceDirectory, { recursive: true });
 function safeResourcePath(storedName) {
@@ -103,6 +109,19 @@ function mediaDescriptor(file, storage = "course-videos", resourceId = null) {
   return { originalName: file.originalname, storedName: file.filename, mimeType: file.mimetype, size: file.size, url: `/uploads/${storage}/${file.filename}`, storage, resourceId };
 }
 
+async function createLessonPoster(file) {
+  if (!file || !/^video\//.test(file.mimetype || "")) return "";
+  if (!fs.existsSync(file.path)) return "";
+  try {
+    await execFileAsync("/usr/bin/qlmanage", ["-t", "-s", "640", "-o", posterDirectory, file.path], { timeout: 3000 });
+    const generated = path.join(posterDirectory, `${path.basename(file.path)}.png`);
+    if (!fs.existsSync(generated)) return "";
+    const filename = `${crypto.randomUUID()}.png`;
+    fs.renameSync(generated, path.join(posterDirectory, filename));
+    return `/uploads/lesson-posters/${filename}`;
+  } catch { return ""; }
+}
+
 const percent = (enrollment) => {
   const total = enrollment.course?.lessons?.length || 0;
   return total ? Math.round((enrollment.completedLessons.length / total) * 100) : 0;
@@ -175,6 +194,7 @@ router.delete("/courses/:courseId", async (req, res) => {
     const course = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id });
     if (!course) return res.status(404).json({ message: "Course not found" });
     if (await Enrollment.exists({ course: course._id })) return res.status(409).json({ message: "Archive courses that already have students" });
+    await LearningSignal.deleteMany({ course: course._id });
     await course.deleteOne();
     return res.status(204).end();
   } catch (error) { return res.status(500).json({ message: "Unable to delete course", error: error.message }); }
@@ -208,7 +228,7 @@ router.post("/courses/:courseId/lessons", receiveLessonFiles, async (req, res) =
     const references = [...referenceContent.references];
     if (externalVideoUrl && !references.some((item) => item.url === externalVideoUrl)) references.push({ label: new URL(externalVideoUrl).hostname, url: externalVideoUrl });
     const resources = resourceFiles.map((file) => ({ originalName: file.originalname, storedName: file.filename, mimeType: file.mimetype, size: file.size, url: `${req.protocol}://${req.get("host")}/uploads/lesson-resources/${file.filename}` }));
-    course.lessons.push({ title: req.body.title, description: req.body.description || "", ...lessonContent.values, duration, videoUrl: "", primaryMedia: videoFile ? mediaDescriptor(videoFile) : undefined, primaryMediaRemoved: false, references, resources });
+    course.lessons.push({ title: req.body.title, description: req.body.description || "", ...lessonContent.values, duration, videoUrl: "", primaryMedia: videoFile ? mediaDescriptor(videoFile) : undefined, posterUrl: await createLessonPoster(videoFile), primaryMediaRemoved: false, references, resources });
     if (course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
     await course.save();
     return res.status(201).json(await Course.findById(course._id));
@@ -244,6 +264,7 @@ router.post("/courses/:courseId/lessons/:lessonId/main-media", uploadLessonFiles
     if (!lesson) { fs.unlink(req.file.path, () => {}); return res.status(404).json({ message: "Lesson not found" }); }
     const previous = lesson.primaryMedia?.storedName && lesson.primaryMedia.storage === "course-videos" ? lesson.primaryMedia.storedName : null;
     lesson.primaryMedia = mediaDescriptor(req.file);
+    lesson.posterUrl = await createLessonPoster(req.file);
     lesson.primaryMediaRemoved = false;
     await course.save();
     if (previous) fs.unlink(path.join(videoDirectory, path.basename(previous)), () => {});
@@ -307,6 +328,7 @@ router.delete("/courses/:courseId/lessons/:lessonId", async (req, res) => {
     lesson.deleteOne();
     if (course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
     await course.save();
+    await LearningSignal.deleteMany({ course: course._id, lessonId: req.params.lessonId });
     return res.json(course);
   } catch (error) { return res.status(500).json({ message: "Unable to delete lesson", error: error.message }); }
 });
@@ -336,6 +358,27 @@ router.get("/students", async (req, res) => {
 router.get("/analytics", async (req, res) => {
   try {
     const { courses, enrollments } = await tutorData(req.user._id);
+    const courseIds = courses.map((course) => course._id);
+    const signals = courseIds.length
+      ? await LearningSignal.find({ course: { $in: courseIds }, "aiPrediction.prediction": { $in: ["clear", "confused"] } }).lean()
+      : [];
+    const validSignals = signals.filter((signal) => {
+      const prediction = signal.aiPrediction;
+      return courses.some((course) => String(course._id) === String(signal.course) && course.lessons.some((lesson) => String(lesson._id) === String(signal.lessonId)))
+        && prediction
+        && ["clear", "confused"].includes(prediction.prediction)
+        && Number.isFinite(prediction.confusionProbability)
+        && Number.isFinite(prediction.clearProbability)
+        && prediction.confusionProbability >= 0 && prediction.confusionProbability <= 1
+        && prediction.clearProbability >= 0 && prediction.clearProbability <= 1;
+    });
+    const signalsByLesson = new Map();
+    validSignals.forEach((signal) => {
+      const key = `${signal.course}:${signal.lessonId}`;
+      const list = signalsByLesson.get(key) || [];
+      list.push(signal);
+      signalsByLesson.set(key, list);
+    });
     const rows = courses.map((course) => {
       const items = enrollments.filter((item) => String(item.course._id) === String(course._id));
       const averageProgress = items.length ? Math.round(items.reduce((sum, item) => sum + percent(item), 0) / items.length) : 0;
@@ -343,23 +386,45 @@ router.get("/analytics", async (req, res) => {
     });
     const totalEnrollments = enrollments.length;
     const uniqueStudents = new Set(enrollments.map((item) => String(item.student._id))).size;
-    return res.json({ totalStudents: uniqueStudents, totalEnrollments, averageProgress: totalEnrollments ? Math.round(enrollments.reduce((sum, item) => sum + percent(item), 0) / totalEnrollments) : 0, completionRate: totalEnrollments ? Math.round((enrollments.filter((item) => percent(item) === 100).length / totalEnrollments) * 100) : 0, mostPopularCourse: [...rows].sort((a, b) => b.enrollments - a.enrollments)[0]?.name || "No enrollments yet", courses: rows });
+    const heatmapCourses = courses.map((course) => {
+      const lessons = course.lessons.map((lesson, index) => {
+        const items = signalsByLesson.get(`${course._id}:${lesson._id}`) || [];
+        const confused = items.filter((item) => item.aiPrediction.prediction === "confused").length;
+        const latestItem = items.filter((item) => item.aiPrediction.predictedAt && Number.isFinite(new Date(item.aiPrediction.predictedAt).getTime())).sort((a, b) => new Date(b.aiPrediction.predictedAt) - new Date(a.aiPrediction.predictedAt))[0];
+        const latest = latestItem?.aiPrediction.predictedAt || null;
+        return { lessonId: lesson._id, lessonOrder: index + 1, lessonTitle: lesson.title, predictionCount: items.length, predictedClear: items.length - confused, predictedConfused: confused, confusionRate: items.length ? Math.round((confused / items.length) * 100) : null, modelVersion: latestItem?.aiPrediction.modelVersion || null, latestPredictionAt: latest };
+      });
+      const analyzedLessons = lessons.filter((lesson) => lesson.predictionCount > 0);
+      const coursePredictions = analyzedLessons.reduce((sum, lesson) => sum + lesson.predictionCount, 0);
+      const courseConfused = analyzedLessons.reduce((sum, lesson) => sum + lesson.predictedConfused, 0);
+      const totalStudentsAnalyzed = new Set(validSignals.filter((signal) => String(signal.course) === String(course._id)).map((signal) => String(signal.student))).size;
+      return { courseId: course._id, courseTitle: course.name, courseCover: course.thumbnail || "", category: course.category || "General Education", predictionLessonCount: analyzedLessons.length, totalStudentsAnalyzed, overallConfusionRate: coursePredictions >= 5 ? Math.round((courseConfused / coursePredictions) * 100) : null, lessons: analyzedLessons };
+    });
+    return res.json({ generatedAt: new Date().toISOString(), totalStudentsAnalyzed: new Set(validSignals.filter((signal) => signal.student).map((signal) => String(signal.student))).size, totalStudents: uniqueStudents, totalEnrollments, averageProgress: totalEnrollments ? Math.round(enrollments.reduce((sum, item) => sum + percent(item), 0) / totalEnrollments) : 0, completionRate: totalEnrollments ? Math.round((enrollments.filter((item) => percent(item) === 100).length / totalEnrollments) * 100) : 0, mostPopularCourse: [...rows].sort((a, b) => b.enrollments - a.enrollments)[0]?.name || "No enrollments yet", courses: rows, heatmapCourses });
   } catch (error) { return res.status(500).json({ message: "Unable to load analytics", error: error.message }); }
 });
 
 router.get("/profile", async (req, res) => {
-  const user = await User.findById(req.user._id).select("name email tutorProfile");
+  const user = await User.findById(req.user._id).select("name email role accountStatus tutorProfile");
   return res.json(user);
 });
 
 router.patch("/profile", uploadProfilePhoto.single("photo"), async (req, res) => {
   try {
+    const limits = { name: 120, phoneNumber: 30, expertise: 500, education: 2000, teachingExperience: 2000, bio: 3000 };
+    const invalid = Object.entries(limits).find(([key, limit]) => req.body[key] !== undefined && (typeof req.body[key] !== "string" || req.body[key].trim().length > limit));
+    const phone = typeof req.body.phoneNumber === "string" ? req.body.phoneNumber.trim() : "";
+    const invalidPhone = phone && (!/^\+?[\d\s().-]+$/.test(phone) || phone.replace(/\D/g, "").length < 7 || phone.replace(/\D/g, "").length > 15);
+    if (invalid || invalidPhone || (req.body.name !== undefined && !String(req.body.name).trim())) {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ message: invalid ? `${invalid[0]} must be text with at most ${invalid[1]} characters.` : invalidPhone ? "Phone number must contain 7–15 digits and valid phone punctuation." : "Full name is required." });
+    }
     const profile = {};
     ["phoneNumber", "bio", "expertise", "education", "teachingExperience"].forEach((key) => { if (req.body[key] !== undefined) profile[`tutorProfile.${key}`] = String(req.body[key]).trim(); });
     if (req.file) profile["tutorProfile.photoUrl"] = `${req.protocol}://${req.get("host")}/uploads/profile-photos/${req.file.filename}`;
     const update = { ...profile };
     if (req.body.name !== undefined) update.name = String(req.body.name).trim();
-    const user = await User.findByIdAndUpdate(req.user._id, { $set: update }, { new: true, runValidators: true }).select("name email tutorProfile");
+    const user = await User.findByIdAndUpdate(req.user._id, { $set: update }, { new: true, runValidators: true }).select("name email role accountStatus tutorProfile");
     return res.json(user);
   } catch (error) { return res.status(500).json({ message: "Unable to update profile", error: error.message }); }
 });

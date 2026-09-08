@@ -7,12 +7,13 @@ const app = require("./app");
 const { validateEnvironment } = require("./config/environment");
 const TutorApplication = require("./models/TutorApplication");
 const RefreshSession = require("./models/RefreshSession");
+const LearningSignal = require("./models/LearningSignal");
 const { attachMessageSocket } = require("./realtime/messageSocket");
 
 async function startServer() {
   const { port } = validateEnvironment();
   await mongoose.connect(process.env.MONGO_URI);
-  await Promise.all([TutorApplication.syncIndexes(), RefreshSession.syncIndexes()]);
+  await Promise.all([TutorApplication.syncIndexes(), RefreshSession.syncIndexes(), LearningSignal.syncIndexes()]);
   console.log("MongoDB Connected");
 
   const server = http.createServer(app);

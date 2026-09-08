@@ -4,6 +4,7 @@ const Enrollment = require("../models/Enrollment");
 const PlatformSetting = require("../models/PlatformSetting");
 const authenticateToken = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
+const { synchronizeLessonCompletion } = require("../services/learningSignalService");
 
 const router = express.Router();
 
@@ -86,6 +87,10 @@ router.patch("/:slug/progress", async (req, res) => {
       { new: true, runValidators: true }
     ).populate("course");
     if (!enrollment) return res.status(404).json({ message: "Enroll in this course first" });
+    if (Array.isArray(req.body.completedLessons)) {
+      try { await synchronizeLessonCompletion(req.user._id, course, enrollment.completedLessons); }
+      catch (signalError) { console.error("Synchronize lesson completion signal error:", signalError); }
+    }
     return res.status(200).json(enrollment);
   } catch (error) {
     console.error("Update course progress error:", error);

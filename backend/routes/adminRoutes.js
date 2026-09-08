@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
+const LearningSignal = require("../models/LearningSignal");
 const Note = require("../models/Note");
 const Report = require("../models/Report");
 const Announcement = require("../models/Announcement");
@@ -471,6 +472,7 @@ router.delete("/students/:studentId", async (req, res) => {
     if (!student) return res.status(404).json({ message: "Only suspended student accounts can be removed" });
 
     await Enrollment.deleteMany({ student: student._id });
+    await LearningSignal.deleteMany({ student: student._id });
     await Note.deleteMany({ student: student._id });
     await Report.updateMany({ reporter: student._id }, { $set: { reporter: null } });
     await recordAudit(req.user._id, "Removed suspended student", `${student.name} (${student.email})`);
@@ -544,7 +546,7 @@ router.delete("/courses/:courseId", async (req,res) => {
   try {
     const course = await Course.findById(req.params.courseId);
     if (!course) return res.status(404).json({ message: "Course not found" });
-    await Promise.all([Enrollment.deleteMany({ course: course._id }), Note.deleteMany({ course: course._id }), Notification.deleteMany({ course: course._id })]);
+    await Promise.all([Enrollment.deleteMany({ course: course._id }), LearningSignal.deleteMany({ course: course._id }), Note.deleteMany({ course: course._id }), Notification.deleteMany({ course: course._id })]);
     await recordAudit(req.user._id, "Deleted course", course.name);
     await course.deleteOne();
     return res.json({ message: "Course deleted permanently" });

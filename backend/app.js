@@ -20,7 +20,12 @@ const profileRoutes = require("./routes/profileRoutes");
 const favoriteRoutes = require("./routes/favoriteRoutes");
 const cartRoutes = require("./routes/cartRoutes");
 const orderRoutes = require("./routes/orderRoutes");
+const paymentRoutes = require("./routes/paymentRoutes");
+const paymentPublicRoutes = require("./routes/paymentPublicRoutes");
+const paymentAdminRoutes = require("./routes/paymentAdminRoutes");
+const paymentAdminVerificationRoutes = require("./routes/paymentAdminVerificationRoutes");
 const aiRoutes = require("./routes/aiRoutes");
+const learningSignalRoutes = require("./routes/learningSignalRoutes");
 
 const app = express();
 const configuredOrigins = allowedOrigins();
@@ -39,8 +44,8 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization", "X-Application-Token"],
 }));
 app.use(express.json({ limit: "1mb" }));
-// Lesson media and resources are served only by authenticated course routes.
 app.use("/uploads/course-covers", express.static(path.join(__dirname, "uploads", "course-covers")));
+app.use("/uploads/lesson-posters", express.static(path.join(__dirname, "uploads", "lesson-posters")));
 app.use("/uploads/profile-photos", express.static(path.join(__dirname, "uploads", "profile-photos")));
 
 app.use("/api/auth", authRoutes);
@@ -59,7 +64,15 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/favorites", favoriteRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/payment", paymentRoutes);
+app.use("/api/payment-settings", paymentPublicRoutes);
+app.use("/api/admin/payment-settings", paymentAdminRoutes);
+app.use(
+  "/api/admin/payment-verification",
+  paymentAdminVerificationRoutes
+);
 app.use("/api/ai", aiRoutes);
+app.use("/api/learning-signals", learningSignalRoutes);
 
 app.get("/", (_req, res) => res.send("EduNova backend is running"));
 app.get("/api/health", (_req, res) => res.json({ status: "ok", environment: process.env.NODE_ENV || "development" }));

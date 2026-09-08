@@ -19,4 +19,9 @@ function hashResetToken(token) {
   return crypto.createHash("sha256").update(String(token)).digest("hex");
 }
 
-module.exports = { validatePassword, createResetToken, hashResetToken };
+function buildPasswordResetUrl(frontendUrl, token) {
+  const origin = String(frontendUrl || "http://localhost:5173").replace(/\/$/, "");
+  return `${origin}/reset-password/${encodeURIComponent(token)}`;
+}
+
+module.exports = { validatePassword, createResetToken, hashResetToken, buildPasswordResetUrl };

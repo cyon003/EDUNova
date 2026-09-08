@@ -9,6 +9,7 @@ process.env.NODE_ENV = "test";
 process.env.JWT_SECRET = "lesson-content-test-secret-at-least-32-characters";
 
 const Course = require("../models/Course");
+const Enrollment = require("../models/Enrollment");
 const User = require("../models/User");
 const app = require("../app");
 
@@ -20,6 +21,7 @@ const studentToken = jwt.sign({ id: tutorId, role: "student", tokenVersion: 0 },
 let server;
 let originalFindById;
 let originalFindOne;
+let originalEnrollmentExists;
 
 function request(method, requestPath, body, authorization = token) {
   return new Promise((resolve, reject) => {
@@ -70,6 +72,8 @@ function fakeCourse() {
 test.before(async () => {
   originalFindById = User.findById;
   originalFindOne = Course.findOne;
+  originalEnrollmentExists = Enrollment.exists;
+  Enrollment.exists = async () => true;
   User.findById = () => ({ select: async () => currentUser });
   server = app.listen(0, "127.0.0.1");
   await new Promise((resolve) => server.once("listening", resolve));
@@ -78,6 +82,7 @@ test.before(async () => {
 test.after(async () => {
   User.findById = originalFindById;
   Course.findOne = originalFindOne;
+  Enrollment.exists = originalEnrollmentExists;
   await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 });
 

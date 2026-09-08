@@ -3,7 +3,6 @@ import {
   FaArrowLeft,
   FaCheckCircle,
   FaCloudUploadAlt,
-  FaHome,
   FaLock,
   FaQrcode,
   FaShoppingBag,
@@ -440,624 +439,130 @@ export default function CheckoutPage() {
   // --------------------------------------------------
 
   if (loading) {
-    return (
-      <main className="checkout-page">
-        <div className="checkout-loading">
-          <FaSpinner className="spin" />
-          Loading payment...
-        </div>
-      </main>
-    );
+    return <main className="checkout-page"><div className="checkout-loading" role="status"><FaSpinner className="spin" /> Loading your order…</div></main>;
   }
 
-  // --------------------------------------------------
-  // Error
-  // --------------------------------------------------
-
-  if (!order) {
-    return (
-      <main className="checkout-page">
-        <div className="checkout-header">
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-            }}
-          >
-            <button
-              type="button"
-              className="checkout-back"
-              onClick={handleBack}
-            >
-              <FaArrowLeft />
-              Back
-            </button>
-
-            <button
-              type="button"
-              className="checkout-back"
-              onClick={handleHome}
-            >
-              <FaHome />
-              Home
-            </button>
-          </div>
-
-          <h1>
-            <FaLock />
-            Payment
-          </h1>
-        </div>
-
-        <div className="checkout-card">
-          <div className="checkout-card-title">
-            <FaTimesCircle />
-            Unable to load payment
-          </div>
-
-          <p className="checkout-card-sub">
-            {error || "The order could not be loaded."}
-          </p>
-
-          <button
-            type="button"
-            className="checkout-btn-primary"
-            onClick={handleBack}
-          >
-            Go Back
-          </button>
-        </div>
-      </main>
-    );
-  }
-
-  const isCompleted = order.status === "completed";
-  const isAwaitingVerification =
-    order.status === "awaiting_verification";
-  const isRejected = order.status === "rejected";
-  const isPending = order.status === "pending";
-
-  const totalAmount = Number(order.totalAmount || 0);
-
-  // --------------------------------------------------
-  // Main payment page
-  // --------------------------------------------------
+  const isCompleted = order?.status === "completed";
+  const isAwaitingVerification = order?.status === "awaiting_verification";
+  const isRejected = order?.status === "rejected";
+  const isPending = order?.status === "pending";
+  const totalAmount = Number(order?.totalAmount || 0);
+  const currentStep = isCompleted ? 3 : isAwaitingVerification ? 2 : 1;
 
   return (
     <main className="checkout-page">
-      {/* Header */}
-      <div className="checkout-header">
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-          }}
-        >
-          <button
-            type="button"
-            className="checkout-back"
-            onClick={handleBack}
-          >
-            <FaArrowLeft />
-            Back
-          </button>
+      <header className="checkout-header">
+        <button type="button" className="checkout-back" onClick={handleBack}><FaArrowLeft /> Back</button>
+        <button type="button" className="checkout-brand" onClick={handleHome}>EDUNOVA<span> / CHECKOUT</span></button>
+        <span className="checkout-header-note"><FaLock /> Secure checkout</span>
+      </header>
 
-          <button
-            type="button"
-            className="checkout-back"
-            onClick={handleHome}
-          >
-            <FaHome />
-            Home
-          </button>
-        </div>
-
-        <h1>
-          <FaLock />
-          Secure Payment
-        </h1>
+      <div className="checkout-intro">
+        <p className="checkout-eyebrow">YOUR NEXT CHAPTER</p>
+        <h1>{isCompleted ? "You’re ready to learn." : isAwaitingVerification ? "We’ve received your payment slip." : "A little closer to your next lesson."}</h1>
+        <p>{isCompleted ? "Your payment is approved. Your courses are ready when you are." : "Pay by bank transfer, send your slip, and we’ll take care of the rest."}</p>
       </div>
 
-      <div className="checkout-layout">
-        {/* LEFT */}
-        <div className="checkout-form-wrap">
-          {/* Status message */}
-          {error && (
-            <div className="checkout-error">
-              {error}
-            </div>
-          )}
+      {!order ? (
+        <section className="checkout-card checkout-empty" role="alert">
+          <FaTimesCircle /><h2>We couldn’t load this order</h2>
+          <p>{error || "Return to your cart and try again."}</p>
+          <button type="button" className="checkout-btn-primary" onClick={handleBack}>Back to cart</button>
+        </section>
+      ) : (
+        <>
+          <ol className="checkout-steps" aria-label="Payment progress">
+            {["Transfer payment", "Submit your slip", "Start learning"].map((label, index) => (
+              <li key={label} className={index + 1 <= currentStep ? "active" : ""} aria-current={index + 1 === currentStep ? "step" : undefined}>
+                <span>{index + 1 < currentStep ? <FaCheckCircle /> : `0${index + 1}`}</span>{label}
+              </li>
+            ))}
+          </ol>
+          <div className="checkout-layout">
+            <div className="checkout-form-wrap">
+              {error && <div className="checkout-error" role="alert">{error}</div>}
+              {info && <div className="checkout-info" role="status">{info}</div>}
 
-          {info && (
-            <div className="checkout-info">
-              {info}
-            </div>
-          )}
-
-          {/* ------------------------------------------------ */}
-          {/* COMPLETED */}
-          {/* ------------------------------------------------ */}
-
-          {isCompleted && (
-            <div className="checkout-card checkout-processing">
-              <FaCheckCircle className="processing-icon" />
-
-              <h2>Payment Completed</h2>
-
-              <p>
-                Your payment has been approved and your
-                course access is available.
-              </p>
-
-              <button
-                type="button"
-                className="checkout-btn-primary"
-                onClick={() => {
-                  const firstCourse =
-                    order.items?.[0]?.course;
-
-                  if (firstCourse?.slug) {
-                    navigate(
-                      `/courses/${firstCourse.slug}`
-                    );
-                  } else {
-                    navigate("/courses");
-                  }
-                }}
-              >
-                Go to Course
-              </button>
-            </div>
-          )}
-
-          {/* ------------------------------------------------ */}
-          {/* AWAITING VERIFICATION */}
-          {/* ------------------------------------------------ */}
-
-          {isAwaitingVerification && (
-            <div className="checkout-card checkout-processing">
-              <FaCheckCircle className="processing-icon" />
-
-              <h2>Payment Submitted</h2>
-
-              <p>
-                Your payment slip has been submitted
-                successfully.
-              </p>
-
-              <p>
-                Your order is now{" "}
-                <strong>Awaiting Verification</strong>.
-                An administrator will check your payment.
-              </p>
-
-              <div
-                style={{
-                  marginTop: "20px",
-                  padding: "16px",
-                  borderRadius: "12px",
-                  background: "rgba(139, 92, 246, 0.10)",
-                }}
-              >
-                <strong>Order Reference</strong>
-
-                <div
-                  style={{
-                    marginTop: "6px",
-                    fontSize: "18px",
-                    fontWeight: "700",
-                  }}
-                >
-                  {order.orderReference}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ------------------------------------------------ */}
-          {/* REJECTED */}
-          {/* ------------------------------------------------ */}
-
-          {isRejected && (
-            <div className="checkout-card">
-              <div className="checkout-card-title">
-                <FaTimesCircle />
-                Payment Rejected
-              </div>
-
-              <p className="checkout-card-sub">
-                Your previous payment slip was rejected.
-                You can upload a new slip below.
-              </p>
-
-              {order.rejectionReason && (
-                <div
-                  className="checkout-error"
-                  style={{ marginTop: "16px" }}
-                >
-                  <strong>Reason:</strong>{" "}
-                  {order.rejectionReason}
-                </div>
+              {(isCompleted || isAwaitingVerification) && (
+                <section className="checkout-card checkout-processing">
+                  <FaCheckCircle className="processing-icon" />
+                  <p className="checkout-eyebrow">{isCompleted ? "PAYMENT APPROVED" : "AWAITING VERIFICATION"}</p>
+                  <h2>{isCompleted ? "Your learning starts here." : "Thanks. We’ll check it from here."}</h2>
+                  <p>{isCompleted ? "Your course access is now available." : "An administrator will review your slip. Your courses become available once payment is approved."}</p>
+                  <div className="checkout-reference">Order reference <strong>{order.orderReference}</strong></div>
+                  <button type="button" className="checkout-btn-primary" onClick={() => navigate(isCompleted ? "/my-courses" : "/home")}>
+                    {isCompleted ? "Go to my learning" : "Back to home"}
+                  </button>
+                </section>
               )}
 
-              <PaymentUploadSection
-                selectedFile={selectedFile}
-                setSelectedFile={setSelectedFile}
-                uploading={uploading}
-                uploadPaymentSlip={uploadPaymentSlip}
-              />
+              {isPending && (
+                <section className="checkout-card">
+                  <div className="checkout-section-heading"><span>01</span><div><h2>Make your transfer</h2><p>Scan with your banking app and transfer the exact amount.</p></div></div>
+                  <div className="checkout-transfer">
+                    <div className="checkout-qr">
+                      {qrLoading ? <span role="status"><FaSpinner className="spin" /> Loading QR…</span> : qrObjectUrl ? <img src={qrObjectUrl} alt="Scan this QR code with your banking app to pay" /> : <div className="checkout-qr-empty"><FaQrcode /><strong>QR code unavailable</strong><p>Check the account details or contact support before transferring.</p></div>}
+                    </div>
+                    <div className="checkout-bank">
+                      <p className="checkout-eyebrow">AMOUNT TO TRANSFER</p>
+                      <strong className="checkout-amount">{formatCoursePrice(totalAmount)}</strong>
+                      <dl className="checkout-bank-details">
+                        <div><dt>Receiver</dt><dd>{paymentSettings?.receiverName || "Not configured"}</dd></div>
+                        <div><dt>Payment method</dt><dd>{paymentSettings?.paymentMethod || "Not configured"}</dd></div>
+                        <div><dt>Account name</dt><dd>{paymentSettings?.accountName || "Not configured"}</dd></div>
+                        <div><dt>Account number</dt><dd className="checkout-account-number">{paymentSettings?.accountNumber || "Not configured"}</dd></div>
+                      </dl>
+                    </div>
+                  </div>
+                  <p className="checkout-transfer-note">Keep your bank receipt. You’ll need it for the next step.</p>
+                </section>
+              )}
+
+              {(isPending || isRejected) && (
+                <section className="checkout-card">
+                  <div className="checkout-section-heading"><span>02</span><div><h2>{isRejected ? "Upload a new payment slip" : "Send your payment slip"}</h2><p>{isRejected ? "Your previous slip was rejected. Review the reason and try again." : "Upload the receipt from your bank after completing the transfer."}</p></div></div>
+                  {isRejected && <div className="checkout-error" role="alert">{order.rejectionReason || "Please check your transfer details and upload a clear payment receipt."}</div>}
+                  <PaymentUploadSection selectedFile={selectedFile} setSelectedFile={setSelectedFile} uploading={uploading} uploadPaymentSlip={uploadPaymentSlip} />
+                </section>
+              )}
             </div>
-          )}
 
-          {/* ------------------------------------------------ */}
-          {/* PENDING PAYMENT */}
-          {/* ------------------------------------------------ */}
-
-          {isPending && (
-            <>
-              {/* QR Payment */}
-              <div className="checkout-card">
-                <div className="checkout-card-title">
-                  <FaQrcode />
-                  Pay by QR Code
-                </div>
-
-                <p className="checkout-card-sub">
-                  Transfer the exact amount shown below to
-                  the receiver, then upload your payment
-                  slip.
-                </p>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    margin: "24px 0",
-                  }}
-                >
-                  <div
-                    style={{
-                      background: "#fff",
-                      padding: "18px",
-                      borderRadius: "16px",
-                      minWidth: "250px",
-                      minHeight: "250px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {qrLoading ? (
-                      <FaSpinner
-                        className="spin"
-                        style={{
-                          fontSize: "48px",
-                          color: "#111",
-                        }}
-                      />
-                    ) : qrObjectUrl ? (
-                      <img
-                        src={qrObjectUrl}
-                        alt="Payment QR Code"
-                        style={{
-                          width: "220px",
-                          height: "220px",
-                          objectFit: "contain",
-                        }}
-                      />
-                    ) : (
-                      <FaQrcode
-                        style={{
-                          fontSize: "180px",
-                          color: "#111",
-                        }}
-                      />
-                    )}
+            <aside className="checkout-summary" aria-label="Order summary">
+              <p className="checkout-eyebrow">YOUR ORDER</p><h2>A good investment in you.</h2>
+              <div className="checkout-summary-items">
+                {order.items?.map((item, index) => (
+                  <div key={item.course?._id || index} className="checkout-summary-item">
+                    <div className="checkout-summary-thumb">{item.course?.thumbnail ? <img src={apiAssetUrl(item.course.thumbnail)} alt="" /> : <FaShoppingBag />}</div>
+                    <div className="checkout-summary-info"><span className="checkout-summary-name">{item.course?.name || "Course unavailable"}</span><span className="checkout-summary-level">{item.course?.level || "Online course"}</span></div>
+                    <span className="checkout-summary-price">{Number(item.price || 0) > 0 ? formatCoursePrice(item.price) : "Free"}</span>
                   </div>
-                </div>
-
-                <div
-                  style={{
-                    textAlign: "center",
-                    marginBottom: "24px",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      opacity: 0.75,
-                    }}
-                  >
-                    Amount to transfer
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: "30px",
-                      fontWeight: "800",
-                      marginTop: "4px",
-                    }}
-                  >
-                    {formatCoursePrice(totalAmount)}
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    padding: "18px",
-                    borderRadius: "12px",
-                    background:
-                      "rgba(139, 92, 246, 0.10)",
-                  }}
-                >
-                  <div>
-                    <strong>Receiver</strong>
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: "8px",
-                      display: "grid",
-                      gap: "6px",
-                    }}
-                  >
-                    <div>
-                      <strong>Receiver Name:</strong>{" "}
-                      {paymentSettings?.receiverName ||
-                        "Not configured"}
-                    </div>
-
-                    <div>
-                      <strong>Payment Method:</strong>{" "}
-                      {paymentSettings?.paymentMethod ||
-                        "Not configured"}
-                    </div>
-
-                    <div>
-                      <strong>Account Name:</strong>{" "}
-                      {paymentSettings?.accountName ||
-                        "Not configured"}
-                    </div>
-
-                    <div>
-                      <strong>Account Number:</strong>{" "}
-                      {paymentSettings?.accountNumber ||
-                        "Not configured"}
-                    </div>
-                  </div>
-                </div>
+                ))}
               </div>
-
-              {/* Order reference */}
-              <div className="checkout-card">
-                <div className="checkout-card-title">
-                  <FaShoppingBag />
-                  Order Information
-                </div>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gap: "14px",
-                  }}
-                >
-                  <div>
-                    <div
-                      style={{
-                        fontSize: "13px",
-                        opacity: 0.7,
-                      }}
-                    >
-                      Order Reference
-                    </div>
-
-                    <strong>
-                      {order.orderReference}
-                    </strong>
-                  </div>
-
-                  <div>
-                    <div
-                      style={{
-                        fontSize: "13px",
-                        opacity: 0.7,
-                      }}
-                    >
-                      Payment Status
-                    </div>
-
-                    <strong>
-                      Waiting for payment slip
-                    </strong>
-                  </div>
-                </div>
-              </div>
-
-              {/* Upload */}
-              <div className="checkout-card">
-                <div className="checkout-card-title">
-                  <FaCloudUploadAlt />
-                  Upload Payment Slip
-                </div>
-
-                <p className="checkout-card-sub">
-                  After completing the bank transfer, upload
-                  your payment slip here.
-                </p>
-
-                <PaymentUploadSection
-                  selectedFile={selectedFile}
-                  setSelectedFile={setSelectedFile}
-                  uploading={uploading}
-                  uploadPaymentSlip={uploadPaymentSlip}
-                />
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* RIGHT - ORDER SUMMARY */}
-        <aside className="checkout-summary">
-          <h2>Order Summary</h2>
-
-          <div className="checkout-summary-items">
-            {order.items?.map(
-              (item, index) =>
-                item.course && (
-                  <div
-                    key={
-                      item.course._id ||
-                      `${item.course.slug}-${index}`
-                    }
-                    className="checkout-summary-item"
-                  >
-                    <div className="checkout-summary-thumb">
-                      {item.course.thumbnail ? (
-                        <img
-                          src={apiAssetUrl(
-                            item.course.thumbnail
-                          )}
-                          alt={item.course.name}
-                        />
-                      ) : (
-                        <div className="checkout-thumb-placeholder">
-                          <FaShoppingBag />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="checkout-summary-info">
-                      <span className="checkout-summary-name">
-                        {item.course.name}
-                      </span>
-
-                      {item.course.level && (
-                        <span className="checkout-summary-level">
-                          {item.course.level}
-                        </span>
-                      )}
-                    </div>
-
-                    <span className="checkout-summary-price">
-                      {Number(item.price || 0) > 0
-                        ? formatCoursePrice(item.price)
-                        : "Free"}
-                    </span>
-                  </div>
-                )
-            )}
+              <div className="checkout-summary-total"><span>Total due</span><strong>{totalAmount > 0 ? formatCoursePrice(totalAmount) : "Free"}</strong></div>
+              <dl className="checkout-order-meta"><div><dt>Reference</dt><dd>{order.orderReference}</dd></div><div><dt>Status</dt><dd>{isCompleted ? "Approved" : isAwaitingVerification ? "Under review" : isRejected ? "Slip rejected" : "Awaiting payment"}</dd></div></dl>
+              <p className="checkout-secure-note"><FaLock /> Payments are reviewed by our team before course access is granted.</p>
+              <a className="checkout-support" href="mailto:support@edunova.com">Need a hand? Contact support ↗</a>
+            </aside>
           </div>
-
-          <div className="checkout-summary-total">
-            <span>Total</span>
-
-            <strong>
-              {totalAmount > 0
-                ? formatCoursePrice(totalAmount)
-                : "Free"}
-            </strong>
-          </div>
-
-          <div className="checkout-secure-note">
-            <FaLock />
-            Manual payment verified by admin
-          </div>
-        </aside>
-      </div>
+        </>
+      )}
     </main>
   );
 }
 
-// --------------------------------------------------
-// Payment upload component
-// --------------------------------------------------
-
-function PaymentUploadSection({
-  selectedFile,
-  setSelectedFile,
-  uploading,
-  uploadPaymentSlip,
-}) {
-  const handleFileChange = (event) => {
-    const file = event.target.files?.[0];
-
-    if (!file) {
-      setSelectedFile(null);
-      return;
-    }
-
-    setSelectedFile(file);
-  };
-
+function PaymentUploadSection({ selectedFile, setSelectedFile, uploading, uploadPaymentSlip }) {
   return (
-    <div style={{ marginTop: "20px" }}>
-      <label
-        htmlFor="payment-slip-input"
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "10px",
-          padding: "30px 20px",
-          border: "1px dashed rgba(167, 139, 250, 0.6)",
-          borderRadius: "14px",
-          cursor: "pointer",
-          textAlign: "center",
-        }}
-      >
-        <FaCloudUploadAlt
-          style={{
-            fontSize: "38px",
-            color: "#a78bfa",
-          }}
-        />
-
-        <strong>
-          {selectedFile
-            ? selectedFile.name
-            : "Choose your payment slip"}
-        </strong>
-
-        <span
-          style={{
-            fontSize: "13px",
-            opacity: 0.7,
-          }}
-        >
-          JPG, PNG, WEBP or PDF — maximum 5 MB
-        </span>
-      </label>
-
-      <input
-        id="payment-slip-input"
-        type="file"
-        accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
-        onChange={handleFileChange}
-        style={{ display: "none" }}
-      />
-
-      <button
-        type="button"
-        className="checkout-btn-primary"
-        onClick={uploadPaymentSlip}
-        disabled={!selectedFile || uploading}
-        style={{ marginTop: "16px" }}
-      >
-        {uploading ? (
-          <>
-            <FaSpinner className="spin" />
-            Uploading...
-          </>
-        ) : (
-          <>
-            <FaCloudUploadAlt />
-            Submit Payment Slip
-          </>
-        )}
+    <div className="checkout-upload">
+      <div className={`checkout-file-picker ${selectedFile ? "has-file" : ""}`}>
+        <FaCloudUploadAlt aria-hidden="true" />
+        <label htmlFor="payment-slip-input">{selectedFile ? selectedFile.name : "Choose your payment receipt"}</label>
+        <span id="payment-file-help">JPG, PNG, WEBP or PDF · Up to 5 MB</span>
+        <input id="payment-slip-input" type="file" aria-describedby="payment-file-help" accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf" disabled={uploading} onChange={(event) => setSelectedFile(event.target.files?.[0] || null)} />
+      </div>
+      <button type="button" className="checkout-btn-primary" onClick={uploadPaymentSlip} disabled={!selectedFile || uploading}>
+        {uploading ? <><FaSpinner className="spin" /> Submitting…</> : <>Submit payment slip <span aria-hidden="true">→</span></>}
       </button>
+      <p className="checkout-upload-note">Course access begins after your payment is approved.</p>
     </div>
   );
 }

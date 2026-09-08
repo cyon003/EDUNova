@@ -1,3 +1,4 @@
+import { clearSession } from "../utils/authClient";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { FaArrowLeft, FaEye, FaEyeSlash, FaLock } from "react-icons/fa";
@@ -44,8 +45,7 @@ export default function ResetPassword() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.message || "Unable to reset password");
-      localStorage.removeItem("user");
-      localStorage.removeItem("token");
+      clearSession();
       setMessage(data.message);
       setPassword("");
       setConfirmation("");

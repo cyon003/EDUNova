@@ -28,7 +28,8 @@ import StudentDashboard from "./pages/StudentDashboard";
 import TutorApplication from "./pages/TutorApplication";
 import TutorDashboard from "./pages/TutorDashboard";
 import UserHome from "./pages/UserHome";
-import { AUTH_EVENT, restoreSession, storedUser } from "./utils/authClient";
+import { restoreSession } from "./utils/authClient";
+import { useAuth } from "./hooks/useAuth";
 
 function RoleRoute({ user, allowedRoles, children }) {
   if (!user) return <Navigate to="/auth" replace />;
@@ -42,29 +43,23 @@ function getRoleLanding(user) {
 }
 
 function App() {
-  const [auth, setAuth] = useState({ loading: true, user: storedUser() });
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    const update = (event) => active && setAuth({ loading: false, user: event.detail.user });
-    window.addEventListener(AUTH_EVENT, update);
-    restoreSession().then((user) => active && setAuth({ loading: false, user }));
-    return () => {
-      active = false;
-      window.removeEventListener(AUTH_EVENT, update);
-    };
+    restoreSession().finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, []);
 
-  if (auth.loading) {
+  if (loading) {
     return <div className="app-session-loading" role="status">Restoring your EDUNova session…</div>;
   }
-
-  const user = auth.user;
 
   return (
     <BrowserRouter>
       <NavigationManager />
-      <Routes>
+      <Routes key={user?.id || "signed-out"}>
         <Route path="/" element={user ? <Navigate to={getRoleLanding(user)} replace /> : <Home />} />
         <Route path="/auth" element={user ? <Navigate to={getRoleLanding(user)} replace /> : <Auth />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -78,7 +73,7 @@ function App() {
         <Route path="/profile" element={<RoleRoute user={user} allowedRoles={["student"]}><Profile /></RoleRoute>} />
 
         <Route path="/tutor-dashboard" element={<RoleRoute user={user} allowedRoles={["tutor"]}><TutorDashboard /></RoleRoute>} />
-        <Route path="/tutor-application" element={<TutorApplication />} />
+        <Route path="/tutor-application" element={<RoleRoute user={user} allowedRoles={["student", "tutor"]}><TutorApplication /></RoleRoute>} />
         <Route path="/tutor-courses/*" element={<Navigate to="/tutor-dashboard" replace />} />
         <Route path="/tutor-students" element={<Navigate to="/tutor-dashboard" replace />} />
         <Route path="/tutor-analytics" element={<Navigate to="/tutor-dashboard" replace />} />

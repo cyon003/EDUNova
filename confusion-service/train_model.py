@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import json
 from pathlib import Path
 
 from confusion_ml.config import TrainingConfig, generated_paths
@@ -11,10 +12,11 @@ from confusion_ml.training import check_minimum_data, split_by_student, train_ra
 
 def main():
     parser = argparse.ArgumentParser(description="Train and evaluate the Phase 3B confusion classifier.")
+    parser.add_argument("--course-id", required=True, help="Only train on learning signals for this course ID.")
     parser.add_argument("--report", type=Path, default=None)
     args = parser.parse_args()
     config = TrainingConfig.from_environment()
-    frame, summary = build_dataset(load_records(config.mongo_uri, config.database_name))
+    frame, summary = build_dataset(load_records(config.mongo_uri, config.database_name, args.course_id))
     check_minimum_data(frame, config)
     train_frame, test_frame = split_by_student(frame, config.test_size, config.random_state)
     model = train_random_forest(train_frame, config)

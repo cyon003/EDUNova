@@ -417,3 +417,29 @@
     display: none;
   }
 }
+
+/* Keep primary links and account tools within the viewport. */
+.uhome-nav { gap: 16px; padding-inline: clamp(12px, 1.5vw, 24px); }
+.uhome-nav-center { min-width: 0; }
+.uhome-nav-center a { font-size: 13px; padding-inline: 10px; }
+.uhome-nav-right { min-width: 0; gap: 8px; }
+.uhome-nav-search { width: clamp(100px, 10vw, 150px); min-width: 0; }
+.uhome-brand { font-size: 20px; letter-spacing: 1px; }
+.uhome-logo { gap: 10px; }
+.uhome-brand-icon { width: 40px; height: 40px; border-radius: 10px; }
+@media (max-width: 1250px) {
+  .uhome-nav { flex-wrap: wrap; gap: 10px; }
+  .uhome-brand { display: inline; }
+  .uhome-nav-center { order: 3; width: 100%; justify-content: center; }
+  .uhome-nav-right { margin-left: auto; }
+  .uhome-nav-search { width: 150px; }
+}
+@media (max-width: 580px) {
+  .uhome-nav { display: grid; grid-template-columns: 40px minmax(0, 1fr); }
+  .uhome-brand { display: none; }
+  .uhome-nav-right { display: flex; flex-wrap: wrap; justify-content: flex-end; width: 100%; gap: 6px; }
+  .uhome-nav-search { order: 5; width: 100%; }
+  .uhome-nav-center { grid-column: 1 / -1; flex-wrap: wrap; gap: 2px; padding: 4px; }
+  .uhome-nav-center a { font-size: 12px; padding: 8px; }
+  .uhome-profile-dropdown { max-width: calc(100vw - 40px); }
+}

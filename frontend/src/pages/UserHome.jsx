@@ -159,9 +159,7 @@ function UserHome() {
               My Learning
             </Link>
           )}
-          <a href="mailto:support@edunova.com" className={activeTab === "help" ? "active" : undefined} onClick={() => setActiveTab("help")} onFocus={() => setActiveTab("help")}>
-            Help
-          </a>
+
         </div>
 
         <div className="uhome-nav-right">

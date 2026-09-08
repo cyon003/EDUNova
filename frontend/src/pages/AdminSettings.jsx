@@ -70,12 +70,13 @@ export default function AdminSettings() {
       setAnnouncements(notices);
       setAudit(activity);
 
+      const paymentData = payment?.settings || payment || {};
       setPaymentSettings({
-        receiverName: payment?.receiverName || "",
-        paymentMethod: payment?.paymentMethod || "",
-        accountName: payment?.accountName || "",
-        accountNumber: payment?.accountNumber || "",
-        isActive: payment?.isActive ?? true,
+        receiverName: paymentData.receiverName || "",
+        paymentMethod: paymentData.paymentMethod || "",
+        accountName: paymentData.accountName || "",
+        accountNumber: paymentData.accountNumber || "",
+        isActive: paymentData.isActive ?? true,
       });
     }).catch((error) => {
       setMessage(error.message || "Unable to load settings.");
@@ -189,12 +190,13 @@ export default function AdminSettings() {
         );
       }
 
+      const paymentData = data.settings || data;
       setPaymentSettings({
-        receiverName: data.receiverName || "",
-        paymentMethod: data.paymentMethod || "",
-        accountName: data.accountName || "",
-        accountNumber: data.accountNumber || "",
-        isActive: data.isActive ?? true,
+        receiverName: paymentData.receiverName || "",
+        paymentMethod: paymentData.paymentMethod || "",
+        accountName: paymentData.accountName || "",
+        accountNumber: paymentData.accountNumber || "",
+        isActive: paymentData.isActive ?? true,
       });
 
       setMessage("Payment settings saved successfully.");

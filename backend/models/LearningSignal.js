@@ -14,6 +14,14 @@ const learningSignalSchema = new mongoose.Schema(
     confusionFeedback: { type: String, enum: ["clear", "confused", null], default: null },
     feedbackUpdatedAt: { type: Date, default: null },
     lastInteractionAt: { type: Date, default: Date.now },
+    aiPrediction: {
+      _id: false,
+      prediction: { type: String, enum: ["clear", "confused"] },
+      confusionProbability: { type: Number, min: 0, max: 1 },
+      clearProbability: { type: Number, min: 0, max: 1 },
+      modelVersion: { type: String },
+      predictedAt: { type: Date },
+    },
   },
   { timestamps: true }
 );

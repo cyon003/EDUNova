@@ -1,4 +1,9 @@
 import unittest
+from unittest.mock import patch
+
+from bson import ObjectId
+
+from confusion_ml.dataset import load_records
 
 from confusion_ml.features import FEATURE_NAMES, feature_matrix, prepare_records, validate_record
 
@@ -27,6 +32,36 @@ class DatasetTests(unittest.TestCase):
         self.assertNotIn("confusionFeedback", X.columns)
         for identifier in ("student", "course", "lessonId", "_id"):
             self.assertNotIn(identifier, X.columns)
+
+
+class ConnectionTests(unittest.TestCase):
+    def test_connection_certificate_options(self):
+        cases = [
+            ("mongodb+srv://example.invalid/test", True),
+            ("mongodb://localhost/test?tls=true", True),
+            ("mongodb://localhost/test?ssl=true", True),
+            ("mongodb://localhost/test", False),
+            ("mongodb+srv://example.invalid/test?tls=false", False),
+            ("mongodb+srv://example.invalid/test?tlsCAFile=private.pem", False),
+        ]
+        for uri, uses_bundle in cases:
+            with self.subTest(uri=uri), patch("confusion_ml.dataset.MongoClient") as client, patch("confusion_ml.dataset.certifi.where", return_value="trusted.pem"):
+                load_records(uri, "test")
+                expected = {"serverSelectionTimeoutMS": 5000}
+                if uses_bundle:
+                    expected["tlsCAFile"] = "trusted.pem"
+                client.assert_called_once_with(uri, **expected)
+                connection = client.return_value.__enter__.return_value
+                connection.__getitem__.assert_called_once_with("test")
+
+    def test_connection_can_filter_course(self):
+        with patch("confusion_ml.dataset.MongoClient") as client:
+            course_id = "507f1f77bcf86cd799439011"
+            load_records("mongodb://localhost/test", "test", course_id)
+            connection = client.return_value.__enter__.return_value
+            database = connection.__getitem__.return_value
+            collection = database.__getitem__.return_value
+            collection.find.assert_called_once_with({"course": ObjectId(course_id)})
 
 
 if __name__ == "__main__":

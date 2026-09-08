@@ -45,6 +45,7 @@ app.use(cors({
 }));
 app.use(express.json({ limit: "1mb" }));
 app.use("/uploads/course-covers", express.static(path.join(__dirname, "uploads", "course-covers")));
+app.use("/uploads/lesson-posters", express.static(path.join(__dirname, "uploads", "lesson-posters")));
 app.use("/uploads/profile-photos", express.static(path.join(__dirname, "uploads", "profile-photos")));
 
 app.use("/api/auth", authRoutes);

@@ -18,7 +18,7 @@ export function isMediaResource(resource) {
 }
 
 export function getLessonPrimaryMedia(lesson) {
-  if (lesson?.primaryMedia?.storedName) return lesson.primaryMedia;
+  if (lesson?.primaryMedia?.storedName || lesson?.primaryMedia?.mimeType) return lesson.primaryMedia;
   if (lesson?.primaryMediaRemoved) return null;
   const legacyResource = (lesson?.resources || []).find(isMediaResource);
   if (legacyResource) return { ...legacyResource, storage: "lesson-resources", resourceId: legacyResource._id };

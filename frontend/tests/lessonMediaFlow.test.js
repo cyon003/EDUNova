@@ -48,6 +48,18 @@ test("admin moderation preview can select and play protected lessons before appr
   assert.doesNotMatch(preview, /href=\{resource\.url\}/);
 });
 
+test("first lesson is a free preview and later lesson playback remains enrollment-gated", async () => {
+  const detail = await source("src/pages/CourseDetail.jsx");
+  const player = await source("src/pages/LessonPlayer.jsx");
+  assert.match(detail, /const isFreePreview = index === 0/);
+  assert.match(detail, /Watch free preview/);
+  assert.match(detail, /function FreeLessonPreview/);
+  assert.match(detail, /<video controls preload="metadata"/);
+  assert.match(detail, /Locked lesson/);
+  assert.match(player, /!enrolled && lessonIndex !== 0/);
+  assert.match(player, /disabled=\{!enrolled && index !== 0\}/);
+});
+
 test("home course cards keep equal responsive dimensions with long names", async () => {
   const styles = await source("src/styles/Home.css");
   assert.match(styles, /\.content-courses[^]*grid-auto-rows: 1fr/);

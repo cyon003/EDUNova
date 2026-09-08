@@ -24,6 +24,8 @@ let server;
 let bulkOperations;
 let deletedFilters;
 let duplicateOnce;
+let originalFetch;
+let predictionPayloads;
 
 const auth = (id, role) => jwt.sign({ id, role, tokenVersion: 0 }, process.env.JWT_SECRET);
 const recordKey = (filter) => `${filter.student}:${filter.course}:${filter.lessonId}`;
@@ -51,6 +53,7 @@ test.before(async () => {
   originals.userFind = User.findById; originals.courseFindById = Course.findById; originals.courseFindOne = Course.findOne;
   originals.enrollmentFindOne = Enrollment.findOne; originals.enrollmentFindOneAndUpdate = Enrollment.findOneAndUpdate; originals.enrollmentExists = Enrollment.exists;
   originals.signalFindOne = LearningSignal.findOne; originals.signalUpdate = LearningSignal.findOneAndUpdate; originals.signalBulk = LearningSignal.bulkWrite; originals.signalDelete = LearningSignal.deleteMany;
+  originalFetch = global.fetch;
   User.findById = () => ({ select: async () => currentUser });
   Course.findById = async (id) => String(id) === ids.course ? activeCourse : null;
   Course.findOne = async () => activeCourse;
@@ -75,10 +78,11 @@ test.after(async () => {
   User.findById = originals.userFind; Course.findById = originals.courseFindById; Course.findOne = originals.courseFindOne;
   Enrollment.findOne = originals.enrollmentFindOne; Enrollment.findOneAndUpdate = originals.enrollmentFindOneAndUpdate; Enrollment.exists = originals.enrollmentExists;
   LearningSignal.findOne = originals.signalFindOne; LearningSignal.findOneAndUpdate = originals.signalUpdate; LearningSignal.bulkWrite = originals.signalBulk; LearningSignal.deleteMany = originals.signalDelete;
+  global.fetch = originalFetch;
   await new Promise((resolve) => server.close(resolve));
 });
 
-test.beforeEach(() => { currentUser = { _id: ids.student, role: "student", tokenVersion: 0, accountStatus: "approved" }; enrolled = true; activeCourse = fakeCourse(); records.clear(); bulkOperations = []; deletedFilters = []; duplicateOnce = false; });
+test.beforeEach(() => { currentUser = { _id: ids.student, role: "student", tokenVersion: 0, accountStatus: "approved" }; enrolled = true; activeCourse = fakeCourse(); records.clear(); bulkOperations = []; deletedFilters = []; duplicateOnce = false; predictionPayloads = []; global.fetch = async (_url, options) => { predictionPayloads.push(JSON.parse(options.body)); return { ok: true, status: 200, json: async () => ({ prediction: "confused", confusionProbability: 0.82, clearProbability: 0.18, modelVersion: "3b-v1", predictedAt: "2026-09-07T00:00:00.000Z" }) }; }; });
 
 test("LearningSignal schema separates its label and enforces one student-course-lesson record", () => {
   const unique = LearningSignal.schema.indexes().find(([fields, options]) => fields.student === 1 && fields.course === 1 && fields.lessonId === 1 && options.unique);
@@ -114,6 +118,60 @@ test("initial state, atomic updates, maximum progress, and student isolation are
   currentUser = { _id: ids.otherStudent, role: "student", tokenVersion: 0, accountStatus: "approved" };
   const isolated = await request("GET", `/api/learning-signals/${ids.course}/${ids.lesson}`, undefined, auth(ids.otherStudent, "student"));
   assert.equal(isolated.body.maximumVideoProgressPercent, 0);
+});
+
+test("each authenticated student gets one independent record per lesson", async () => {
+  const studentAToken = auth(ids.student, "student");
+  const studentBToken = auth(ids.otherStudent, "student");
+
+  currentUser = { _id: ids.student, role: "student", tokenVersion: 0, accountStatus: "approved" };
+  const first = await request("PATCH", `/api/learning-signals/${ids.course}/${ids.lesson}`, { visitCountDelta: 1 }, studentAToken);
+  assert.equal(first.status, 200, JSON.stringify(first.body));
+  currentUser = { _id: ids.student, role: "student", tokenVersion: 0, accountStatus: "approved" };
+  const second = await request("PATCH", `/api/learning-signals/${ids.course}/${ids.lesson}`, { visitCountDelta: 1 }, studentAToken);
+  assert.equal(second.status, 200);
+
+  currentUser = { _id: ids.otherStudent, role: "student", tokenVersion: 0, accountStatus: "approved" };
+  const third = await request("PATCH", `/api/learning-signals/${ids.course}/${ids.lesson}`, { visitCountDelta: 1, activeTimeSecondsDelta: 10 }, studentBToken);
+  assert.equal(third.status, 200);
+
+  assert.equal(records.size, 2);
+  assert.equal(records.get(`${ids.student}:${ids.course}:${ids.lesson}`).visitCount, 2);
+  assert.equal(records.get(`${ids.otherStudent}:${ids.course}:${ids.lesson}`).visitCount, 1);
+  assert.equal(records.get(`${ids.otherStudent}:${ids.course}:${ids.lesson}`).activeTimeSeconds, 10);
+});
+
+test("authenticated student prediction uses six signal features and preserves feedback", async () => {
+  records.set(`${ids.student}:${ids.course}:${ids.lesson}`, { ...baseRecord({ student: ids.student, course: ids.course, lessonId: ids.lesson }), confusionFeedback: "clear", activeTimeSeconds: 30, maximumVideoProgressPercent: 80, lessonCompleted: true });
+  const response = await request("POST", `/api/learning-signals/${ids.course}/${ids.lesson}/prediction`, undefined, auth(ids.student, "student"));
+  assert.equal(response.status, 200);
+  assert.deepEqual(Object.keys(predictionPayloads[0]).sort(), ["activeTimeSeconds", "lessonCompleted", "maximumVideoProgressPercent", "pauseCount", "replayCount", "visitCount"]);
+  assert.equal(records.size, 1);
+  assert.equal(records.get(`${ids.student}:${ids.course}:${ids.lesson}`).confusionFeedback, "clear");
+  assert.equal(records.get(`${ids.student}:${ids.course}:${ids.lesson}`).aiPrediction.prediction, "confused");
+});
+
+test("prediction requires authentication and rejects frontend identity", async () => {
+  assert.equal((await request("POST", `/api/learning-signals/${ids.course}/${ids.lesson}/prediction`, undefined)).status, 401);
+  const response = await request("POST", `/api/learning-signals/${ids.course}/${ids.lesson}/prediction`, { studentId: ids.otherStudent }, auth(ids.student, "student"));
+  assert.equal(response.status, 400);
+  assert.equal(predictionPayloads.length, 0);
+});
+
+test("repeated prediction updates the existing student-course-lesson record", async () => {
+  const token = auth(ids.student, "student");
+  assert.equal((await request("POST", `/api/learning-signals/${ids.course}/${ids.lesson}/prediction`, undefined, token)).status, 200);
+  global.fetch = async (_url, options) => { predictionPayloads.push(JSON.parse(options.body)); return { ok: true, status: 200, json: async () => ({ prediction: "clear", confusionProbability: 0.2, clearProbability: 0.8, modelVersion: "3b-v1" }) }; };
+  assert.equal((await request("POST", `/api/learning-signals/${ids.course}/${ids.lesson}/prediction`, undefined, token)).status, 200);
+  assert.equal(records.size, 1);
+  assert.equal(records.get(`${ids.student}:${ids.course}:${ids.lesson}`).aiPrediction.prediction, "clear");
+});
+
+test("prediction service failures are surfaced without changing signal data", async () => {
+  global.fetch = async () => { throw new Error("connection refused"); };
+  const response = await request("POST", `/api/learning-signals/${ids.course}/${ids.lesson}/prediction`, undefined, auth(ids.student, "student"));
+  assert.equal(response.status, 503);
+  assert.equal(records.size, 0);
 });
 
 test("concurrent upsert duplicate-key races retry without creating a second record", async () => {

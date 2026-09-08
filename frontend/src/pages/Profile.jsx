@@ -1,3 +1,4 @@
+import { clearSession } from "../utils/authClient";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FaArrowLeft, FaBookOpen, FaHeart, FaSave, FaUser } from "react-icons/fa";
@@ -20,8 +21,7 @@ async function authenticatedRequest(path, options = {}) {
   const data = await response.json().catch(() => ({}));
 
   if (response.status === 401) {
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
+    clearSession();
     window.location.replace("/auth");
     throw new Error("Your session expired");
   }

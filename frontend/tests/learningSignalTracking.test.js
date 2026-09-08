@@ -46,7 +46,7 @@ test("hook restores feedback, protects Strict Mode visits, batches, and flushes 
   assert.match(hook, /pagehide/);
   assert.match(hook, /flushRef\.current\(\{ keepalive: true \}\)/);
   assert.match(hook, /setSignal\(saved\)/);
-  assert.match(hook, /pending\.current\.[a-zA-Z]+[^]*fetch/);
+  assert.match(hook, /pending\.current\.[a-zA-Z]+[^]*sessionFetch/);
 });
 
 test("timeupdate accumulates locally and tracking failures cannot break lesson behavior", async () => {
@@ -68,4 +68,30 @@ test("lesson feedback is optional, accessible, persistent, and changeable", asyn
   assert.match(player, /saveFeedback\("confused"\)/);
   assert.match(player, /Saving…[^]*Saved/);
   assert.match(player, /activeTool==="content"/);
+});
+
+test("tutor applications are authenticated and not advertised in the public home navigation", async () => {
+  const app = await source("src/App.jsx");
+  const home = await source("src/pages/Home.jsx");
+  assert.match(app, /path="\/tutor-application" element=\{<RoleRoute user=\{user\} allowedRoles=\{\["student", "tutor"\]\}/);
+  assert.doesNotMatch(home, />For Instructors</);
+});
+
+test("confusion heatmap thresholds and insufficient-data copy are present", async () => {
+  const dashboard = await source("src/pages/TutorDashboard.jsx");
+  assert.match(dashboard, /0–39%/);
+  assert.match(dashboard, /40–69%/);
+  assert.match(dashboard, /70–100%/);
+  assert.match(dashboard, /Collecting data/);
+  assert.match(dashboard, /predictionCount<5/);
+  assert.doesNotMatch(dashboard, /window\.location\.reload\(\)/);
+});
+
+test("admin payment settings consume the nested settings response and checkout renders the QR payment panel", async () => {
+  const settings = await source("src/pages/AdminSettings.jsx");
+  const checkout = await source("src/pages/CheckoutPage.jsx");
+  assert.match(settings, /paymentData = payment\?\.settings \|\| payment/);
+  assert.match(settings, /paymentData = data\.settings \|\| data/);
+  assert.match(checkout, /payment-settings\/qr/);
+  assert.match(checkout, /Scan this QR code with your banking app to pay/);
 });

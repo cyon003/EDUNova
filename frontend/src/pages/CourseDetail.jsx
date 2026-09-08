@@ -27,6 +27,7 @@ import mathematicsImage from "../assets/images/mathematic.jpeg";
 import confusionTraining from "../data/confusionTraining";
 import {
   API_ROOT,
+  apiAssetUrl,
   courseDuration,
   courseThumbnail,
   formatCoursePrice,
@@ -152,6 +153,33 @@ function UnderstandingCheck({ course, lesson }) {
   );
 }
 
+function FreeLessonPreview({ courseSlug, lesson, enabled }) {
+  const [mediaUrl, setMediaUrl] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!enabled || !getLessonPrimaryMedia(lesson)) return undefined;
+    const controller = new AbortController();
+    const token = localStorage.getItem("token");
+    fetch(`${API_ROOT}/courses/${encodeURIComponent(courseSlug)}/lessons/0/media-access`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error("The free preview is unavailable.");
+        return response.json();
+      })
+      .then(({ url }) => setMediaUrl(url))
+      .catch((requestError) => { if (requestError.name !== "AbortError") setError(requestError.message); });
+    return () => controller.abort();
+  }, [courseSlug, enabled, lesson]);
+
+  if (!enabled) return null;
+  if (error) return <div className="lesson-media-unavailable">{error}</div>;
+  if (!mediaUrl) return <div className="lesson-media-unavailable">Loading free preview…</div>;
+  return <video controls preload="metadata" aria-label={`${lesson.title} free preview`}><source src={mediaUrl} type={getLessonPrimaryMedia(lesson)?.mimeType || "video/mp4"} />Your browser does not support HTML video.</video>;
+}
+
 function CourseLessons({
   course,
   enrolled,
@@ -193,6 +221,8 @@ function CourseLessons({
         <ol className="course-lesson-list">
           {lessons.map((lesson, index) => {
             const primaryMedia = getLessonPrimaryMedia(lesson);
+            const isFreePreview = index === 0;
+            const locked = course._restricted && !isFreePreview;
 
             return (
               <li
@@ -205,13 +235,14 @@ function CourseLessons({
                 </span>
 
                 <div className="course-lesson-video">
-                  {course._restricted ? (
-                    <div className="lesson-locked-placeholder">
-                      <FaLock />
-                      <span>
-                        Purchase this course to watch
-                      </span>
+                  {locked ? (
+                    <div className="lesson-locked-placeholder" aria-label={`Lesson ${index + 1} is locked until enrollment`}>
+                      {(lesson.posterUrl || course.thumbnail) && <img className="lesson-locked-poster" src={apiAssetUrl(lesson.posterUrl || course.thumbnail)} alt="" />}
+                      <span className="lesson-locked-play" aria-hidden="true"><FaPlay /></span>
+                      <span className="lesson-locked-overlay"><FaLock /><strong>Locked lesson</strong><small>Enroll to watch</small></span>
                     </div>
+                  ) : isFreePreview && primaryMedia ? (
+                    <FreeLessonPreview courseSlug={course.slug} lesson={lesson} enabled />
                   ) : primaryMedia ? (
                     <div className="lesson-media-unavailable">
                       Uploaded lesson video · Open the lesson to
@@ -237,12 +268,12 @@ function CourseLessons({
                     <FaClock /> {lesson.duration}
                   </small>
 
-                  {enrolled && (
+                  {(enrolled || isFreePreview) && (
                     <Link
                       className="lesson-player-link"
                       to={`/courses/${course.slug}/learn/${index + 1}`}
                     >
-                      <FaPlay /> Open lesson
+                      <FaPlay /> {isFreePreview && !enrolled ? "Watch free preview" : "Open lesson"}
                     </Link>
                   )}
 

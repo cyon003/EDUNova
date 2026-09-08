@@ -5,11 +5,13 @@ const Enrollment = require("../models/Enrollment");
 const LearningSignal = require("../models/LearningSignal");
 const authenticateToken = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
+const { requestPrediction } = require("../services/confusionPredictionService");
 
 const router = express.Router();
 const interactionFields = new Set(["maximumVideoProgressPercent", "activeTimeSecondsDelta", "pauseCountDelta", "replayCountDelta", "visitCountDelta"]);
 const feedbackFields = new Set(["feedback"]);
 const caps = { activeTimeSecondsDelta: 300, pauseCountDelta: 100, replayCountDelta: 100, visitCountDelta: 1 };
+const predictionFeatures = ["maximumVideoProgressPercent", "activeTimeSeconds", "pauseCount", "replayCount", "visitCount", "lessonCompleted"];
 
 router.use(authenticateToken);
 router.use(requireRole("student"));
@@ -99,6 +101,33 @@ router.patch("/:courseId/:lessonId/feedback", async (req, res) => {
     );
     return res.json(signal);
   } catch (error) { console.error("Update learning feedback error:", error); return res.status(500).json({ message: "Unable to save lesson feedback" }); }
+});
+
+router.post("/:courseId/:lessonId/prediction", async (req, res) => {
+  try {
+    if (req.body && Object.keys(req.body).length) return res.status(400).json({ message: "Prediction input is derived from the authenticated learning signal" });
+    const target = await authorizedSignalTarget(req, res); if (!target) return;
+    const filter = { student: req.user._id, course: target.course._id, lessonId: target.lesson._id };
+    const existing = await LearningSignal.findOne(filter);
+    const signal = existing || defaultSignal(target.course._id, target.lesson._id, target.enrollment.completedLessons?.includes(target.lessonIndex) || false);
+    const features = Object.fromEntries(predictionFeatures.map((field) => [field, signal[field]]));
+    const prediction = await requestPrediction(features);
+    if (!prediction || !["clear", "confused"].includes(prediction.prediction) || !Number.isFinite(Number(prediction.confusionProbability)) || !Number.isFinite(Number(prediction.clearProbability)) || typeof prediction.modelVersion !== "string" || !prediction.modelVersion) {
+      return res.status(502).json({ message: "Prediction service returned an invalid response" });
+    }
+    const aiPrediction = {
+      prediction: prediction.prediction,
+      confusionProbability: Number(prediction.confusionProbability),
+      clearProbability: Number(prediction.clearProbability),
+      modelVersion: prediction.modelVersion,
+      predictedAt: prediction.predictedAt ? new Date(prediction.predictedAt) : new Date(),
+    };
+    const saved = await safeUpsert(filter, { $set: { aiPrediction }, $setOnInsert: { confusionFeedback: null, feedbackUpdatedAt: null, lessonCompleted: signal.lessonCompleted } });
+    return res.json({ prediction: aiPrediction.prediction, confusionProbability: aiPrediction.confusionProbability, clearProbability: aiPrediction.clearProbability, modelVersion: aiPrediction.modelVersion, predictedAt: aiPrediction.predictedAt, confusionFeedback: saved.confusionFeedback ?? null });
+  } catch (error) {
+    console.error("Learning confusion prediction error:", error);
+    return res.status(error.status || 503).json({ message: "Confusion prediction service is unavailable" });
+  }
 });
 
 module.exports = router;

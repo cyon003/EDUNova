@@ -144,18 +144,6 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
             >
               General AI Tutor
             </Link>
-            <Link
-              to="/tutor-application"
-              className={activeTab === "instructors" ? "active" : undefined}
-              aria-current={activeTab === "instructors" ? "page" : undefined}
-              onClick={() => setActiveTab("instructors")}
-              onFocus={() => setActiveTab("instructors")}
-            >
-              For Instructors
-            </Link>
-            <a href="mailto:support@edunova.com" className={activeTab === "help" ? "active" : undefined} onClick={() => setActiveTab("help")} onFocus={() => setActiveTab("help")}>
-              Help
-            </a>
             <form className="home-nav-search" onSubmit={submitCourseSearch}>
               <FaSearch aria-hidden="true" />
               <input

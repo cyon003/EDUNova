@@ -101,6 +101,7 @@ const courseSchema = new mongoose.Schema(
           resourceId: { type: mongoose.Schema.Types.ObjectId, default: null },
         },
         primaryMediaRemoved: { type: Boolean, default: false },
+        posterUrl: { type: String, default: "", trim: true },
         references: [{
           label: { type: String, default: "Reference", trim: true, maxlength: 200 },
           url: { type: String, required: true, trim: true, maxlength: 2000 },

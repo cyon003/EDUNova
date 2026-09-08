@@ -67,6 +67,12 @@ def generated_paths():
     }
 
 
+def model_bundle_path():
+    version = os.getenv("MODEL_VERSION", "3b-v1")
+    configured = os.getenv("MODEL_BUNDLE_PATH")
+    return Path(configured) if configured else generated_paths()["models"] / f"confusion-random-forest-{version}.joblib"
+
+
 def runtime_versions():
     import sklearn
 

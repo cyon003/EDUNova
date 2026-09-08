@@ -31,13 +31,13 @@ Create `.env` locally from `.env.example`; do not commit it. Defaults require at
 Export and validate records:
 
 ```bash
-python export_dataset.py
+python export_dataset.py --course-id <COURSE_ID>
 ```
 
 Train and evaluate, only when minimum real-data requirements pass:
 
 ```bash
-python train_model.py
+python train_model.py --course-id <COURSE_ID>
 ```
 
 Run unit tests without MongoDB:
@@ -59,3 +59,25 @@ The saved joblib bundle contains the model and metadata: version, timestamp, exa
 ## Limitations
 
 Predictions will be risk estimates, not proof that a student is confused. Feedback may be sparse or subjective, and behavioural signals can be noisy. Reports do not export raw student IDs, but the source collection remains sensitive and must be access-controlled. Tutors make the final educational decision; the model does not automatically intervene or label a student.
+
+## MongoDB TLS certificates
+
+Atlas and other TLS connections use the `certifi` CA bundle so Python can verify server certificates on macOS. Install the service requirements after updating. Explicit `tlsCAFile` URI options are preserved for private certificate authorities; ordinary local MongoDB connections do not enable TLS automatically.
+
+## Phase 4 prediction service
+
+Install the requirements and start the service without retraining:
+
+```bash
+python app.py
+```
+
+The service loads `MODEL_BUNDLE_PATH` when set, otherwise the versioned bundle at `models/generated/confusion-random-forest-${MODEL_VERSION}.joblib`. It exposes `POST /predict` on port `5002` and accepts exactly the six feature fields listed above.
+
+Tutor analytics reads grouped course sections from `GET /api/tutor/analytics`. Only valid `aiPrediction` values are aggregated. Lessons with zero predictions are omitted from the lesson list; lessons with one to four predictions are shown as `Collecting data`; five or more predictions receive the green, yellow, or red confusion level.
+
+## Complete heatmap workflow
+
+Students generate a prediction after meaningful lesson activity, lesson completion, lesson exit, or clarity feedback. The browser deduplicates requests per authenticated student, course, lesson, and session. The backend stores the result in `aiPrediction` on the existing one-record-per-student-course-lesson learning signal; `confusionFeedback` remains the student's separate self-reported label.
+
+Tutors see aggregated lesson predictions through `GET /api/tutor/analytics` and the Analytics tab. Lessons with fewer than five valid predictions show `Not enough data`. Otherwise, 0–39% is green/low confusion, 40–69% is yellow/medium confusion, and 70–100% is red/high confusion. Run the confusion service, backend, and frontend locally before testing the workflow.

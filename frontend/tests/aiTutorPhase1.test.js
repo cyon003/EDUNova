@@ -26,3 +26,10 @@ test("Course Assistant lesson tab and active navigation are absent", async () =>
     assert.match(page, /AskAI/, path);
   }
 });
+
+test("order-success thumbnails use the configured API asset helper", async () => {
+  const page = await source("src/pages/OrderSuccess.jsx");
+  assert.match(page, /import \{ apiAssetUrl \} from "\.\.\/utils\/courseApi"/);
+  assert.match(page, /src=\{apiAssetUrl\(item\.course\.thumbnail\)\}/);
+  assert.doesNotMatch(page, /localhost:5050/);
+});

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { FaBookOpen, FaCheckCircle, FaHome, FaTrophy } from "react-icons/fa";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { apiAssetUrl } from "../utils/courseApi";
 import "../styles/OrderSuccess.css";
 
 export default function OrderSuccess() {
@@ -103,7 +104,7 @@ export default function OrderSuccess() {
               <div className="success-course-thumb">
                 {item.course.thumbnail
                   ? <img
-                      src={`${import.meta.env.VITE_API_ORIGIN || "http://localhost:5050"}${item.course.thumbnail}`}
+                      src={apiAssetUrl(item.course.thumbnail)}
                       alt={item.course.name}
                     />
                   : <FaBookOpen />

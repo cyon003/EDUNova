@@ -17,6 +17,14 @@ class GeneralAiTutorRoutesTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["service"], "edunova-general-ai-tutor")
 
+    def test_host_and_port_keep_safe_local_defaults_and_allow_configuration(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(chatbot.configured_host(), "127.0.0.1")
+            self.assertEqual(chatbot.configured_port(), 5001)
+        with patch.dict(os.environ, {"CHATBOT_HOST": "0.0.0.0", "CHATBOT_PORT": "6100"}, clear=True):
+            self.assertEqual(chatbot.configured_host(), "0.0.0.0")
+            self.assertEqual(chatbot.configured_port(), 6100)
+
     def test_chat_accepts_general_requests(self):
         generated = {"mode": "general", "answer": "A safe answer.", "responseType": "generated", "disclaimer": chatbot.GENERAL_DISCLAIMER}
         with patch.object(chatbot, "answer_general_question", return_value=generated) as answer:

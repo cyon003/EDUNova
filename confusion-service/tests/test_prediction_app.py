@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from app import ModelBundleError, create_app, load_model_bundle
+from app import ModelBundleError, configured_host, configured_port, create_app, load_model_bundle
 from confusion_ml.features import FEATURE_NAMES
 
 
@@ -55,8 +55,19 @@ class PredictionAppTests(unittest.TestCase):
         self.assertEqual(self.client.post("/predict", json=body).status_code, 400)
 
     def test_missing_bundle_has_clear_startup_error(self):
-        with self.assertRaisesRegex(ModelBundleError, "Model bundle is missing"):
+        with self.assertRaisesRegex(ModelBundleError, "Provision the trained bundle"):
             load_model_bundle("/tmp/edunova-missing-phase-4-bundle.joblib")
+
+    def test_host_and_port_keep_safe_local_defaults_and_allow_configuration(self):
+        import os
+        from unittest.mock import patch
+
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(configured_host(), "127.0.0.1")
+            self.assertEqual(configured_port(), 5002)
+        with patch.dict(os.environ, {"CONFUSION_HOST": "0.0.0.0", "CONFUSION_PORT": "6200"}, clear=True):
+            self.assertEqual(configured_host(), "0.0.0.0")
+            self.assertEqual(configured_port(), 6200)
 
     def test_invalid_bundle_has_clear_startup_error(self):
         with TemporaryDirectory() as directory:

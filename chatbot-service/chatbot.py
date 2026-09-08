@@ -54,6 +54,14 @@ GENERAL_SYSTEM_INSTRUCTION = """You are the EDUNova General AI Tutor. Follow the
 - When the current message is a follow-up, use the recent conversation to expand the earlier answer with new detail or examples instead of repeating it."""
 
 
+def configured_host():
+    return os.getenv("CHATBOT_HOST", "127.0.0.1").strip() or "127.0.0.1"
+
+
+def configured_port():
+    return _integer_setting("CHATBOT_PORT", 5001)
+
+
 def response_style(message):
     normalized = re.sub(r"\s+", " ", str(message or "").strip().lower())
     if re.search(r"\b(explain|say|put|make)\b.*\b(simply|simpler|simple terms)\b|\bsimplify\b", normalized):
@@ -294,7 +302,7 @@ app = create_app()
 
 if __name__ == "__main__":
     app.run(
-        host=os.getenv("CHATBOT_HOST", "127.0.0.1"),
-        port=_integer_setting("CHATBOT_PORT", 5001),
+        host=configured_host(),
+        port=configured_port(),
         debug=False,
     )

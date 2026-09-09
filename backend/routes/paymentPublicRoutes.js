@@ -1,18 +1,14 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
+const { uploadDirectory } = require("../config/storage");
 
 const PaymentSetting = require("../models/PaymentSetting");
 const authenticateToken = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-const paymentQrDirectory = path.join(
-  __dirname,
-  "..",
-  "uploads",
-  "payment-qr"
-);
+const paymentQrDirectory = uploadDirectory("payment-qr");
 
 // Students need to be logged in to see payment information.
 router.use(authenticateToken);

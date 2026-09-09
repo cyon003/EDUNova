@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import math
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,10 +20,21 @@ class ModelBundleError(RuntimeError):
     pass
 
 
+def configured_host():
+    return os.getenv("CONFUSION_HOST", "127.0.0.1").strip() or "127.0.0.1"
+
+
+def configured_port():
+    try:
+        return int(os.getenv("CONFUSION_PORT", "5002"))
+    except ValueError:
+        raise ValueError("CONFUSION_PORT must be an integer")
+
+
 def load_model_bundle(path=None):
     bundle_path = Path(path or model_bundle_path()).expanduser()
     if not bundle_path.is_file():
-        raise ModelBundleError(f"Model bundle is missing: {bundle_path}")
+        raise ModelBundleError(f"Model bundle is missing: {bundle_path}. Provision the trained bundle or set MODEL_BUNDLE_PATH to its mounted location.")
     try:
         bundle = joblib.load(bundle_path)
     except Exception as error:
@@ -103,4 +115,4 @@ if __name__ == "__main__":
         application = create_app()
     except ModelBundleError as error:
         raise SystemExit(f"Confusion service startup failed: {error}") from error
-    application.run(host="127.0.0.1", port=5002)
+    application.run(host=configured_host(), port=configured_port())

@@ -28,6 +28,7 @@ venv/
 .venv/
 __pycache__/
 *.py[cod]
+.pytest_cache/
 
 # Temporary and editor files
 *.tmp

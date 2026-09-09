@@ -6,6 +6,7 @@ const { execFile } = require("child_process");
 const { promisify } = require("util");
 const multer = require("multer");
 const bcrypt = require("bcryptjs");
+const { uploadDirectory } = require("../config/storage");
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
 const LearningSignal = require("../models/LearningSignal");
@@ -21,21 +22,17 @@ const LESSON_SUMMARY_MAX_LENGTH = 5000;
 const LESSON_TRANSCRIPT_MAX_LENGTH = 50000;
 const MAX_REFERENCES = 20;
 const mediaExtensions = new Set([".mp4", ".webm", ".ogv", ".mov", ".m4v", ".mp3", ".wav", ".m4a", ".ogg"]);
-const videoDirectory = path.join(__dirname, "..", "uploads", "course-videos");
-fs.mkdirSync(videoDirectory, { recursive: true });
-const posterDirectory = path.join(__dirname, "..", "uploads", "lesson-posters");
-fs.mkdirSync(posterDirectory, { recursive: true });
+const videoDirectory = uploadDirectory("course-videos");
+const posterDirectory = uploadDirectory("lesson-posters");
 const execFileAsync = promisify(execFile);
-const lessonResourceDirectory = path.join(__dirname, "..", "uploads", "lesson-resources");
-fs.mkdirSync(lessonResourceDirectory, { recursive: true });
+const lessonResourceDirectory = uploadDirectory("lesson-resources");
 function safeResourcePath(storedName) {
   if (typeof storedName !== "string" || !storedName || path.basename(storedName) !== storedName) throw new Error("unsafe_path");
   const resolved = path.resolve(lessonResourceDirectory, storedName);
   if (!resolved.startsWith(`${path.resolve(lessonResourceDirectory)}${path.sep}`)) throw new Error("unsafe_path");
   return resolved;
 }
-const coverDirectory = path.join(__dirname, "..", "uploads", "course-covers");
-fs.mkdirSync(coverDirectory, { recursive: true });
+const coverDirectory = uploadDirectory("course-covers");
 const uploadCover = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, callback) => callback(null, coverDirectory),
@@ -44,8 +41,7 @@ const uploadCover = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, callback) => callback(null, file.mimetype.startsWith("image/")),
 });
-const profilePhotoDirectory = path.join(__dirname, "..", "uploads", "profile-photos");
-fs.mkdirSync(profilePhotoDirectory, { recursive: true });
+const profilePhotoDirectory = uploadDirectory("profile-photos");
 const uploadProfilePhoto = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, callback) => callback(null, profilePhotoDirectory),

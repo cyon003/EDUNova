@@ -38,11 +38,13 @@ test("tutor create and edit forms submit summary and transcript with limits", as
   assert.match(dashboard, /method:"PATCH"/);
 });
 
-test("mock summary storage is removed and Personal Notes remains available", async () => {
+test("mock summary storage is removed and Personal Notes are editable in the lesson", async () => {
   const player = await source("src/pages/LessonPlayer.jsx");
   const dashboard = await source("src/pages/StudentDashboard.jsx");
   assert.match(player, /Personal Notes/);
-  assert.match(player, /Dashboard → Notes/);
+  assert.match(player, /function LessonNotes/);
+  assert.match(player, /API_ROOT}\/notes/);
+  assert.match(player, /Save note/);
   assert.doesNotMatch(dashboard, /const summarizedNotes/);
   await assert.rejects(source("src/utils/summaryService.js"));
 });

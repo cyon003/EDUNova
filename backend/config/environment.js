@@ -35,4 +35,10 @@ function allowedOrigins() {
   return new Set(configured);
 }
 
-module.exports = { validateEnvironment, allowedOrigins };
+function trustProxySetting() {
+  const configured = String(process.env.TRUST_PROXY || "").trim().toLowerCase();
+  // Trust only one explicit reverse-proxy hop. Never trust all proxies by default.
+  return configured === "1" || configured === "true" ? 1 : false;
+}
+
+module.exports = { validateEnvironment, allowedOrigins, trustProxySetting };

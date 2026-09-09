@@ -1,6 +1,7 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
+const { uploadDirectory } = require("../config/storage");
 
 const Order = require("../models/Order");
 const Enrollment = require("../models/Enrollment");
@@ -27,12 +28,7 @@ const requireAdmin = (req, res, next) => {
 
 const adminMiddleware = [authenticateToken, requireAdmin];
 
-const paymentSlipDirectory = path.join(
-  __dirname,
-  "..",
-  "uploads",
-  "payment-slips"
-);
+const paymentSlipDirectory = uploadDirectory("payment-slips");
 
 /*
 |--------------------------------------------------------------------------

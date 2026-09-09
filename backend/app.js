@@ -1,9 +1,9 @@
-const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 
-const { allowedOrigins } = require("./config/environment");
+const { allowedOrigins, trustProxySetting } = require("./config/environment");
+const { uploadDirectory } = require("./config/storage");
 const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const courseRoutes = require("./routes/courseRoutes");
@@ -31,6 +31,7 @@ const app = express();
 const configuredOrigins = allowedOrigins();
 
 app.disable("x-powered-by");
+app.set("trust proxy", trustProxySetting());
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(cors({
   origin(origin, callback) {
@@ -44,9 +45,9 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization", "X-Application-Token"],
 }));
 app.use(express.json({ limit: "1mb" }));
-app.use("/uploads/course-covers", express.static(path.join(__dirname, "uploads", "course-covers")));
-app.use("/uploads/lesson-posters", express.static(path.join(__dirname, "uploads", "lesson-posters")));
-app.use("/uploads/profile-photos", express.static(path.join(__dirname, "uploads", "profile-photos")));
+app.use("/uploads/course-covers", express.static(uploadDirectory("course-covers")));
+app.use("/uploads/lesson-posters", express.static(uploadDirectory("lesson-posters")));
+app.use("/uploads/profile-photos", express.static(uploadDirectory("profile-photos")));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);

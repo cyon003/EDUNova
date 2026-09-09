@@ -15,7 +15,6 @@ import {
 } from "react-icons/fa";
 import mathematicsImage from "../assets/images/mathematic.jpeg";
 import "../styles/Home.css";
-import LanguagePreference from "../components/LanguagePreference";
 import { courseDuration, courseThumbnail, formatCoursePrice, getPublicCourses } from "../utils/courseApi";
 import { CourseList } from "./Courses";
 
@@ -142,8 +141,19 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
               onClick={() => setActiveTab("chatbot")}
               onFocus={() => setActiveTab("chatbot")}
             >
-              General AI Tutor
+              AskAI
             </Link>
+            <Link
+              to="/#popular"
+              className={activeTab === "popular" ? "active" : undefined}
+              aria-current={activeTab === "popular" ? "page" : undefined}
+              onClick={() => setActiveTab("popular")}
+              onFocus={() => setActiveTab("popular")}
+            >
+              Popular Courses
+            </Link>
+          </div>
+          <div className="home-nav-actions">
             <form className="home-nav-search" onSubmit={submitCourseSearch}>
               <FaSearch aria-hidden="true" />
               <input
@@ -154,11 +164,10 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
                 onChange={(event) => setNavSearch(event.target.value)}
               />
             </form>
+            <Link to="/auth" className="home-get-started">
+              Get Started
+            </Link>
           </div>
-          <LanguagePreference />
-          <Link to="/auth" className="home-get-started">
-            Get Started
-          </Link>
         </nav>
       )}
       {popularCourses.length > 0 && <section className="home-intro" aria-label="Popular course highlights">

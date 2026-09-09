@@ -55,7 +55,7 @@ General AI Tutor requests contain no course identifiers, lesson identifiers, doc
 
 ## Lesson resources
 
-The complete `backend/uploads` directory must be persistent and writable by Express. It contains course media, lesson resources, payment QR images, payment slips, profile photos, and tutor-application files. Keep it outside the public deployment artifact and back it up together with MongoDB. Generated stored names are resolved only inside approved upload directories; unsafe paths are rejected. Resource contents are not extracted or sent to Gemini.
+Leave `UPLOAD_ROOT` empty in local development to use `backend/uploads`. In production, mount persistent storage and set an absolute path such as `UPLOAD_ROOT=/persistent/edunova/uploads`. At startup, Express creates the required subdirectories (`course-covers`, `course-videos`, `lesson-posters`, `lesson-resources`, `payment-qr`, `payment-slips`, `profile-photos`, and `tutor-applications`) beneath that root. The mounted root must be readable and writable by the operating-system user running Express; do not make payment slips or tutor-application files public at the reverse proxy. Back up the complete upload root together with MongoDB, since database records reference its generated filenames. Generated stored names are resolved only inside approved upload directories; unsafe paths are rejected. Resource contents are not extracted or sent to Gemini.
 
 ## Confusion prediction service
 

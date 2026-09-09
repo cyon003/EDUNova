@@ -6,17 +6,17 @@ const multer = require("multer");
 const TutorApplication = require("../models/TutorApplication");
 const authenticateToken = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
+const { uploadDirectory } = require("../config/storage");
 
 const router = express.Router();
 const applicantOnly = [authenticateToken, requireRole("student", "tutor")];
-const uploadDirectory = path.join(__dirname, "..", "uploads", "tutor-applications");
-fs.mkdirSync(uploadDirectory, { recursive: true });
+const tutorApplicationDirectory = uploadDirectory("tutor-applications");
 
 const allowedDocumentTypes = new Set(["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]);
 const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const upload = multer({
   storage: multer.diskStorage({
-    destination: (_req, _file, callback) => callback(null, uploadDirectory),
+    destination: (_req, _file, callback) => callback(null, tutorApplicationDirectory),
     filename: (_req, file, callback) => callback(null, `${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`),
   }),
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -132,7 +132,7 @@ router.delete("/applications/:applicationId", ...applicantOnly, async (req, res)
     const application = await findTrackedApplication(req, res);
     if (!application) return undefined;
     for (const document of [application.cv, application.certificate, application.identityPhoto]) {
-      if (document?.storedName) fs.unlink(path.join(uploadDirectory, document.storedName), () => {});
+      if (document?.storedName) fs.unlink(path.join(tutorApplicationDirectory, document.storedName), () => {});
     }
     await application.deleteOne();
     return res.status(204).end();
@@ -148,7 +148,7 @@ router.get("/documents/:applicationId/:kind", authenticateToken, async (req, res
     const application = await TutorApplication.findById(req.params.applicationId);
     const document = application?.[req.params.kind];
     if (!document?.storedName) return res.status(404).json({ message: "Document not found" });
-    return res.download(path.join(uploadDirectory, document.storedName), document.originalName);
+    return res.download(path.join(tutorApplicationDirectory, document.storedName), document.originalName);
   } catch (error) {
     return res.status(500).json({ message: "Unable to download document", error: error.message });
   }

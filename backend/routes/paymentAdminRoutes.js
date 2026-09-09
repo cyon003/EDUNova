@@ -3,6 +3,7 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
+const { uploadDirectory } = require("../config/storage");
 
 const PaymentSetting = require("../models/PaymentSetting");
 const authenticateToken = require("../middleware/authMiddleware");
@@ -15,14 +16,7 @@ const adminOnly = [
   requireRole("admin"),
 ];
 
-const uploadDirectory = path.join(
-  __dirname,
-  "..",
-  "uploads",
-  "payment-qr"
-);
-
-fs.mkdirSync(uploadDirectory, { recursive: true });
+const paymentQrDirectory = uploadDirectory("payment-qr");
 
 const allowedQrTypes = new Set([
   "image/jpeg",
@@ -33,7 +27,7 @@ const allowedQrTypes = new Set([
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, callback) => {
-      callback(null, uploadDirectory);
+      callback(null, paymentQrDirectory);
     },
 
     filename: (_req, file, callback) => {
@@ -188,7 +182,7 @@ router.post(
       // Remove the previous QR image when replacing it.
       if (settings.qrCode?.storedName) {
         const previousFile = path.join(
-          uploadDirectory,
+          paymentQrDirectory,
           settings.qrCode.storedName
         );
 
@@ -260,7 +254,7 @@ router.get(
       }
 
       const filePath = path.join(
-        uploadDirectory,
+        paymentQrDirectory,
         settings.qrCode.storedName
       );
 

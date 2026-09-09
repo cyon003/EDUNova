@@ -6,18 +6,18 @@ const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
 const authenticateToken = require("../middleware/authMiddleware");
 const { restrictCourseContent } = require("../utils/courseAccess");
+const { uploadDirectory } = require("../config/storage");
 
 const router = express.Router();
 
 // A course is discoverable only after its first lesson is ready. This prevents
 // students from enrolling in a published shell with no learning content.
 const publiclyVisible = { moderationStatus: "published", "lessons.0": { $exists: true } };
-const uploadRoot = path.resolve(__dirname, "..", "uploads");
 const mediaExtensions = /\.(mp4|webm|ogv|mov|m4v|mp3|wav|m4a|ogg)$/i;
 
 function safeUploadPath(storage, storedName) {
   if (!["course-videos", "lesson-resources"].includes(storage) || !storedName || path.basename(storedName) !== storedName) throw new Error("unsafe_path");
-  const directory = path.join(uploadRoot, storage);
+  const directory = uploadDirectory(storage);
   const resolved = path.resolve(directory, storedName);
   if (!resolved.startsWith(`${directory}${path.sep}`)) throw new Error("unsafe_path");
   return resolved;

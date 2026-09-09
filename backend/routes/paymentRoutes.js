@@ -3,6 +3,7 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
+const { uploadDirectory } = require("../config/storage");
 
 const Order = require("../models/Order");
 const authenticateToken = require("../middleware/authMiddleware");
@@ -15,14 +16,7 @@ const studentOnly = [
   requireRole("student", "tutor"),
 ];
 
-const uploadDirectory = path.join(
-  __dirname,
-  "..",
-  "uploads",
-  "payment-slips"
-);
-
-fs.mkdirSync(uploadDirectory, { recursive: true });
+const paymentSlipDirectory = uploadDirectory("payment-slips");
 
 const allowedTypes = new Set([
   "image/jpeg",
@@ -34,7 +28,7 @@ const allowedTypes = new Set([
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, callback) => {
-      callback(null, uploadDirectory);
+      callback(null, paymentSlipDirectory);
     },
 
     filename: (_req, file, callback) => {
@@ -110,7 +104,7 @@ router.post(
       // remove the previous stored file first.
       if (order.paymentSlip?.storedName) {
         const previousFile = path.join(
-          uploadDirectory,
+          paymentSlipDirectory,
           order.paymentSlip.storedName
         );
 

@@ -83,7 +83,7 @@ cd ../confusion-service
 gunicorn --workers 2 --bind "${CONFUSION_HOST:-127.0.0.1}:${CONFUSION_PORT:-5002}" 'app:create_app()'
 ```
 
-Set `PYTHON_CHATBOT_URL` and `PYTHON_CONFUSION_URL` in Express to the corresponding private service URLs. Set `TRUST_PROXY=1` only when Express runs behind one trusted HTTPS reverse proxy. `backend/uploads` must be persistent, and the ignored confusion model bundle must be provisioned separately or selected with `MODEL_BUNDLE_PATH`.
+Set `PYTHON_CHATBOT_URL` and `PYTHON_CONFUSION_URL` in Express to the corresponding private service URLs. Set `TRUST_PROXY=1` only when Express runs behind one trusted HTTPS reverse proxy. Leave `UPLOAD_ROOT` empty locally to use `backend/uploads`; in production set it to an absolute persistent-disk mount such as `/persistent/edunova/uploads`. The backend creates its required subdirectories, but the mount must be readable and writable by the Express process. Back up that directory with MongoDB because stored database filenames refer to its contents. The ignored confusion model bundle must be provisioned separately or selected with `MODEL_BUNDLE_PATH`.
 
 Express verifies the JWT, applies the General AI Tutor rate limit, loads only that user’s bounded general-mode history, and sends the question and context to the private Flask service. Course identifiers, lesson identifiers, documents, sources, follow-up retrieval metadata, and `mode=course` are rejected. Answers are labeled as unverified general knowledge. Existing course-mode records are left untouched until an approved database migration.
 

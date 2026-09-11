@@ -13,6 +13,12 @@ const { attachMessageSocket } = require("./realtime/messageSocket");
 async function startServer() {
   const { port } = validateEnvironment();
   await mongoose.connect(process.env.MONGO_URI);
+  if (process.env.NODE_ENV === "production") {
+    const topology = await mongoose.connection.db.admin().command({ hello: 1 });
+    if (!topology.setName && topology.msg !== "isdbgrid") {
+      throw new Error("Production MongoDB must support transactions. Use a replica set or MongoDB Atlas.");
+    }
+  }
   await Promise.all([TutorApplication.syncIndexes(), RefreshSession.syncIndexes(), LearningSignal.syncIndexes()]);
   console.log("MongoDB Connected");
 

@@ -3,6 +3,7 @@ import { FaComments, FaPaperPlane, FaSearch, FaTimes, FaTrash } from "react-icon
 import { io } from "socket.io-client";
 import "../styles/MessageBox.css";
 
+import { socketAuthentication } from "../utils/authClient";
 import { API_ROOT } from "../utils/courseApi";
 
 const API_URL = `${API_ROOT}/messages`;
@@ -148,7 +149,7 @@ function MessageBox() {
   useEffect(() => {
     if (!token || !userId) return undefined;
     const socket = io(SOCKET_URL || undefined, {
-      auth: { token },
+      auth: (callback) => { socketAuthentication().then(callback).catch(() => callback({ token: "" })); },
       transports: ["websocket", "polling"],
       reconnection: true,
     });
@@ -160,6 +161,7 @@ function MessageBox() {
     };
 
     socket.on("connect", recoverFromRest);
+    socket.on("disconnect", (reason) => { if (reason === "io server disconnect") socket.connect(); });
     socket.on("message:new", (message) => {
       const senderId = String(message.sender);
       const recipientId = String(message.recipient);

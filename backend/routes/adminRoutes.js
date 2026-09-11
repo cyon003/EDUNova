@@ -625,7 +625,7 @@ router.get("/settings", async (req, res) => {
 
 router.patch("/settings", async (req, res) => {
   try {
-    const allowed = ["maxEnrollment", "minPassScore", "approvalRequired", "allowSelfEnroll", "sessionTimeout", "maxLoginAttempts", "categories"];
+    const allowed = ["maxEnrollment", "approvalRequired", "allowSelfEnroll", "sessionTimeout", "maxLoginAttempts", "categories"];
     const update = Object.fromEntries(allowed.filter((key) => req.body[key] !== undefined).map((key) => [key, req.body[key]]));
     const settings = await PlatformSetting.findOneAndUpdate({ key: "platform" }, update, { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true });
     await recordAudit(req.user._id, "Updated platform settings", Object.keys(update).join(", "));

@@ -1,0 +1,22 @@
+[Unit]
+Description=EDUNova private Gemini General AI Tutor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=edunova
+Group=edunova
+WorkingDirectory=/srv/edunova/chatbot-service
+EnvironmentFile=/etc/edunova/chatbot.env
+ExecStart=/srv/edunova/chatbot-service/venv/bin/gunicorn --workers 2 --bind 127.0.0.1:5001 chatbot:app
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

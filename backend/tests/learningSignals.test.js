@@ -11,6 +11,8 @@ process.env.JWT_SECRET = "learning-signal-test-secret-at-least-32-characters";
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
 const LearningSignal = require("../models/LearningSignal");
+const Note = require("../models/Note");
+const Notification = require("../models/Notification");
 const User = require("../models/User");
 const app = require("../app");
 
@@ -51,14 +53,16 @@ function request(method, pathname, body, token) {
 
 test.before(async () => {
   originals.userFind = User.findById; originals.courseFindById = Course.findById; originals.courseFindOne = Course.findOne;
-  originals.enrollmentFindOne = Enrollment.findOne; originals.enrollmentFindOneAndUpdate = Enrollment.findOneAndUpdate; originals.enrollmentExists = Enrollment.exists;
+  originals.enrollmentFindOne = Enrollment.findOne; originals.enrollmentFindOneAndUpdate = Enrollment.findOneAndUpdate; originals.enrollmentExists = Enrollment.exists; originals.enrollmentDelete = Enrollment.deleteMany;
   originals.signalFindOne = LearningSignal.findOne; originals.signalUpdate = LearningSignal.findOneAndUpdate; originals.signalBulk = LearningSignal.bulkWrite; originals.signalDelete = LearningSignal.deleteMany;
+  originals.noteDelete = Note.deleteMany; originals.notificationDelete = Notification.deleteMany;
   originalFetch = global.fetch;
   User.findById = () => ({ select: async () => currentUser });
   Course.findById = async (id) => String(id) === ids.course ? activeCourse : null;
   Course.findOne = async () => activeCourse;
   Enrollment.findOne = async () => enrolled ? { student: currentUser._id, course: ids.course } : null;
   Enrollment.exists = async () => false;
+  Enrollment.deleteMany = async () => ({ deletedCount: 1 });
   Enrollment.findOneAndUpdate = () => ({ populate: async () => ({ completedLessons: [0], course: activeCourse }) });
   LearningSignal.findOne = async (filter) => records.get(recordKey(filter)) || null;
   LearningSignal.findOneAndUpdate = async (filter, update) => {
@@ -71,13 +75,16 @@ test.before(async () => {
   };
   LearningSignal.bulkWrite = async (operations) => { bulkOperations = operations; return { modifiedCount: operations.length }; };
   LearningSignal.deleteMany = async (filter) => { deletedFilters.push(filter); return { deletedCount: 1 }; };
+  Note.deleteMany = async () => ({ deletedCount: 1 });
+  Notification.deleteMany = async () => ({ deletedCount: 1 });
   server = app.listen(0, "127.0.0.1"); await new Promise((resolve) => server.once("listening", resolve));
 });
 
 test.after(async () => {
   User.findById = originals.userFind; Course.findById = originals.courseFindById; Course.findOne = originals.courseFindOne;
-  Enrollment.findOne = originals.enrollmentFindOne; Enrollment.findOneAndUpdate = originals.enrollmentFindOneAndUpdate; Enrollment.exists = originals.enrollmentExists;
+  Enrollment.findOne = originals.enrollmentFindOne; Enrollment.findOneAndUpdate = originals.enrollmentFindOneAndUpdate; Enrollment.exists = originals.enrollmentExists; Enrollment.deleteMany = originals.enrollmentDelete;
   LearningSignal.findOne = originals.signalFindOne; LearningSignal.findOneAndUpdate = originals.signalUpdate; LearningSignal.bulkWrite = originals.signalBulk; LearningSignal.deleteMany = originals.signalDelete;
+  Note.deleteMany = originals.noteDelete; Notification.deleteMany = originals.notificationDelete;
   global.fetch = originalFetch;
   await new Promise((resolve) => server.close(resolve));
 });
@@ -215,7 +222,7 @@ test("lesson and course deletion clean signals while resource deletion preserves
   activeCourse.lessons[0].resources.id = (id) => activeCourse.lessons[0].resources.find((item) => String(item._id) === String(id));
   assert.equal((await request("DELETE", `/api/tutor/courses/${ids.course}/lessons/${ids.lesson}/resources/${ids.otherLesson}`, undefined, tutorToken)).status, 200);
   assert.equal(deletedFilters.length, 0);
-  activeCourse = fakeCourse(); deletedFilters = [];
+  activeCourse = fakeCourse(); activeCourse.moderationStatus = "unpublished"; deletedFilters = [];
   assert.equal((await request("DELETE", `/api/tutor/courses/${ids.course}`, undefined, tutorToken)).status, 204);
   assert.deepEqual(deletedFilters.at(-1), { course: ids.course });
   const adminSource = await fs.promises.readFile(path.join(__dirname, "..", "routes", "adminRoutes.js"), "utf8");

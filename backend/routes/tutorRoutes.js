@@ -1,3 +1,4 @@
+const PlatformSetting = require("../models/PlatformSetting");
 const express = require("express");
 const crypto = require("crypto");
 const fs = require("fs");
@@ -10,6 +11,8 @@ const { uploadDirectory } = require("../config/storage");
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
 const LearningSignal = require("../models/LearningSignal");
+const Note = require("../models/Note");
+const Notification = require("../models/Notification");
 const User = require("../models/User");
 const { notifyCourseSubmitted } = require("../services/notificationService");
 const authenticateToken = require("../middleware/authMiddleware");
@@ -170,14 +173,17 @@ router.patch("/courses/:courseId", uploadCover.single("cover"), async (req, res)
     const update = {};
     allowed.forEach((key) => { if (req.body[key] !== undefined) update[key] = req.body[key]; });
     if (req.file) update.thumbnail = `${req.protocol}://${req.get("host")}/uploads/course-covers/${req.file.filename}`;
-    if (req.body.action === "publish") update.moderationStatus = "pending";
+    if (req.body.action === "publish") {
+      const settings = await PlatformSetting.findOne({ key: "platform" }).lean();
+      update.moderationStatus = settings?.approvalRequired === false ? "published" : "pending";
+    }
     if (req.body.action === "unpublish") update.moderationStatus = "unpublished";
     const currentCourse = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id }).select("moderationStatus name tutor");
     if (!currentCourse) return res.status(404).json({ message: "Course not found" });
     if (!req.body.action && Object.keys(update).length && currentCourse.moderationStatus !== "rejected") update.moderationStatus = "unpublished";
     const course = await Course.findOneAndUpdate({ _id: req.params.courseId, tutor: req.user._id }, { $set: update }, { new: true, runValidators: true });
     if (!course) return res.status(404).json({ message: "Course not found" });
-    if (req.body.action === "publish") {
+    if (update.moderationStatus === "pending") {
       const resubmitted = currentCourse.moderationStatus === "rejected";
       await notifyCourseSubmitted({ user: req.user._id, course, resubmitted });
     }
@@ -189,8 +195,15 @@ router.delete("/courses/:courseId", async (req, res) => {
   try {
     const course = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id });
     if (!course) return res.status(404).json({ message: "Course not found" });
-    if (await Enrollment.exists({ course: course._id })) return res.status(409).json({ message: "Archive courses that already have students" });
-    await LearningSignal.deleteMany({ course: course._id });
+    if (course.moderationStatus !== "unpublished") {
+      return res.status(409).json({ message: "Unpublish this course before deleting it" });
+    }
+    await Promise.all([
+      Enrollment.deleteMany({ course: course._id }),
+      LearningSignal.deleteMany({ course: course._id }),
+      Note.deleteMany({ course: course._id }),
+      Notification.deleteMany({ course: course._id }),
+    ]);
     await course.deleteOne();
     return res.status(204).end();
   } catch (error) { return res.status(500).json({ message: "Unable to delete course", error: error.message }); }

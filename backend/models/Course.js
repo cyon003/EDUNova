@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const courseSchema = new mongoose.Schema(
   {
+    enrollmentRevision: { type: Number, default: 0, select: false },
     slug: {
       type: String,
       required: true,

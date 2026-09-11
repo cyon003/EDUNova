@@ -28,7 +28,20 @@ function readObject(key) {
 
 function LessonNotes({ courseSlug, lessonIndex, lesson, user }) {
   const [notes, setNotes] = useState([]); const [title, setTitle] = useState(`${lesson.title} notes`); const [body, setBody] = useState(""); const [editingId, setEditingId] = useState(""); const [status, setStatus] = useState(""); const token = localStorage.getItem("token");
-  useEffect(() => { setTitle(`${lesson.title} notes`); setBody(""); setEditingId(""); setStatus(""); if (!token || user?.role !== "student") { setNotes([]); return; } const controller = new AbortController(); fetch(`${API_ROOT}/notes`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }).then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load notes"))).then((items) => setNotes(items.filter((item) => item.course?.slug === courseSlug && item.lessonIndex === lessonIndex))).catch((error) => { if (error.name !== "AbortError") setStatus(error.message); }); return () => controller.abort(); }, [courseSlug, lessonIndex, lesson.title, token, user?.role]);
+  useEffect(() => {
+    if (!token || user?.role !== "student") return undefined;
+    const controller = new AbortController();
+    fetch(`${API_ROOT}/notes`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load notes")))
+      .then((items) => setNotes(items.filter((item) => item.course?.slug === courseSlug && item.lessonIndex === lessonIndex)))
+      .catch((error) => {
+        if (error.name !== "AbortError") setStatus(error.message);
+      });
+    return () => controller.abort();
+  }, [courseSlug, lessonIndex, token, user?.role]);
   if (!token || user?.role !== "student") return <div className="lesson-tool-placeholder"><h3>Personal Notes</h3><p>Sign in as a student to save notes for this lesson.</p></div>;
   const saveNote = async (event) => { event.preventDefault(); setStatus(""); const response = await fetch(`${API_ROOT}/notes${editingId ? `/${editingId}` : ""}`, { method: editingId ? "PATCH" : "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ title, body, courseSlug, lessonIndex, lessonTitle: lesson.title }) }); const data = await response.json(); if (!response.ok) { setStatus(data.message || "Unable to save note"); return; } setNotes((current) => editingId ? current.map((item) => item._id === data._id ? data : item) : [data, ...current]); setEditingId(""); setTitle(`${lesson.title} notes`); setBody(""); setStatus("Note saved"); };
   const deleteNote = async (noteId) => { const response = await fetch(`${API_ROOT}/notes/${noteId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }); if (!response.ok) { setStatus("Unable to delete note"); return; } setNotes((current) => current.filter((item) => item._id !== noteId)); };
@@ -248,7 +261,7 @@ function LessonPlayer() {
           {activeTool==="content"&&<section className="lesson-clarity-feedback" aria-labelledby="lesson-clarity-title"><div><h3 id="lesson-clarity-title">Was this lesson clear?</h3><p>Your answer is optional and helps your tutor improve the course.</p></div><div role="group" aria-label="Lesson clarity feedback"><button type="button" className={learningSignal.signal.confusionFeedback==="clear"?"selected":""} aria-pressed={learningSignal.signal.confusionFeedback==="clear"} disabled={learningSignal.feedbackState==="saving"} onClick={()=>learningSignal.saveFeedback("clear")}>Clear</button><button type="button" className={learningSignal.signal.confusionFeedback==="confused"?"selected":""} aria-pressed={learningSignal.signal.confusionFeedback==="confused"} disabled={learningSignal.feedbackState==="saving"} onClick={()=>learningSignal.saveFeedback("confused")}>I’m confused</button></div><small className={learningSignal.feedbackState==="error"?"error":""} role="status" aria-live="polite">{learningSignal.feedbackState==="saving"?"Saving…":learningSignal.feedbackState==="saved"?"Saved":learningSignal.feedbackState==="error"?learningSignal.trackingError:""}</small><small role="status" aria-live="polite">{learningSignal.predictionState==="loading"?"Reviewing your lesson activity…":learningSignal.predictionState==="success"?"Lesson activity reviewed.":learningSignal.predictionState==="error"?"Lesson activity review is unavailable.":""}</small></section>}
           {activeTool==="summary"&&<LessonSummaryPanel lesson={lesson}/>}
           {activeTool==="transcript"&&transcriptSupported&&<VideoTranscriptPanel lesson={lesson}/>}
-          {activeTool==="notes"&&<LessonNotes courseSlug={courseSlug} lessonIndex={lessonIndex} lesson={lesson} user={user} />}
+          {activeTool==="notes"&&<LessonNotes key={JSON.stringify([user?.id, user?.role, courseSlug, lessonIndex, lesson.title])} courseSlug={courseSlug} lessonIndex={lessonIndex} lesson={lesson} user={user} />}
           <footer>
             <button type="button" onClick={() => openLesson(lessonIndex - 1)} disabled={lessonIndex === 0}><FaChevronLeft /> Previous lesson</button>
             <Link to={`/courses/${courseSlug}`}>Course overview</Link>

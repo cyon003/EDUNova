@@ -1,4 +1,53 @@
-# EDUNova production setup
+# EDUNova production setup for an Azure Linux VM
+
+This runbook prepares one HTTPS VM deployment. It does not copy real secrets
+into the repository and it assumes MongoDB Atlas or a MongoDB replica set.
+EDUNova uses database transactions for checkout and payment approval, so a
+standalone MongoDB server is deliberately rejected in production.
+
+## Deployment layout and prerequisites
+
+Use Ubuntu LTS or another supported Azure Linux image, open only TCP 22, 80,
+and 443 in the Azure network security group, and use SSH keys. Keep ports
+5050, 5001, and 5002 private on loopback. Point DNS for the chosen domain at
+the VM before enabling the TLS certificate.
+
+Install Node.js 20+, Python 3.10+, Nginx, Certbot, Git, and MongoDB tooling.
+Create a service account and writable upload/model locations:
+
+```bash
+sudo useradd --system --create-home --shell /usr/sbin/nologin edunova
+sudo install -d -o edunova -g edunova -m 0750 /srv/edunova /srv/edunova/uploads /srv/edunova/models
+sudo install -d -o root -g edunova -m 0750 /etc/edunova
+sudo -u edunova git clone <YOUR_PRIVATE_REPOSITORY_URL> /srv/edunova
+```
+
+Use a transaction-capable `MONGO_URI`: MongoDB Atlas provides this by default;
+a self-hosted single VM needs MongoDB configured as a single-member replica
+set. The backend verifies that production MongoDB supports transactions during
+startup.
+
+## Initial install
+
+```bash
+cd /srv/edunova/backend && npm ci
+cd /srv/edunova/frontend && npm ci && npm run build
+cd /srv/edunova/chatbot-service && python3 -m venv venv && venv/bin/pip install -r requirements.txt
+cd /srv/edunova/confusion-service && python3 -m venv venv && venv/bin/pip install -r requirements.txt
+```
+
+Copy the already trained `confusion-random-forest-3b-v1.joblib` through a
+secure operator channel to `/srv/edunova/models/`, then make it readable by
+the service account but not the public:
+
+```bash
+sudo install -o edunova -g edunova -m 0640 /secure/source/confusion-random-forest-3b-v1.joblib /srv/edunova/models/confusion-random-forest-3b-v1.joblib
+```
+
+Generated model files are ignored by Git. Do not retrain or substitute a model
+during deployment. The saved bundle was created with Python 3.10.11 and
+scikit-learn 1.7.2; install the locked compatible environment and confirm the
+model health endpoint before enabling the backend.
 
 ## Backend environment
 
@@ -15,8 +64,45 @@ Production requires:
 - `PYTHON_CONFUSION_URL` pointing to the private confusion-prediction service
 - a suitable `PYTHON_CHATBOT_TIMEOUT_MS` and assistant rate limit
 - `AI_GENERAL_RATE_LIMIT_PER_MINUTE`
+- an absolute, writable `UPLOAD_ROOT=/srv/edunova/uploads`
+- transactional MongoDB (Atlas or a replica set)
 
 Never commit the real `.env` file or email app password.
+
+Store environment files outside the release tree. For example,
+`/etc/edunova/backend.env` must contain these values with real values supplied
+by the operator:
+
+```env
+NODE_ENV=production
+PORT=5050
+TRUST_PROXY=1
+MONGO_URI=<transaction-capable MongoDB connection string>
+JWT_SECRET=<at least 32 random characters>
+FRONTEND_URL=https://example.com
+CORS_ORIGINS=https://example.com
+UPLOAD_ROOT=/srv/edunova/uploads
+ACCESS_TOKEN_EXPIRES_IN=15m
+REFRESH_TOKEN_EXPIRES_DAYS=30
+REFRESH_COOKIE_NAME=edunova_refresh
+PYTHON_CHATBOT_URL=http://127.0.0.1:5001
+PYTHON_CHATBOT_TIMEOUT_MS=70000
+PYTHON_CONFUSION_URL=http://127.0.0.1:5002
+PYTHON_CONFUSION_TIMEOUT_MS=5000
+AI_GENERAL_RATE_LIMIT_PER_MINUTE=5
+AI_CHATBOT_RECENT_CONTEXT_LIMIT=3
+EMAIL_HOST=<SMTP host>
+EMAIL_PORT=587
+EMAIL_SECURE=false
+EMAIL_USER=<SMTP username>
+EMAIL_PASSWORD=<SMTP app password>
+EMAIL_FROM=EDUNOVA <no-reply@example.com>
+```
+
+Create `/etc/edunova/chatbot.env` from the chatbot example plus the actual
+`GEMINI_API_KEY`, and `/etc/edunova/confusion.env` from the confusion example
+with `MODEL_BUNDLE_PATH=/srv/edunova/models/confusion-random-forest-3b-v1.joblib`.
+Both services retain loopback host values.
 
 ## Python General AI Tutor service
 
@@ -131,3 +217,57 @@ npm run build
 Start the backend with `npm start`. Deploy the generated `frontend/dist` directory using a static web server. Configure HTTPS and make `/api` and `/uploads` reach the backend when using a same-origin deployment.
 
 When frontend and backend use separate origins, set `VITE_API_ORIGIN` at frontend build time. Configure the reverse proxy to forward WebSocket upgrades for Socket.IO and to send `X-Forwarded-Proto`; set `TRUST_PROXY=1` only for that known proxy hop.
+
+## Nginx, TLS, and automatic service startup
+
+Copy the checked-in service definitions and proxy configuration, replacing
+`example.com` with the real domain before enabling Nginx:
+
+```bash
+sudo cp /srv/edunova/deploy/azure/edunova-*.service /etc/systemd/system/
+sudo cp /srv/edunova/deploy/azure/edunova.nginx.conf /etc/nginx/sites-available/edunova
+sudo ln -s /etc/nginx/sites-available/edunova /etc/nginx/sites-enabled/edunova
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d example.com -d www.example.com
+sudo systemctl daemon-reload
+sudo systemctl enable --now edunova-chatbot edunova-confusion edunova-backend
+```
+
+Check private services from the VM only, then check the public HTTPS path:
+
+```bash
+curl --fail http://127.0.0.1:5001/health
+curl --fail http://127.0.0.1:5002/health
+curl --fail https://example.com/api/health
+sudo journalctl -u edunova-backend -u edunova-chatbot -u edunova-confusion -n 100 --no-pager
+```
+
+The Nginx configuration forwards `/socket.io/` with WebSocket upgrade headers.
+The frontend uses a same-origin API URL by default, so leave
+`VITE_API_ORIGIN` empty for this configuration.
+
+## Backup, update, and rollback
+
+Back up MongoDB and uploads as one logical recovery point. Run a restore test
+on a non-production database and storage directory before launch. The upload
+directory contains media plus private payment and application evidence; never
+make it a public object-store bucket without access controls.
+
+For each release: take a database/upload backup, record the running Git commit,
+fetch the approved commit, run `npm ci` for backend and frontend, rebuild the
+frontend, reinstall Python requirements only when their lock/requirements
+change, run the verification commands above, then restart the three units.
+
+If validation fails, restore the previous commit and dependency state, rebuild
+the prior frontend, restart the units, and restore database/uploads together
+only when the failed release has written incompatible data. Review logs before
+retrying. Never roll back an order or payment record by deleting it manually.
+
+## Post-deployment validation requiring real credentials
+
+Use dedicated staging accounts and test data. Verify HTTPS cookies and session
+refresh, an unauthorized API/media request, a normal student/tutor/admin flow,
+SMTP password reset delivery, a Gemini response and quota/provider error, a
+Socket.IO message, one uploaded resource, and the model prediction endpoint.
+Do not send payment slips to real users or process real payments while testing.

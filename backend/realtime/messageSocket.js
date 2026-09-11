@@ -47,6 +47,7 @@ function attachMessageSocket(httpServer, app) {
       const bearerToken = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
       const token = socket.handshake.auth?.token || bearerToken;
       socket.user = await authenticatedUser(token);
+      socket.accessToken = token;
       next();
     } catch (error) {
       const authError = new Error("Authentication failed");
@@ -58,6 +59,15 @@ function attachMessageSocket(httpServer, app) {
   io.on("connection", (socket) => {
     // The room is derived exclusively from the verified token. Clients cannot select it.
     socket.join(userRoom(socket.user._id));
+    const check = setInterval(async () => {
+      try { await authenticatedUser(socket.accessToken); }
+      catch { socket.disconnect(true); }
+    }, 15000);
+    check.unref();
+    const expiresAt = jwt.decode(socket.accessToken)?.exp;
+    const expiry = expiresAt ? setTimeout(() => socket.disconnect(true), Math.max(0, expiresAt * 1000 - Date.now())) : null;
+    expiry?.unref();
+    socket.on("disconnect", () => { clearInterval(check); if (expiry) clearTimeout(expiry); });
   });
 
   app.set("messageIo", io);

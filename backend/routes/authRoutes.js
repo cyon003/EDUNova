@@ -75,7 +75,7 @@ router.post("/signup", async (req, res) => {
 
     return res.status(500).json({
       message: "Server error",
-      error: error.message,
+
     });
   }
 });
@@ -125,10 +125,9 @@ router.post("/login", loginLimiter, async (req, res) => {
       });
     }
 
-    if (user.accountStatus === "suspended") {
+    if (user.accountStatus !== "approved") {
       return res.status(403).json({
-        message:
-          "Your account has been suspended. Please contact an administrator.",
+        message: "Your account is not active. Please contact an administrator.",
       });
     }
 
@@ -138,11 +137,11 @@ router.post("/login", loginLimiter, async (req, res) => {
     await user.save();
 
     const session = await createSession(user, req);
-    setRefreshCookie(res, session.rawToken);
+    setRefreshCookie(res, session.rawToken, session.expiresAt);
 
     return res.status(200).json({
       message: "Login successful",
-      token: accessToken(user),
+      token: accessToken(user, session),
       user: publicUser(user),
     });
   } catch (error) {
@@ -150,7 +149,7 @@ router.post("/login", loginLimiter, async (req, res) => {
 
     return res.status(500).json({
       message: "Server error",
-      error: error.message,
+
     });
   }
 });
@@ -183,13 +182,13 @@ router.post("/refresh", refreshLimiter, async (req, res) => {
       clearRefreshCookie(res);
       return res.status(401).json({ message: "Refresh token reuse was detected" });
     }
-    const next = await createSession(user, req, existing.familyId);
+    const next = await createSession(user, req, existing.familyId, existing);
     await RefreshSession.updateOne({ _id: existing._id }, { $set: { replacedByHash: next.tokenHash } });
-    setRefreshCookie(res, next.rawToken);
-    return res.json({ message: "Session refreshed", token: accessToken(user), user: publicUser(user) });
+    setRefreshCookie(res, next.rawToken, next.expiresAt);
+    return res.json({ message: "Session refreshed", token: accessToken(user, next), user: publicUser(user) });
   } catch (error) {
     console.error("Refresh session error:", error.message); clearRefreshCookie(res);
-    return res.status(401).json({ message: "Unable to refresh session" });
+    return res.status(401).json({ message: error.message === "Session timeout reached. Please log in again." ? error.message : "Unable to refresh session" });
   }
 });
 

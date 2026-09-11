@@ -1,7 +1,7 @@
+const { enrollCourses, purchaseTransaction } = require("../services/enrollmentPolicy");
 const express = require("express");
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
-const PlatformSetting = require("../models/PlatformSetting");
 const authenticateToken = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
 const { synchronizeLessonCompletion } = require("../services/learningSignalService");
@@ -27,31 +27,18 @@ router.post("/:slug", async (req, res) => {
   try {
     const course = await Course.findOne({ slug: req.params.slug.toLowerCase() });
     if (!course) return res.status(404).json({ message: "Course not found" });
-    const settings = await PlatformSetting.findOne({ key: "platform" }).lean();
-    if (settings?.allowSelfEnroll === false) return res.status(403).json({ message: "Self-enrollment is currently disabled" });
-    if (course.moderationStatus !== "published") return res.status(403).json({ message: "This course is not approved for enrollment" });
-    const existingEnrollment = await Enrollment.findOne({ student: req.user._id, course: course._id });
-    if (!existingEnrollment && course.price > 0) {
-      return res.status(402).json({
-        message: "Purchase this course before enrolling",
-        requiresPurchase: true,
-        courseSlug: course.slug,
-      });
-    }
-    if (!existingEnrollment && settings?.maxEnrollment) {
-      const enrollmentCount = await Enrollment.countDocuments({ course: course._id });
-      if (enrollmentCount >= settings.maxEnrollment) return res.status(409).json({ message: "This course has reached its enrollment limit" });
-    }
-
-    const enrollment = await Enrollment.findOneAndUpdate(
-      { student: req.user._id, course: course._id },
-      { $set: { lastAccessedAt: new Date() }, $setOnInsert: { completedLessons: [], completedMissions: [] } },
-      { new: true, upsert: true, runValidators: true }
-    ).populate("course");
+    const enrollment = await purchaseTransaction(req.user._id, async (session) => {
+      await enrollCourses(req.user._id, [course._id], session, { freeOnly: true });
+      return Enrollment.findOneAndUpdate(
+        { student: req.user._id, course: course._id },
+        { $set: { lastAccessedAt: new Date() } },
+        { new: true, session }
+      ).populate("course");
+    });
     return res.status(200).json(enrollment);
   } catch (error) {
     console.error("Enroll course error:", error);
-    return res.status(500).json({ message: "Unable to enroll in this course" });
+    return res.status(error.status || 500).json({ message: error.status ? error.message : "Unable to enroll in this course" });
   }
 });
 

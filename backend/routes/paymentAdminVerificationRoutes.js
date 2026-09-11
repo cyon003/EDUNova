@@ -1,3 +1,7 @@
+const mongoose = require("mongoose");
+const AdminAudit = require("../models/AdminAudit");
+const Notification = require("../models/Notification");
+const { enrollCourses, purchaseTransaction, policyError } = require("../services/enrollmentPolicy");
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
@@ -153,209 +157,45 @@ router.get("/:orderId/slip", ...adminMiddleware, async (req, res) => {
 | APPROVE PAYMENT
 |--------------------------------------------------------------------------
 */
-router.post("/:orderId/approve", ...adminMiddleware, async (req, res) => {
+async function verifyPayment(req, res, approve) {
   try {
-    const order = await Order.findById(req.params.orderId)
-      .populate("items.course", "name slug price");
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found.",
-      });
-    }
-
-    if (order.status !== "awaiting_verification") {
-      return res.status(400).json({
-        success: false,
-        message: `This order cannot be approved because its status is "${order.status}".`,
-      });
-    }
-
-    if (!order.paymentSlip?.storedName) {
-      return res.status(400).json({
-        success: false,
-        message: "This order does not have a payment slip.",
-      });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Create enrollments
-    |--------------------------------------------------------------------------
-    */
-    for (const item of order.items) {
-      if (!item.course) {
-        continue;
+    if (!mongoose.isValidObjectId(req.params.orderId)) throw policyError(400, "Invalid order ID");
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (!approve && (!reason || reason.length > 1000)) throw policyError(400, "Provide a rejection reason of 1 to 1000 characters");
+    const initial = await Order.findById(req.params.orderId);
+    if (!initial) throw policyError(404, "Order not found");
+    const order = await purchaseTransaction(initial.student, async (session) => {
+      // Compare-and-set and all related writes commit together. Competing decisions retry.
+      const updated = await Order.findOneAndUpdate(
+        { _id: initial._id, status: "awaiting_verification" },
+        { $set: { status: approve ? "completed" : "rejected", verifiedAt: new Date(), verifiedBy: req.user._id, rejectionReason: approve ? "" : reason, ...(approve ? { paidAt: new Date() } : {}) } },
+        { new: true, session }
+      );
+      if (!updated) throw policyError(409, "This order has already been processed or is not awaiting verification");
+      if (!updated.paymentSlip?.storedName) throw policyError(400, "This order does not have a payment slip");
+      if (approve) {
+        // Admin verification can complete an existing purchase when self-enrollment is off,
+        // but still cannot exceed capacity or enroll an unpublished/deleted course.
+        const ids = updated.items.map(item => item.course);
+        await enrollCourses(updated.student, ids, session, { selfEnrollment: false });
+        await Cart.updateOne({ student: updated.student }, { $pull: { items: { course: { $in: ids } } } }, { session });
       }
-
-      await Enrollment.findOneAndUpdate(
-        {
-          student: order.student,
-          course: item.course._id,
-        },
-        {
-          $setOnInsert: {
-            student: order.student,
-            course: item.course._id,
-          },
-        },
-        {
-          upsert: true,
-          new: true,
-        }
-      );
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Remove approved courses from cart
-    |--------------------------------------------------------------------------
-    */
-    const courseIds = order.items
-      .filter((item) => item.course)
-      .map((item) => item.course._id);
-
-    if (courseIds.length > 0) {
-      await Cart.updateOne(
-        { student: order.student },
-        {
-          $pull: {
-            items: {
-              course: { $in: courseIds },
-            },
-          },
-        }
-      );
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Mark order completed
-    |--------------------------------------------------------------------------
-    */
-    order.status = "completed";
-    order.verifiedAt = new Date();
-    order.verifiedBy = req.user.id;
-    order.paidAt = new Date();
-    order.rejectionReason = "";
-
-    await order.save();
-
-    /*
-    |--------------------------------------------------------------------------
-    | Notification
-    |--------------------------------------------------------------------------
-    */
-    const courseNames = order.items
-      .filter((item) => item.course)
-      .map((item) => item.course.name)
-      .join(", ");
-
-    await notifyPaymentApproved({
-      user: order.student,
-      order: order,
-      orderReference: order.orderReference,
-      courseNames,
+      await Notification.create([{
+        user: updated.student, order: updated._id, source: "ADMIN", type: "system",
+        title: approve ? "Payment Approved" : "Payment Rejected",
+        message: approve ? `Order ${updated.orderReference} is completed and your course access is now available.` : `Order ${updated.orderReference} was rejected. Reason: ${reason}. You can upload a new payment slip.`,
+      }], { session });
+      await AdminAudit.create([{ admin: req.user._id, action: approve ? "Approved payment" : "Rejected payment", detail: updated.orderReference }], { session });
+      await updated.populate("student", "name email");
+      await updated.populate("items.course", "name slug price");
+      return updated;
     });
-
-    /*
-    |--------------------------------------------------------------------------
-    | Return updated order
-    |--------------------------------------------------------------------------
-    */
-    const updatedOrder = await Order.findById(order._id)
-      .populate("student", "name email")
-      .populate("items.course", "name slug price");
-
-    return res.json({
-      success: true,
-      message: "Payment approved successfully.",
-      order: updatedOrder,
-    });
+    return res.json({ success: true, message: approve ? "Payment approved successfully." : "Payment rejected.", order });
   } catch (error) {
-    console.error("Approve payment error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to approve payment.",
-    });
+    console.error("Payment verification failed:", error.message);
+    return res.status(error.status || 500).json({ success: false, message: error.status ? error.message : "Unable to verify payment. No payment changes were committed." });
   }
-});
-
-/*
-|--------------------------------------------------------------------------
-| REJECT PAYMENT
-|--------------------------------------------------------------------------
-*/
-router.post("/:orderId/reject", ...adminMiddleware, async (req, res) => {
-  try {
-    const order = await Order.findById(req.params.orderId);
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found.",
-      });
-    }
-
-    if (order.status !== "awaiting_verification") {
-      return res.status(400).json({
-        success: false,
-        message: `This order cannot be rejected because its status is "${order.status}".`,
-      });
-    }
-
-    const reason =
-      typeof req.body?.reason === "string"
-        ? req.body.reason.trim()
-        : "";
-
-    if (!reason) {
-      return res.status(400).json({
-        success: false,
-        message: "A rejection reason is required.",
-      });
-    }
-
-    if (reason.length > 1000) {
-      return res.status(400).json({
-        success: false,
-        message: "Rejection reason cannot exceed 1000 characters.",
-      });
-    }
-
-    order.status = "rejected";
-    order.rejectionReason = reason;
-    order.verifiedAt = new Date();
-    order.verifiedBy = req.user.id;
-
-    await order.save();
-
-    await notifyPaymentRejected({
-      user: order.student,
-      order: order,
-      orderReference: order.orderReference,
-      reason,
-    });
-
-    const updatedOrder = await Order.findById(order._id)
-      .populate("student", "name email")
-      .populate("items.course", "name slug price");
-
-    return res.json({
-      success: true,
-      message: "Payment rejected.",
-      order: updatedOrder,
-    });
-  } catch (error) {
-    console.error("Reject payment error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to reject payment.",
-    });
-  }
-});
-
+}
+router.post("/:orderId/approve", ...adminMiddleware, (req, res) => verifyPayment(req, res, true));
+router.post("/:orderId/reject", ...adminMiddleware, (req, res) => verifyPayment(req, res, false));
 module.exports = router;

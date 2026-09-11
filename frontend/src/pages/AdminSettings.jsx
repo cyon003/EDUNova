@@ -473,7 +473,7 @@ export default function AdminSettings() {
             <span>Passing score (%)</span>
 
             <small>
-              Minimum score required to pass assessments.
+              Unavailable: assessment grading is not implemented.
             </small>
 
             <input
@@ -481,6 +481,7 @@ export default function AdminSettings() {
               type="number"
               min="0"
               max="100"
+              disabled
               value={settings.minPassScore}
               onChange={(event) =>
                 updateNumber(
@@ -498,7 +499,7 @@ export default function AdminSettings() {
               <strong>Require course approval</strong>
 
               <small>
-                Only admin-approved courses can accept enrollment.
+                When disabled, new tutor publication submissions publish immediately. Existing drafts and reviews are unchanged.
               </small>
             </div>
 
@@ -809,7 +810,7 @@ export default function AdminSettings() {
             </span>
 
             <p className="adm-muted">
-              These settings are enforced during login.
+              Session duration and failed-login limits are enforced by the server.
             </p>
           </div>
         </header>
@@ -819,7 +820,7 @@ export default function AdminSettings() {
             <span>Session timeout (minutes)</span>
 
             <small>
-              Users must log in again when the session expires.
+              Maximum session length from login, including refreshes. Changes apply at login and refresh.
             </small>
 
             <input

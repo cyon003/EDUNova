@@ -100,33 +100,20 @@ router.post(
         });
       }
 
-      // If the student is replacing a rejected slip,
-      // remove the previous stored file first.
-      if (order.paymentSlip?.storedName) {
-        const previousFile = path.join(
-          paymentSlipDirectory,
-          order.paymentSlip.storedName
-        );
-
-        if (fs.existsSync(previousFile)) {
-          fs.unlinkSync(previousFile);
-        }
+      const updated = await Order.findOneAndUpdate({
+        _id: order._id, student: req.user._id, status: order.status,
+        updatedAt: order.updatedAt,
+      }, { $set: {
+        paymentSlip: { originalName: req.file.originalname, storedName: req.file.filename, mimeType: req.file.mimetype, size: req.file.size, uploadedAt: new Date() },
+        submittedAt: new Date(), status: "awaiting_verification", rejectionReason: "",
+      } }, { new: true, runValidators: true });
+      if (!updated) {
+        fs.unlinkSync(req.file.path);
+        return res.status(409).json({ message: "Order changed while uploading. Refresh the order before retrying." });
       }
-
-      order.paymentSlip = {
-        originalName: req.file.originalname,
-        storedName: req.file.filename,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
-        uploadedAt: new Date(),
-      };
-
-      order.submittedAt = new Date();
-      order.status = "awaiting_verification";
-
-      order.rejectionReason = "";
-
-      await order.save();
+      // Retain previous evidence; backups and a reviewed retention job can archive it.
+      // Never remove a referenced file before its replacement is committed.
+      Object.assign(order, updated.toObject());
 
       return res.status(200).json({
         message: "Payment slip uploaded successfully",

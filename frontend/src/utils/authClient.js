@@ -198,3 +198,12 @@ function endSession(all) {
 export const logout = () => endSession(false);
 export const logoutAll = () => endSession(true);
 export { AUTH_EVENT, storedUser };
+
+export async function socketAuthentication() {
+  const version = snapshot.version;
+  if (!accessToken || !snapshot.user) throw new Error("Please log in to use messaging");
+  const claims = JSON.parse(atob(accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+  if (claims.exp * 1000 <= Date.now() + 30000) await refreshSession();
+  assertCurrentSession(version);
+  return { token: accessToken };
+}

@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
+    purchaseRevision: { type: Number, default: 0, select: false },
     name: {
       type: String,
       required: true,

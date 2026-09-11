@@ -1,7 +1,12 @@
+const path = require("path");
+
 function requiredVariables() {
   const required = ["MONGO_URI", "JWT_SECRET"];
   if (process.env.NODE_ENV === "production" && !process.env.FRONTEND_URL && !process.env.CORS_ORIGINS) {
     required.push("FRONTEND_URL or CORS_ORIGINS");
+  }
+  if (process.env.NODE_ENV === "production") {
+    required.push("UPLOAD_ROOT", "EMAIL_HOST", "EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_FROM", "PYTHON_CHATBOT_URL", "PYTHON_CONFUSION_URL");
   }
   return required;
 }
@@ -22,6 +27,9 @@ function validateEnvironment() {
   }
   if (String(process.env.JWT_SECRET).length < 32) {
     throw new Error("JWT_SECRET must contain at least 32 characters");
+  }
+  if (process.env.NODE_ENV === "production" && !path.isAbsolute(String(process.env.UPLOAD_ROOT || ""))) {
+    throw new Error("UPLOAD_ROOT must be an absolute persistent-storage path in production");
   }
 
   return { port };

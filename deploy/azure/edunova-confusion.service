@@ -1,0 +1,23 @@
+[Unit]
+Description=EDUNova private confusion prediction service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=edunova
+Group=edunova
+WorkingDirectory=/srv/edunova/confusion-service
+EnvironmentFile=/etc/edunova/confusion.env
+ExecStart=/srv/edunova/confusion-service/venv/bin/gunicorn --workers 2 --bind 127.0.0.1:5002 'app:create_app()'
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadOnlyPaths=/srv/edunova/models
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,24 @@
+[Unit]
+Description=EDUNova Express API and Socket.IO server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=edunova
+Group=edunova
+WorkingDirectory=/srv/edunova/backend
+EnvironmentFile=/etc/edunova/backend.env
+ExecStart=/usr/bin/node /srv/edunova/backend/server.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/srv/edunova/uploads
+UMask=0077
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

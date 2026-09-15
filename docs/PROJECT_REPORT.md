@@ -257,7 +257,7 @@ The confusion-service README also contains historical phase descriptions alongsi
 
 ## 11. Deployment requirements
 
-A production installation requires a static frontend host, Node.js API process, MongoDB, persistent upload storage, and two private Python service processes. Configure HTTPS, API routing, Socket.IO upgrades, allowed origins, production secrets, SMTP, and provider access. Use Gunicorn for the Python services and provision the model bundle separately because generated models are ignored by Git.
+A production installation requires a static frontend host, Node.js API process, MongoDB, persistent upload storage, and one private Python Confusion Detection service process on port 5002. Configure HTTPS, API routing, Socket.IO upgrades, allowed origins, production secrets, SMTP, and provider access. Use Gunicorn for the Confusion Detection service and provision the model bundle separately because generated models are ignored by Git.
 
 Set the frontend API origin at build time when using a separate API origin. Keep frontend and API same-site for the current refresh-cookie policy. Configure proxy trust only for the actual trusted proxy arrangement. Verify backup restoration for both MongoDB and uploads.
 

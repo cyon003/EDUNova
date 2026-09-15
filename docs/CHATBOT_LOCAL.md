@@ -8,31 +8,6 @@ The official Node SDK is `@google/genai` (^2.22.0). Backend-only configuration r
 
 The original educational system prompt, simple/expanded response styles, bounded context, response normalization, one continuation for token-limited answers, and safe error mapping are preserved. The total Gemini deadline includes continuation and remains below the quota reservation lease. Failed provider calls or history saves release reservations. Free stays at 5 successful messages per UTC day and Premium at 500 per UTC month.
 
-## Files in this refactor
-
-Created:
-- `backend/services/geminiService.js`
-- `backend/tests/geminiService.test.js`
-- `docs/CHATBOT_LOCAL.md`
-
-Modified (preserving existing subscription changes):
-- `backend/routes/aiRoutes.js`
-- `backend/config/environment.js`
-- `backend/package.json`, `backend/package-lock.json`
-- `backend/.env` (ignored), `backend/.env.example`
-- `backend/tests/aiRoutes.test.js`
-- `backend/tests/subscriptionMongo.test.js`
-- `backend/tests/productionEnvironment.test.js`
-- `README.md`, `docs/SUBSCRIPTIONS.md`, `docs/PROJECT_REPORT.md`
-- `chatbot-service/README.md` (legacy notice)
-
-Removed generated files only:
-- `chatbot-service/venv/`
-- `chatbot-service/__pycache__/`
-- `chatbot-service/tests/__pycache__/`
-
-No frontend implementation, confusion-service files, Azure deployment files, or staging database settings were changed by this refactor. Other pre-existing uncommitted changes were preserved.
-
 ## Verification
 
 From `backend/`:
@@ -45,15 +20,13 @@ All 40 checks passed across the targeted run and corrected MongoDB integration r
 
 The MongoDB integration test starts a disposable localhost database in the OS temporary directory. It never reads application `.env` or uses staging data.
 
-## Retained legacy/deployment references
+## Deployment configuration
 
-There is no application runtime reference to the Flask chatbot URL or port 5001 in the active backend/frontend. `chatbot-service/` is unused by the new local application, but is not completely unreferenced: the unchanged Azure deployment still targets it. Source, tests and environment examples are retained for that transition; the ignored legacy `.env` is also retained. Recreate its virtual environment from requirements if needed for legacy use.
-
-Port 5001 remains in the legacy chatbot source/test/example/README and in:
-- `deploy/azure/edunova-chatbot.service`
-- `docs/PRODUCTION.md`
-
-Later deployment work (not performed): retire `deploy/azure/edunova-chatbot.service`, revise `docs/PRODUCTION.md`, and move Gemini configuration into `/etc/edunova/backend.env` (already loaded by `edunova-backend.service`). Nginx and the confusion service need no routing change for this refactor. Delete the legacy chatbot source only after deployment references are retired.
+The legacy Python tutor and its deployment unit have been removed locally.
+The backend unit loads Gemini settings from `/etc/edunova/backend.env`.
+The remaining application units run Express and Confusion Detection.
+See [PRODUCTION.md](PRODUCTION.md) for the current deployment configuration.
+No VM deployment is performed by this cleanup.
 
 ## Manual local test
 

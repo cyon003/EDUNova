@@ -53,9 +53,22 @@ AI_CHATBOT_RECENT_CONTEXT_LIMIT=3
 
 The backend preserves the educational prompt, recent conversation, continuation handling, safe provider errors, and subscription reservations/refunds. The total Gemini operation is bounded by `GEMINI_TIMEOUT_SECONDS`, including any continuation. No Python chatbot process is required locally. Confusion Detection still uses its separate Python service on port 5002.
 
-## Deployment transition
+## Architecture
 
-Azure deployment files and `docs/PRODUCTION.md` still describe the previous Python chatbot deployment and have intentionally not been changed in this local refactor. Update them before deploying this version; see [docs/CHATBOT_LOCAL.md](docs/CHATBOT_LOCAL.md).
+```text
+React/Vite (browser; static files served by Nginx)
+↓
+Nginx [Azure VM]
+↓
+Node.js/Express [Azure VM]
+├── Gemini API [External]
+├── MongoDB Atlas [External]
+└── Confusion Detection Flask service :5002 [Azure VM]
+```
+
+The deployment configuration runs Express and Confusion Detection. Gemini settings
+belong in the backend environment. See [docs/PRODUCTION.md](docs/PRODUCTION.md)
+and [docs/CHATBOT_LOCAL.md](docs/CHATBOT_LOCAL.md).
 
 Express verifies the JWT, applies the General AI Tutor rate limit, loads only that user’s bounded general-mode history, and calls Gemini directly with the question and context. Course identifiers, lesson identifiers, documents, sources, follow-up retrieval metadata, and `mode=course` are rejected. Answers are labeled as unverified general knowledge. Existing course-mode records are left untouched until an approved database migration.
 

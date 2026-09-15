@@ -14,7 +14,7 @@ function productionEnvironment(overrides = {}) {
     EMAIL_USER: "mailer",
     EMAIL_PASSWORD: "not-a-real-secret",
     EMAIL_FROM: "EDUNOVA <no-reply@example.test>",
-    PYTHON_CHATBOT_URL: "http://127.0.0.1:5001",
+    GEMINI_API_KEY: "test-only-key",
     PYTHON_CONFUSION_URL: "http://127.0.0.1:5002",
     ...overrides,
   };

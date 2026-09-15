@@ -6,7 +6,7 @@ function requiredVariables() {
     required.push("FRONTEND_URL or CORS_ORIGINS");
   }
   if (process.env.NODE_ENV === "production") {
-    required.push("UPLOAD_ROOT", "EMAIL_HOST", "EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_FROM", "PYTHON_CHATBOT_URL", "PYTHON_CONFUSION_URL");
+    required.push("UPLOAD_ROOT", "EMAIL_HOST", "EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_FROM", "GEMINI_API_KEY", "PYTHON_CONFUSION_URL");
   }
   return required;
 }

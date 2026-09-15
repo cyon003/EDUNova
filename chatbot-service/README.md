@@ -1,3 +1,5 @@
+> Legacy deployment reference: local Express now calls Gemini directly through `backend/services/geminiService.js`. Do not start this service for local development. Source is retained because the unchanged Azure deployment configuration still references it. See `docs/CHATBOT_LOCAL.md`.
+
 # EDUNova General AI Tutor service
 
 This private Flask service sends general educational questions and bounded same-user conversation context to Gemini. It has no database credentials or user-authentication logic; Express authenticates users, scopes history, and keeps the Gemini key server-side.

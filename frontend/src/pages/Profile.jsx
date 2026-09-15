@@ -1,3 +1,5 @@
+import { useSubscription } from "../hooks/useSubscription";
+import SubscriptionSummary from "../components/SubscriptionSummary";
 import { clearSession } from "../utils/authClient";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -41,6 +43,7 @@ function initials(name) {
 
 export default function Profile() {
   const navigate = useNavigate();
+  const plan = useSubscription();
   const [profile, setProfile] = useState(null);
   const [form, setForm] = useState({ name: "", username: "", bio: "", photoUrl: "", phoneNumber: "" });
   const [favorites, setFavorites] = useState([]);
@@ -126,6 +129,7 @@ export default function Profile() {
 
         {(message || error) && <p className={`student-profile-message ${error ? "error" : "success"}`} role="status">{error || message}</p>}
 
+        <SubscriptionSummary subscription={plan.subscription} error={plan.error} onRetry={plan.refresh} />
         <div className="student-profile-grid">
           <section className="student-profile-panel">
             <div className="student-profile-panel-title"><FaUser /><div><h2>Personal information</h2><p>Update information displayed on your student account.</p></div></div>

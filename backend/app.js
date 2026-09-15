@@ -72,6 +72,7 @@ app.use(
   "/api/admin/payment-verification",
   paymentAdminVerificationRoutes
 );
+app.use("/api/subscription", require("./routes/subscriptionRoutes"));
 app.use("/api/ai", aiRoutes);
 app.use("/api/learning-signals", learningSignalRoutes);
 

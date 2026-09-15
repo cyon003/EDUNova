@@ -16,18 +16,7 @@ Start MongoDB using your normal local installation, for example Homebrew:
 brew services start mongodb-community
 ```
 
-Start the private Python General AI Tutor service:
-
-```bash
-cd chatbot-service
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-Copy `chatbot-service/.env.example` to `chatbot-service/.env`, add the Gemini API key locally, then activate `chatbot-service/venv` and run `python3 chatbot.py`.
-
-In another terminal, start Express:
+Start Express (for a new setup, copy the example once; preserve an existing `.env`):
 
 ```bash
 cd backend
@@ -36,7 +25,7 @@ npm install
 npm run dev
 ```
 
-In a third terminal, start React:
+In another terminal, start React:
 
 ```bash
 cd frontend
@@ -49,63 +38,38 @@ Open `http://localhost:5173`, sign in, then open `/ai-tutor`. The legacy `/ai-ch
 
 ## General AI Tutor configuration
 
-Express uses these backend environment variables:
+Express calls Gemini directly using the official `@google/genai` SDK. Set these variables only in `backend/.env`:
 
 ```env
-PYTHON_CHATBOT_URL=http://127.0.0.1:5001
-PYTHON_CHATBOT_TIMEOUT_MS=70000
-AI_GENERAL_RATE_LIMIT_PER_MINUTE=5
-AI_CHATBOT_RECENT_CONTEXT_LIMIT=3
-```
-
-The Python service uses:
-
-```env
-AI_PROVIDER=gemini
 GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.6-flash
 GEMINI_TIMEOUT_SECONDS=60
 GEMINI_MAX_OUTPUT_TOKENS=1600
 GEMINI_MAX_ANSWER_LENGTH=8000
+GEMINI_MAX_PROMPT_CHARACTERS=30000
+AI_GENERAL_RATE_LIMIT_PER_MINUTE=5
+AI_CHATBOT_RECENT_CONTEXT_LIMIT=3
 ```
 
-Optional service variables include `CHATBOT_HOST`, `CHATBOT_PORT`, `CHATBOT_MAX_MESSAGE_LENGTH`, `CHATBOT_MAX_REQUEST_BYTES`, and `GEMINI_MAX_PROMPT_CHARACTERS`.
+The backend preserves the educational prompt, recent conversation, continuation handling, safe provider errors, and subscription reservations/refunds. The total Gemini operation is bounded by `GEMINI_TIMEOUT_SECONDS`, including any continuation. No Python chatbot process is required locally. Confusion Detection still uses its separate Python service on port 5002.
 
-## Production service commands
+## Deployment transition
 
-Keep the Python services private. Their local commands remain `python3 chatbot.py` and `python3 app.py`; use Gunicorn in production:
+Azure deployment files and `docs/PRODUCTION.md` still describe the previous Python chatbot deployment and have intentionally not been changed in this local refactor. Update them before deploying this version; see [docs/CHATBOT_LOCAL.md](docs/CHATBOT_LOCAL.md).
 
-```bash
-cd chatbot-service
-gunicorn --workers 2 --bind "${CHATBOT_HOST:-127.0.0.1}:${CHATBOT_PORT:-5001}" chatbot:app
-
-cd ../confusion-service
-gunicorn --workers 2 --bind "${CONFUSION_HOST:-127.0.0.1}:${CONFUSION_PORT:-5002}" 'app:create_app()'
-```
-
-Set `PYTHON_CHATBOT_URL` and `PYTHON_CONFUSION_URL` in Express to the corresponding private service URLs. Set `TRUST_PROXY=1` only when Express runs behind one trusted HTTPS reverse proxy. Leave `UPLOAD_ROOT` empty locally to use `backend/uploads`; in production set it to an absolute persistent-disk mount such as `/persistent/edunova/uploads`. The backend creates its required subdirectories, but the mount must be readable and writable by the Express process. Back up that directory with MongoDB because stored database filenames refer to its contents. The ignored confusion model bundle must be provisioned separately or selected with `MODEL_BUNDLE_PATH`.
-
-Express verifies the JWT, applies the General AI Tutor rate limit, loads only that user’s bounded general-mode history, and sends the question and context to the private Flask service. Course identifiers, lesson identifiers, documents, sources, follow-up retrieval metadata, and `mode=course` are rejected. Answers are labeled as unverified general knowledge. Existing course-mode records are left untouched until an approved database migration.
+Express verifies the JWT, applies the General AI Tutor rate limit, loads only that user’s bounded general-mode history, and calls Gemini directly with the question and context. Course identifiers, lesson identifiers, documents, sources, follow-up retrieval metadata, and `mode=course` are rejected. Answers are labeled as unverified general knowledge. Existing course-mode records are left untouched until an approved database migration.
 
 Supporting lesson files remain normal protected uploads. They can be viewed or downloaded by authorized users, but their contents are not extracted or sent to the General AI Tutor.
 
-The command is idempotent: chunks are upserted by resource and chunk number, and stale chunks are removed.
-
 Current limitations:
 
-- Scanned/image-only PDFs require OCR and therefore produce a safe failed/empty extraction status.
-- Video, image, legacy DOC, and linked-video contents are not extracted or transcribed.
 - Gemini availability and free-tier quota depend on the configured Google AI project.
 - Gemini failures return a bounded, safe General AI Tutor error without exposing course content.
 
 ## Tests
 
 ```bash
-cd chatbot-service
-source venv/bin/activate
-python3 -m unittest discover -s tests -v
-
-cd ../backend
+cd backend
 npm run check
 npm test
 

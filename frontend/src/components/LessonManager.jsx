@@ -7,7 +7,7 @@ const mediaExtensions = ["mp4", "webm", "ogv", "mov", "m4v", "mp3", "wav", "m4a"
 const resourceExtensions = ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "jpg", "jpeg", "png", "gif", "webp", ...mediaExtensions];
 const mediaAccept = ".mp4,.webm,.ogv,.mov,.m4v,.mp3,.wav,.m4a,.ogg";
 const resourceAccept = resourceExtensions.map((item) => `.${item}`).join(",");
-const maxFileSize = 500 * 1024 * 1024;
+const maxFileSize = 2 * 1024 * 1024 * 1024;
 const emptyDraft = { title: "", transcript: "", description: "", summary: "", referenceLinks: "", mainVideo: null, documents: [] };
 const editable = (lesson) => ({ ...emptyDraft, title: lesson?.title || "", transcript: lesson?.transcript || "", description: lesson?.description || "", summary: lesson?.summary || "", referenceLinks: lessonReferences(lesson).map((item) => `${item.label || "Reference"} | ${item.url}`).join("\n"), duration: lesson?.duration || "" });
 
@@ -64,7 +64,7 @@ export default function LessonManager({ course, form, setForm, add, update, remo
   const validateFiles = (files, allowed, one=false) => {
     const chosen = Array.from(files || []);
     const invalid = chosen.find((file)=>!allowed.includes(file.name.split(".").pop()?.toLowerCase()) || file.size > maxFileSize);
-    if (invalid) { setMessage(`${invalid.name} has an unsupported type or exceeds 500 MB.`); return []; }
+    if (invalid) { setMessage(`${invalid.name} has an unsupported type or exceeds 2 GiB.`); return []; }
     setMessage(""); return one ? chosen.slice(0,1) : chosen;
   };
   const closeModal = () => { if (!dirty || window.confirm("Discard unsaved lesson changes?")) { setModalOpen(false); setForm({...form,...emptyDraft,resources:[]}); } };

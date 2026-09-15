@@ -48,3 +48,15 @@ test("mock summary storage is removed and Personal Notes are editable in the les
   assert.doesNotMatch(dashboard, /const summarizedNotes/);
   await assert.rejects(source("src/utils/summaryService.js"));
 });
+
+test("lesson upload limits agree across frontend, Multer and Nginx", async () => {
+  const manager = await source("src/components/LessonManager.jsx");
+  const routes = await source("../backend/routes/tutorRoutes.js");
+  const nginx = await source("../deploy/azure/edunova.nginx.conf");
+  assert.match(manager, /const maxFileSize = 2 \* 1024 \* 1024 \* 1024;/);
+  assert.match(manager, /file\.size > maxFileSize/);
+  assert.match(manager, /exceeds 2 GiB/);
+  const lessonUpload = routes.slice(routes.indexOf("const uploadLessonFiles ="), routes.indexOf("const receiveLessonFiles ="));
+  assert.match(lessonUpload, /limits: \{ fileSize: 2 \* 1024 \* 1024 \* 1024 \}/);
+  assert.match(nginx, /client_max_body_size 2100M;/);
+});

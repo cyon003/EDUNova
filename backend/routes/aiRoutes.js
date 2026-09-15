@@ -3,6 +3,9 @@ const { rateLimit } = require("express-rate-limit");
 const ChatbotConversation = require("../models/ChatbotConversation");
 const authenticateToken = require("../middleware/authMiddleware");
 
+const geminiService = require("../services/geminiService");
+const subscriptionService = require("../services/subscriptionService");
+
 const router = express.Router();
 const MAX_MESSAGE_LENGTH = 1000;
 const MAX_ANSWER_LENGTH = 8000;
@@ -54,44 +57,6 @@ function contextMessages(records) {
   ]);
 }
 
-async function callFlask(payload) {
-  const controller = new AbortController();
-  const timeoutMs = Math.min(Math.max(Number(process.env.PYTHON_CHATBOT_TIMEOUT_MS || 70000), 1000), 120000);
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(`${String(process.env.PYTHON_CHATBOT_URL || "http://127.0.0.1:5001").replace(/\/$/, "")}/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-    let data;
-    try {
-      data = await response.json();
-    } catch {
-      throw Object.assign(new Error("invalid_response"), { status: 502, category: "gemini_invalid_response", publicMessage: "The General AI Tutor returned an invalid response. Please try again." });
-    }
-    if (!response.ok) {
-      throw Object.assign(new Error("provider_failure"), {
-        status: response.status,
-        category: data.category || "unknown_provider_error",
-        publicMessage: data.message || GENERAL_UNAVAILABLE_MESSAGE,
-      });
-    }
-    return data;
-  } catch (error) {
-    if (error.publicMessage) throw error;
-    const timedOut = error.name === "AbortError";
-    throw Object.assign(error, {
-      status: timedOut ? 504 : 503,
-      category: timedOut ? "gemini_timeout" : "flask_unavailable",
-      publicMessage: timedOut ? "General AI took too long to respond. Please try again." : GENERAL_UNAVAILABLE_MESSAGE,
-    });
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 router.get("/history", async (req, res) => {
   try {
     const filter = historyScope(req, res);
@@ -122,28 +87,41 @@ router.delete("/history", async (req, res) => {
 });
 
 router.post("/chat", validateGeneralRequest, generalLimiter, async (req, res) => {
+  let reservation;
   try {
     const { message } = req.body;
     if (typeof message !== "string" || !message.trim()) return res.status(400).json({ message: "Message is required" });
     const cleaned = message.trim();
     if (cleaned.length > MAX_MESSAGE_LENGTH) return res.status(413).json({ message: `Message cannot exceed ${MAX_MESSAGE_LENGTH} characters` });
 
+    reservation = await subscriptionService.reserveUsage(req.user);
     const contextLimit = Math.min(Math.max(Number(process.env.AI_CHATBOT_RECENT_CONTEXT_LIMIT || 3), 0), 5);
     const records = contextLimit
       ? await ChatbotConversation.find({ user: req.user._id, mode: "general", answerMode: "generated" })
         .select("userMessage assistantAnswer").sort({ createdAt: -1 }).limit(contextLimit).lean()
       : [];
-    const result = await callFlask({ mode: "general", message: cleaned, conversation: contextMessages(records) });
+    const result = await geminiService.generateAnswer({ mode: "general", message: cleaned, conversation: contextMessages(records) });
     if (result.mode !== "general" || result.responseType !== "generated" || typeof result.answer !== "string" || !result.answer.trim() || result.disclaimer !== GENERAL_DISCLAIMER) {
       return res.status(503).json({ message: GENERAL_UNAVAILABLE_MESSAGE });
     }
     if (result.answer.trim().length > MAX_ANSWER_LENGTH) return res.status(503).json({ message: GENERAL_UNAVAILABLE_MESSAGE });
 
     const saved = await ChatbotConversation.create({ user: req.user._id, mode: "general", userMessage: cleaned, assistantAnswer: result.answer.trim(), answerMode: "generated" });
-    return res.status(200).json({ mode: "general", answer: saved.assistantAnswer, responseType: saved.answerMode, disclaimer: GENERAL_DISCLAIMER, conversationId: saved._id, createdAt: saved.createdAt });
+    await subscriptionService.settleUsage(reservation, true);
+    reservation = null;
+    let subscription;
+    try { subscription = await subscriptionService.getSubscription(req.user); }
+    catch (error) { console.error("Unable to refresh AI usage display:", error.message); }
+    return res.status(200).json({ subscription, mode: "general", answer: saved.assistantAnswer, responseType: saved.answerMode, disclaimer: GENERAL_DISCLAIMER, conversationId: saved._id, createdAt: saved.createdAt });
   } catch (error) {
+    if (error.quota) return res.status(429).json(error.quota);
     console.error("General AI Tutor error:", error.category || error.message);
     return res.status(error.status || 500).json({ message: error.publicMessage || GENERAL_UNAVAILABLE_MESSAGE });
+  } finally {
+    if (reservation) {
+      try { await subscriptionService.settleUsage(reservation, false); }
+      catch (error) { console.error("Unable to release AI reservation:", error.message); }
+    }
   }
 });
 

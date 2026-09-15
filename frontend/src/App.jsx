@@ -22,6 +22,7 @@ import LessonPlayer from "./pages/LessonPlayer";
 import MyCourses from "./pages/MyCourses";
 import MyTutorApplications from "./pages/MyTutorApplications";
 import OrderSuccess from "./pages/OrderSuccess";
+import Subscription from "./pages/Subscription";
 import Profile from "./pages/Profile";
 import ResetPassword from "./pages/ResetPassword";
 import StudentDashboard from "./pages/StudentDashboard";
@@ -70,6 +71,7 @@ function App() {
         <Route path="/student-dashboard" element={<RoleRoute user={user} allowedRoles={["student"]}><StudentDashboard /></RoleRoute>} />
         <Route path="/my-courses" element={<RoleRoute user={user} allowedRoles={["student"]}><MyCourses /></RoleRoute>} />
         <Route path="/my-tutor-applications" element={<RoleRoute user={user} allowedRoles={["student", "tutor"]}><MyTutorApplications /></RoleRoute>} />
+        <Route path="/subscription" element={<RoleRoute user={user} allowedRoles={["student", "tutor", "admin"]}><Subscription /></RoleRoute>} />
         <Route path="/profile" element={<RoleRoute user={user} allowedRoles={["student"]}><Profile /></RoleRoute>} />
 
         <Route path="/tutor-dashboard" element={<RoleRoute user={user} allowedRoles={["tutor"]}><TutorDashboard /></RoleRoute>} />

@@ -123,3 +123,41 @@ test("SDK does not retry authentication or quota errors", async () => {
     }
   } finally { global.fetch = originalFetch; }
 });
+
+test("production 429 diagnostics retain quota identifiers and retry info without raw data", async () => {
+  process.env.NODE_ENV = "production";
+  const logs = [];
+  const originalError = console.error;
+  console.error = (...args) => logs.push(args);
+  const metric = "generativelanguage.googleapis.com/generate_content_requests_free_tier";
+  const id = "GenerateRequestsPerDayPerProjectPerModel-FreeTier";
+  models.generateContentInternal = async () => { throw Object.assign(new Error(JSON.stringify({ error: {
+    code: 429, status: "RESOURCE_EXHAUSTED", message: "You exceeded your current quota. test-key private question person@example.com Bearer secret-token",
+    details: [
+      { "@type": "type.googleapis.com/google.rpc.QuotaFailure", violations: [{ quotaMetric: metric, quotaId: id, subject: "private-user", description: "private history", quotaDimensions: { user: "private-user" } }] },
+      { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "32.5s" },
+    ],
+  } })), { status: 429, headers: { "retry-after": "33", authorization: "Bearer secret-token" } }); };
+  try {
+    await assert.rejects(generateAnswer({ message: "private question", conversation: [{ role: "user", content: "private history" }] }), {
+      status: 429, category: "quota_exceeded", publicMessage: "General AI has reached its temporary usage limit. Please try again later.",
+    });
+    assert.deepEqual(logs[0][1], { httpStatus: 429, providerStatus: "RESOURCE_EXHAUSTED", providerCode: 429, providerMessage: "Provider quota exceeded", quotas: [{ metric, id }], retryDelay: "32.5s", retryAfter: "33" });
+    assert.doesNotMatch(JSON.stringify(logs), /test-key|private|person@example|Bearer|secret-token|authorization/);
+  } finally { console.error = originalError; }
+});
+
+test("malformed and adversarial provider diagnostics never log free-form fields", async () => {
+  process.env.NODE_ENV = "production";
+  const logs = [];
+  const originalError = console.error;
+  console.error = (...args) => logs.push(args);
+  try {
+    for (const message of ["test-key user question", JSON.stringify({ error: { code: "test-key", status: "private history", message: "private personal data", details: [{ "@type": "type.googleapis.com/google.rpc.QuotaFailure", violations: [{ quotaMetric: "private metric", quotaId: "test-key" }] }, { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "private delay" }] } })]) {
+      models.generateContentInternal = async () => { throw Object.assign(new Error(message), { status: 429, headers: { "retry-after": "private header" } }); };
+      await assert.rejects(generateAnswer({ message: "Q" }), { category: "quota_exceeded" });
+    }
+    assert.equal(logs.length, 2);
+    assert.doesNotMatch(JSON.stringify(logs), /test-key|private|user question/);
+  } finally { console.error = originalError; }
+});

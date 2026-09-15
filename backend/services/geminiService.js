@@ -25,21 +25,56 @@ function providerError(category) {
   return Object.assign(new Error(category), { category, status, publicMessage });
 }
 
+// Provider messages are untrusted: they may echo prompts or credentials. Log only
+// recognized diagnostics, never raw messages, request objects, headers or details.
+function logProviderError(error, httpStatus) {
+  try {
+    let payload = error;
+    try { const parsed = JSON.parse(error.message); payload = parsed.error || parsed; } catch { /* SDK may expose structured fields instead. */ }
+    const safe = (value, pattern) => typeof value === "string" && value.length <= 200
+      && pattern.test(value) && !(process.env.GEMINI_API_KEY && value.includes(process.env.GEMINI_API_KEY.trim())) ? value : undefined;
+    const entry = { httpStatus };
+    entry.providerStatus = safe(payload.status, /^(RESOURCE_EXHAUSTED|UNAVAILABLE|INVALID_ARGUMENT|PERMISSION_DENIED|UNAUTHENTICATED|NOT_FOUND|INTERNAL|DEADLINE_EXCEEDED)$/);
+    if (Number.isInteger(payload.code) && payload.code >= 0 && payload.code <= 599) entry.providerCode = payload.code;
+    // Normalize known provider messages; arbitrary text cannot be safely logged.
+    const message = typeof payload.message === "string" ? payload.message : "";
+    entry.providerMessage = /quota exceeded|exceeded your current quota/i.test(message) ? "Provider quota exceeded"
+      : /resource exhausted/i.test(message) ? "Provider resource exhausted"
+      : /high demand/i.test(message) ? "Provider experiencing high demand"
+      : "Provider message omitted (unrecognized text)";
+    const details = Array.isArray(payload.details) ? payload.details.slice(0, 20) : [];
+    const quotas = [];
+    for (const detail of details) {
+      if (detail?.["@type"] === "type.googleapis.com/google.rpc.QuotaFailure" && Array.isArray(detail.violations)) {
+        for (const violation of detail.violations.slice(0, 20)) {
+          const metric = safe(violation.quotaMetric, /^generativelanguage\.googleapis\.com\/generate_content_(?:requests|input_tokens|output_tokens)(?:_free_tier)?$/);
+          const id = safe(violation.quotaId, /^Generate(?:Requests|ContentInputTokens|ContentOutputTokens)Per(?:Minute|Day)PerProjectPerModel(?:-FreeTier|-PaidTier)?$/);
+          if (metric || id) quotas.push({ ...(metric ? { metric } : {}), ...(id ? { id } : {}) });
+        }
+      }
+      if (detail?.["@type"] === "type.googleapis.com/google.rpc.RetryInfo") {
+        const delay = safe(detail.retryDelay, /^\d{1,8}(?:\.\d{1,9})?s$/);
+        if (delay) entry.retryDelay = delay;
+      }
+    }
+    if (quotas.length) entry.quotas = quotas;
+    const headers = error.response?.headers || error.headers;
+    const retryAfter = headers?.get instanceof Function ? headers.get("retry-after") : headers?.["retry-after"] || headers?.["Retry-After"];
+    const delay = safe(retryAfter, /^(?:\d{1,8}|(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT)$/);
+    if (delay) entry.retryAfter = delay;
+    console.error("Gemini provider error:", entry);
+  } catch { /* Diagnostics must never change the public error response. */ }
+}
+
 function normalizeError(error) {
   if (error.category) return providerError(error.category);
   if (/timeout|abort/i.test(error.name || "") || /timed? ?out|aborted/i.test(error.message || "")) return providerError("timeout");
   const status = Number(error.status || error.code);
+  if (status >= 400) logProviderError(error, status);
   if ([401, 403].includes(status)) return providerError("invalid_api_key");
   if (status === 404) return providerError("model_unavailable");
   if (status === 429) return providerError("quota_exceeded");
   if (status >= 400) {
-    if (process.env.NODE_ENV === "development") {
-      const apiKey = (process.env.GEMINI_API_KEY || "").trim();
-      let detail = String(error.message || "No provider message");
-      if (apiKey) detail = detail.split(apiKey).join("[REDACTED]");
-      detail = detail.replace(/AIza[\w-]+/g, "[REDACTED]");
-      console.error("Gemini provider error:", { status, detail: detail.slice(0, 2000) });
-    }
     return providerError(status === 503 ? "provider_busy" : "api_error");
   }
   if (error instanceof SyntaxError) return providerError("malformed_response");

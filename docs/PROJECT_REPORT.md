@@ -6,9 +6,9 @@
 
 ## 1. Executive overview
 
-EDUNova is a web-based learning platform serving students, tutors, and administrators. It combines course discovery, lesson delivery, enrollment, manual payment verification, communication, and learning-progress tracking. Two Python services extend the core application: a Gemini-powered General AI Tutor and a Random Forest service that estimates lesson confusion from learning activity.
+EDUNova is a web-based learning platform serving students, tutors, and administrators. It combines course discovery, lesson delivery, enrollment, manual payment verification, communication, and learning-progress tracking. The Express backend calls Gemini directly for the General AI Tutor. A Python Random Forest service estimates lesson confusion from learning activity.
 
-The system is implemented as a React frontend, an Express API backed by MongoDB, and two private Flask services. The application builds successfully and its automated checks pass following targeted policy, session, payment, and messaging fixes. Public production readiness still depends on live deployment validation.
+The system is implemented as a React frontend, an Express API backed by MongoDB, and one private Flask confusion service. The application builds successfully and its automated checks pass following targeted policy, session, payment, and messaging fixes. Public production readiness still depends on live deployment validation.
 
 ## 2. Problem and objectives
 
@@ -82,8 +82,7 @@ flowchart TD
     B --> D[(MongoDB)]
     B --> S[Persistent upload storage]
     B --> E[SMTP email service]
-    B --> C[Private Flask General AI Tutor]
-    C --> G[Google Gemini API]
+    B --> G[Google Gemini API]
     B --> P[Private Flask confusion prediction service]
     P --> M[Provisioned Random Forest model bundle]
 ```
@@ -96,7 +95,7 @@ The frontend renders the user interface and calls the backend. Express validates
 |---|---|
 | `frontend/` | React pages, components, hooks, styles, and client utilities |
 | `backend/` | Express routes, Mongoose models, middleware, services, and tests |
-| `chatbot-service/` | Flask General AI Tutor and Gemini integration |
+| `backend/services/geminiService.js` | Direct Gemini integration (Node.js) |
 | `confusion-service/` | Dataset export, model training, evaluation, prediction API, and tests |
 | `docs/` | Project and deployment documentation |
 
@@ -115,7 +114,7 @@ The frontend renders the user interface and calls the backend. Express validates
 | HTTP protection | Helmet, CORS, express-rate-limit | Security headers, origin restrictions, and request limits |
 | File handling | Multer | Multipart uploads |
 | Email | Nodemailer and SMTP | Email delivery workflows |
-| Python APIs | Python, Flask, Gunicorn | AI service endpoints and production serving |
+| Python API | Python, Flask, Gunicorn | Confusion prediction endpoint and production serving |
 | Generative AI | Google Gen AI SDK and Gemini | General educational responses |
 | Machine learning | scikit-learn RandomForestClassifier | Binary confusion estimation |
 | Data processing | pandas, NumPy, PyMongo | Dataset preparation and MongoDB access |
@@ -144,7 +143,7 @@ Files are stored on disk, while database records retain their metadata and refer
 
 ## 7. General AI Tutor
 
-An authenticated user submits a question through the frontend. Express applies authorization and rate limiting, loads bounded general conversation history belonging to that user, and calls the private Flask service. The service requests an answer from Gemini and returns it through Express.
+An authenticated user submits a question through the frontend. Express applies authorization and rate limiting, loads bounded general conversation history belonging to that user, and calls Gemini directly through the Node.js SDK. Successful answers are saved in MongoDB and returned to the frontend.
 
 The implementation rejects course-mode requests and course-specific retrieval fields. It does not send lesson documents, notes, or transcripts to Gemini for course-grounded answers. Responses are presented as unverified general knowledge. Provider failures, quota errors, malformed responses, and timeouts have bounded error handling.
 
@@ -258,7 +257,7 @@ The confusion-service README also contains historical phase descriptions alongsi
 
 ## 11. Deployment requirements
 
-A production installation requires a static frontend host, Node.js API process, MongoDB, persistent upload storage, and two private Python service processes. Configure HTTPS, API routing, Socket.IO upgrades, allowed origins, production secrets, SMTP, and provider access. Use Gunicorn for the Python services and provision the model bundle separately because generated models are ignored by Git.
+A production installation requires a static frontend host, Node.js API process, MongoDB, persistent upload storage, and one private Python Confusion Detection service process on port 5002. Configure HTTPS, API routing, Socket.IO upgrades, allowed origins, production secrets, SMTP, and provider access. Use Gunicorn for the Confusion Detection service and provision the model bundle separately because generated models are ignored by Git.
 
 Set the frontend API origin at build time when using a separate API origin. Keep frontend and API same-site for the current refresh-cookie policy. Configure proxy trust only for the actual trusted proxy arrangement. Verify backup restoration for both MongoDB and uploads.
 

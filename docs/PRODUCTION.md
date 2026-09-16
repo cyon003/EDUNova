@@ -9,7 +9,7 @@ standalone MongoDB server is deliberately rejected in production.
 
 Use Ubuntu LTS or another supported Azure Linux image, open only TCP 22, 80,
 and 443 in the Azure network security group, and use SSH keys. Keep ports
-5050, 5001, and 5002 private on loopback. Point DNS for the chosen domain at
+5050 and 5002 private on loopback. Point DNS for the chosen domain at
 the VM before enabling the TLS certificate.
 
 Install Node.js 20+, Python 3.10+, Nginx, Certbot, Git, and MongoDB tooling.
@@ -32,7 +32,6 @@ startup.
 ```bash
 cd /srv/edunova/backend && npm ci
 cd /srv/edunova/frontend && npm ci && npm run build
-cd /srv/edunova/chatbot-service && python3 -m venv venv && venv/bin/pip install -r requirements.txt
 cd /srv/edunova/confusion-service && python3 -m venv venv && venv/bin/pip install -r requirements.txt
 ```
 
@@ -60,9 +59,9 @@ Production requires:
 - `FRONTEND_URL` or comma-separated `CORS_ORIGINS`
 - `TRUST_PROXY=1` only when Express is behind one trusted HTTPS reverse proxy
 - valid SMTP values for email delivery
-- `PYTHON_CHATBOT_URL` pointing to the private Flask service
+- `GEMINI_API_KEY` and `GEMINI_MODEL` for direct Gemini access from Express
 - `PYTHON_CONFUSION_URL` pointing to the private confusion-prediction service
-- a suitable `PYTHON_CHATBOT_TIMEOUT_MS` and assistant rate limit
+- a suitable `GEMINI_TIMEOUT_SECONDS`
 - `AI_GENERAL_RATE_LIMIT_PER_MINUTE`
 - an absolute, writable `UPLOAD_ROOT=/srv/edunova/uploads`
 - transactional MongoDB (Atlas or a replica set)
@@ -85,8 +84,9 @@ UPLOAD_ROOT=/srv/edunova/uploads
 ACCESS_TOKEN_EXPIRES_IN=15m
 REFRESH_TOKEN_EXPIRES_DAYS=30
 REFRESH_COOKIE_NAME=edunova_refresh
-PYTHON_CHATBOT_URL=http://127.0.0.1:5001
-PYTHON_CHATBOT_TIMEOUT_MS=70000
+GEMINI_API_KEY=<Gemini API key>
+GEMINI_MODEL=gemini-3.6-flash
+GEMINI_TIMEOUT_SECONDS=60
 PYTHON_CONFUSION_URL=http://127.0.0.1:5002
 PYTHON_CONFUSION_TIMEOUT_MS=5000
 AI_GENERAL_RATE_LIMIT_PER_MINUTE=5
@@ -99,45 +99,27 @@ EMAIL_PASSWORD=<SMTP app password>
 EMAIL_FROM=EDUNOVA <no-reply@example.com>
 ```
 
-Create `/etc/edunova/chatbot.env` from the chatbot example plus the actual
-`GEMINI_API_KEY`, and `/etc/edunova/confusion.env` from the confusion example
-with `MODEL_BUNDLE_PATH=/srv/edunova/models/confusion-random-forest-3b-v1.joblib`.
-Both services retain loopback host values.
+Create `/etc/edunova/confusion.env` from the confusion example with
+`MODEL_BUNDLE_PATH=/srv/edunova/models/confusion-random-forest-3b-v1.joblib`.
+Keep the confusion service on loopback.
 
-## Python General AI Tutor service
+## Direct Gemini integration
 
-Use Python 3.10 or newer. Install the service in an isolated environment:
+Express calls Gemini through `backend/services/geminiService.js` using the official
+`@google/genai` SDK. Store `GEMINI_API_KEY` in `/etc/edunova/backend.env`, already
+loaded by the backend systemd unit. Never expose the key to React or commit it.
+Allow outbound HTTPS from the Node.js backend to Gemini.
 
-```bash
-cd chatbot-service
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python3 chatbot.py
-```
-
-For production, use Gunicorn rather than Flask's development server:
-
-```bash
-gunicorn --workers 2 --bind "${CHATBOT_HOST:-127.0.0.1}:${CHATBOT_PORT:-5001}" chatbot:app
-```
-
-Bind to `127.0.0.1` when it shares a host with Express, or set `CHATBOT_HOST=0.0.0.0` only on a private application network. The public proxy must not expose `/chat`; only Express should reach the Python service.
+Optional backend settings:
 
 ```env
-AI_PROVIDER=gemini
-GEMINI_API_KEY=
-GEMINI_MODEL=gemini-3.6-flash
-GEMINI_TIMEOUT_SECONDS=60
 GEMINI_MAX_OUTPUT_TOKENS=1600
 GEMINI_MAX_ANSWER_LENGTH=8000
-CHATBOT_HOST=127.0.0.1
-CHATBOT_PORT=5001
+GEMINI_MAX_PROMPT_CHARACTERS=30000
 ```
 
-Store the key only in the Flask service environment or ignored `.env`; never expose it to Express, React, logs, or health responses. Allow outbound HTTPS from Flask to the Gemini API. Set Express `PYTHON_CHATBOT_TIMEOUT_MS=70000` so it safely exceeds the default Gemini timeout.
-
-General AI Tutor requests contain no course identifiers, lesson identifiers, documents, sources, or retrieval metadata. Express remains responsible for JWT verification, MongoDB access, rate limiting, timeouts, and user-owned general history. General failures return a fixed safe response. Keep outbound Gemini access restricted to the Flask service and monitor quota usage.
+Express handles authentication, rate limits, subscription reservations, user-owned
+history, provider timeouts and safe errors. Course documents are not sent to Gemini.
 
 ## Lesson resources
 
@@ -198,10 +180,6 @@ CORS accepts only `FRONTEND_URL` or the comma-separated `CORS_ORIGINS` allowlist
 ## Verify before deployment
 
 ```bash
-cd chatbot-service
-source venv/bin/activate
-python3 -m unittest discover -s tests -v
-
 cd backend
 npm ci
 npm run check
@@ -231,16 +209,15 @@ sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t && sudo systemctl reload nginx
 sudo certbot --nginx -d example.com -d www.example.com
 sudo systemctl daemon-reload
-sudo systemctl enable --now edunova-chatbot edunova-confusion edunova-backend
+sudo systemctl enable --now edunova-confusion edunova-backend
 ```
 
 Check private services from the VM only, then check the public HTTPS path:
 
 ```bash
-curl --fail http://127.0.0.1:5001/health
 curl --fail http://127.0.0.1:5002/health
 curl --fail https://example.com/api/health
-sudo journalctl -u edunova-backend -u edunova-chatbot -u edunova-confusion -n 100 --no-pager
+sudo journalctl -u edunova-backend -u edunova-confusion -n 100 --no-pager
 ```
 
 The Nginx configuration forwards `/socket.io/` with WebSocket upgrade headers.
@@ -257,7 +234,7 @@ make it a public object-store bucket without access controls.
 For each release: take a database/upload backup, record the running Git commit,
 fetch the approved commit, run `npm ci` for backend and frontend, rebuild the
 frontend, reinstall Python requirements only when their lock/requirements
-change, run the verification commands above, then restart the three units.
+change, run the verification commands above, then restart the two units.
 
 If validation fails, restore the previous commit and dependency state, rebuild
 the prior frontend, restart the units, and restore database/uploads together

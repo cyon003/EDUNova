@@ -2,6 +2,13 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
+    subscription: {
+      plan: { type: String, enum: ["free", "premium"], default: "free" },
+      status: { type: String, enum: ["active", "expired", "cancelled"], default: "active" },
+      billingCycle: { type: String, enum: ["monthly", "yearly", null], default: null },
+      startDate: { type: Date, default: null },
+      endDate: { type: Date, default: null },
+    },
     purchaseRevision: { type: Number, default: 0, select: false },
     name: {
       type: String,

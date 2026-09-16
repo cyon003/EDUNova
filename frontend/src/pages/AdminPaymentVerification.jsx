@@ -73,6 +73,7 @@ function getOrderStatus(order) {
 }
 
 function coursesSummary(order) {
+  if (order.paymentType === "subscription") return `Premium Subscription · ${order.billingCycle === "yearly" ? "Yearly" : "Monthly"}`;
   const items = order.items || [];
 
   if (items.length === 0) {
@@ -475,7 +476,7 @@ export default function AdminPaymentVerification() {
                   <th>#</th>
                   <th>Order ID</th>
                   <th>Student</th>
-                  <th>Courses</th>
+                  <th>Purchase</th>
                   <th>Amount</th>
                   <th>Submitted At</th>
                   <th>Status</th>
@@ -505,7 +506,7 @@ export default function AdminPaymentVerification() {
                           </div>
                         </div>
                       </td>
-                      <td>{coursesSummary(order)}</td>
+                      <td>{order.paymentType !== "subscription" && <small>Course Purchase · </small>}{coursesSummary(order)}</td>
                       <td>{formatPrice(order.totalAmount)}</td>
                       <td>{formatDate(order.submittedAt)}</td>
                       <td>
@@ -628,7 +629,8 @@ export default function AdminPaymentVerification() {
               </div>
 
               <div className="pv-side-section">
-                <h4>Courses</h4>
+                <h4>{selectedOrder.paymentType === "subscription" ? "Premium Subscription" : "Course Purchase"}</h4>
+                {selectedOrder.paymentType === "subscription" && <p>EDUNova Premium · {selectedOrder.billingCycle === "yearly" ? "Yearly" : "Monthly"}</p>}
 
                 {selectedOrder.items?.map((item, index) => (
                   <div className="pv-course-row" key={`${selectedOrder._id}-detail-${index}`}>

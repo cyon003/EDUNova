@@ -1,3 +1,4 @@
+const { activateSubscription } = require("../services/subscriptionPaymentService");
 const mongoose = require("mongoose");
 const AdminAudit = require("../models/AdminAudit");
 const Notification = require("../models/Notification");
@@ -173,7 +174,9 @@ async function verifyPayment(req, res, approve) {
       );
       if (!updated) throw policyError(409, "This order has already been processed or is not awaiting verification");
       if (!updated.paymentSlip?.storedName) throw policyError(400, "This order does not have a payment slip");
-      if (approve) {
+      if (approve && updated.paymentType === "subscription") {
+        await activateSubscription(updated, session, updated.verifiedAt);
+      } else if (approve) {
         // Admin verification can complete an existing purchase when self-enrollment is off,
         // but still cannot exceed capacity or enroll an unpublished/deleted course.
         const ids = updated.items.map(item => item.course);
@@ -183,7 +186,7 @@ async function verifyPayment(req, res, approve) {
       await Notification.create([{
         user: updated.student, order: updated._id, source: "ADMIN", type: "system",
         title: approve ? "Payment Approved" : "Payment Rejected",
-        message: approve ? `Order ${updated.orderReference} is completed and your course access is now available.` : `Order ${updated.orderReference} was rejected. Reason: ${reason}. You can upload a new payment slip.`,
+        message: approve ? (updated.paymentType === "subscription" ? `Premium payment ${updated.orderReference} is approved. Your Premium time has been activated or extended.` : `Order ${updated.orderReference} is completed and your course access is now available.`) : `Order ${updated.orderReference} was rejected. Reason: ${reason}. You can upload a new payment slip.`,
       }], { session });
       await AdminAudit.create([{ admin: req.user._id, action: approve ? "Approved payment" : "Rejected payment", detail: updated.orderReference }], { session });
       await updated.populate("student", "name email");

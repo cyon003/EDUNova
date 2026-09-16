@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { FaArrowLeft, FaPaperPlane, FaRedo } from "react-icons/fa";
 import { Link } from "react-router-dom";
+import { useSubscription } from "../hooks/useSubscription";
+import SubscriptionSummary from "../components/SubscriptionSummary";
 import { API_ROOT } from "../utils/courseApi";
 import "../styles/CourseAssistant.css";
 
@@ -15,6 +17,8 @@ function historyMessages(items, disclaimer) {
 }
 
 function AiChatbot() {
+  const plan = useSubscription();
+  const quotaBlocked = !plan.subscription || (!plan.subscription.aiUsage.exempt && plan.subscription.aiUsage.remaining === 0);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
@@ -51,7 +55,7 @@ function AiChatbot() {
 
   const send = async (request, addUserMessage = true) => {
     const submittedMessage = request.message.trim();
-    if (!submittedMessage || submitting.current) return;
+    if (!submittedMessage || submitting.current || quotaBlocked) return;
     const submittedRequest = { mode: "general", message: submittedMessage };
     submitting.current = true;
     setDraft("");
@@ -61,6 +65,9 @@ function AiChatbot() {
     try {
       const response = await fetch(`${API_ROOT}/ai/chat`, { method: "POST", headers: requestHeaders(), body: JSON.stringify(submittedRequest) });
       const data = await response.json();
+      if (data.subscription) plan.setSubscription(data.subscription);
+      else if (response.ok) plan.refresh();
+      if (data.code === "AI_QUOTA_EXCEEDED") { plan.setSubscription(data); setLastRequest(null); }
       if (!response.ok) throw new Error(data.message || "Unable to ask AskAI");
       if (data.mode !== "general" || data.responseType !== "generated") throw new Error("AskAI returned an incompatible response.");
       setMessages((current) => [...current, { id: data.conversationId, role: "assistant", text: data.answer, responseType: data.responseType, disclaimer: data.disclaimer || GENERAL_DISCLAIMER }]);
@@ -93,6 +100,7 @@ function AiChatbot() {
     <div className="assistant-layout">
       <aside className="assistant-context" aria-label="Tutor information">
         <div className="assistant-intro"><h1>AskAI</h1><p>Ask for explanations, examples, or study help using general knowledge.</p></div>
+        <SubscriptionSummary subscription={plan.subscription} error={plan.error} onRetry={plan.refresh} />
         <p className="assistant-general-warning">General AI answers may contain mistakes and are not verified against EDUNova course materials. Verify important information.</p>
       </aside>
       <section className="assistant-chat" aria-label="AskAI conversation">
@@ -102,8 +110,8 @@ function AiChatbot() {
           {messages.map((message) => <article className={`assistant-turn ${message.role} general`} key={message.id}><div><small>{message.role === "user" ? "You" : "AskAI"}</small><p>{message.text}</p>{message.role === "assistant" && message.responseType === "generated" && <b className="assistant-answer-mode general">AI-generated · General knowledge · Not verified against course materials</b>}</div></article>)}
           {sending && <article className="assistant-turn assistant general"><div><small>AskAI</small><p className="assistant-thinking"><i /><i /><i /><span>Generating a general educational answer…</span></p></div></article>}<div ref={messageEnd} />
         </div>
-        {status && <div className="assistant-status" role="status">{status}</div>}{error && <div className="assistant-error" role="alert"><span>{error}</span>{lastRequest && <button type="button" onClick={() => send(lastRequest, false)} disabled={sending}><FaRedo /> Retry</button>}</div>}
-        <form className="assistant-form" onSubmit={submit}><label htmlFor="assistant-message">Ask AskAI</label><div><textarea ref={inputRef} id="assistant-message" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }} maxLength="1000" rows="2" placeholder="Ask a general learning question..." disabled={sending} /><button type="submit" disabled={!draft.trim() || sending} aria-label="Send question"><FaPaperPlane /><span>Send</span></button></div><small>{draft.length}/1000 · Enter to send, Shift+Enter for a new line</small></form>
+        {status && <div className="assistant-status" role="status">{status}</div>}{error && <div className="assistant-error" role="alert"><span>{error}</span>{lastRequest && <button type="button" onClick={() => send(lastRequest, false)} disabled={sending || quotaBlocked}><FaRedo /> Retry</button>}</div>}
+        <form className="assistant-form" onSubmit={submit}><label htmlFor="assistant-message">Ask AskAI</label><div><textarea ref={inputRef} id="assistant-message" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }} maxLength="1000" rows="2" placeholder="Ask a general learning question..." disabled={sending || quotaBlocked} /><button type="submit" disabled={!draft.trim() || sending || quotaBlocked} aria-label="Send question"><FaPaperPlane /><span>Send</span></button></div><small>{draft.length}/1000 · Enter to send, Shift+Enter for a new line</small></form>
       </section>
     </div>
   </main>;

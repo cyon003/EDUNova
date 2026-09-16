@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { FaEye, FaEyeSlash, FaTimes } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
-import { API_ROOT } from "../utils/courseApi";
+import { signup } from "../utils/signup";
 import { consumeSessionMessage, login } from "../utils/authClient";
 
 function AuthCard() {
@@ -16,8 +16,6 @@ function AuthCard() {
     email: "",
     password: "",
   });
-
-  const API_URL = `${API_ROOT}/auth`;
 
   const handleChange = (e) => {
     setFormData({
@@ -44,10 +42,6 @@ function AuthCard() {
     setMessage("");
     setLoading(true);
 
-    const url = isLogin
-      ? `${API_URL}/login`
-      : `${API_URL}/signup`;
-
     const bodyData = isLogin
       ? {
           email: formData.email,
@@ -61,13 +55,7 @@ function AuthCard() {
 
     try {
       if (!isLogin) {
-        const response = await fetch(url, {
-          method: "POST", credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(bodyData),
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || "Unable to create account");
+        const data = await signup(bodyData);
         setMessage(data.message);
         setIsLogin(true);
         setFormData({ name: "", email: formData.email, password: "" });

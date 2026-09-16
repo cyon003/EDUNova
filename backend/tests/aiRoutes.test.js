@@ -7,10 +7,13 @@ process.env.NODE_ENV = "test";
 process.env.JWT_SECRET = "phase-one-test-secret-that-is-at-least-32-characters";
 process.env.AI_GENERAL_RATE_LIMIT_PER_MINUTE = "100";
 process.env.AI_CHATBOT_RECENT_CONTEXT_LIMIT = "3";
-process.env.PYTHON_CHATBOT_TIMEOUT_MS = "1000";
+
 
 const User = require("../models/User");
 const ChatbotConversation = require("../models/ChatbotConversation");
+const subscriptionService = require("../services/subscriptionService");
+const originalSubscriptionMethods = { ...subscriptionService };
+const geminiService = require("../services/geminiService");
 const app = require("../app");
 
 const user = { _id: "507f1f77bcf86cd799439011", role: "student", tokenVersion: 0, accountStatus: "approved" };
@@ -56,7 +59,7 @@ function conversationFind(records, capturedFilters) {
 }
 
 test.before(async () => {
-  originalFetch = global.fetch;
+  originalFetch = geminiService.generateAnswer;
   originalFindById = User.findById;
   originalFind = ChatbotConversation.find;
   originalCountDocuments = ChatbotConversation.countDocuments;
@@ -68,7 +71,8 @@ test.before(async () => {
 });
 
 test.after(async () => {
-  global.fetch = originalFetch;
+  Object.assign(subscriptionService, originalSubscriptionMethods);
+  geminiService.generateAnswer = originalFetch;
   User.findById = originalFindById;
   ChatbotConversation.find = originalFind;
   ChatbotConversation.countDocuments = originalCountDocuments;
@@ -78,15 +82,14 @@ test.after(async () => {
 });
 
 test.beforeEach(() => {
+  subscriptionService.reserveUsage = async () => null;
+  subscriptionService.settleUsage = async () => {};
+  subscriptionService.getSubscription = async () => ({ plan: "free", aiUsage: { used: 1, limit: 5 } });
   ChatbotConversation.find = conversationFind([]);
   ChatbotConversation.countDocuments = async () => 0;
   ChatbotConversation.deleteMany = async () => ({ deletedCount: 0 });
   ChatbotConversation.create = async (record) => ({ ...record, _id: "conversation-1", createdAt: new Date("2026-08-28T00:00:00Z") });
-  global.fetch = async () => ({
-    ok: true,
-    status: 200,
-    json: async () => ({ mode: "general", answer: "A general answer.", responseType: "generated", disclaimer: "This answer uses Gemini’s general knowledge and is not verified against EDUNova course materials." }),
-  });
+  geminiService.generateAnswer = async () => ({ mode: "general", answer: "A general answer.", responseType: "generated", disclaimer: "This answer uses Gemini’s general knowledge and is not verified against EDUNova course materials." });
 });
 
 test("AI routes require authentication", async () => {
@@ -98,14 +101,20 @@ test("general chat sends only general context and stores a general conversation"
   const filters = [];
   ChatbotConversation.find = conversationFind([{ userMessage: "Earlier", assistantAnswer: "Earlier answer" }], filters);
   let providerPayload;
-  global.fetch = async (_url, options) => {
-    providerPayload = JSON.parse(options.body);
-    return { ok: true, status: 200, json: async () => ({ mode: "general", answer: "A general answer.", responseType: "generated", disclaimer: "This answer uses Gemini’s general knowledge and is not verified against EDUNova course materials." }) };
+  let saved;
+  ChatbotConversation.create = async (record) => { saved = record; return { ...record, _id: "saved-id" }; };
+  geminiService.generateAnswer = async (payload) => {
+    providerPayload = payload;
+    return { mode: "general", answer: "A general answer.", responseType: "generated", disclaimer: "This answer uses Gemini’s general knowledge and is not verified against EDUNova course materials." };
   };
   const response = await request("POST", "/api/ai/chat", { mode: "general", message: "  Explain fractions  " });
   assert.equal(response.status, 200);
   assert.deepEqual(Object.keys(providerPayload).sort(), ["conversation", "message", "mode"]);
   assert.equal(providerPayload.message, "Explain fractions");
+  assert.deepEqual(providerPayload.conversation, [{ role: "user", content: "Earlier" }, { role: "assistant", content: "Earlier answer" }]);
+  assert.equal(saved.user, user._id);
+  assert.equal(saved.assistantAnswer, "A general answer.");
+  assert.equal(response.body.conversationId, "saved-id");
   assert.equal(filters[0].user, user._id);
   assert.equal(filters[0].mode, "general");
 });
@@ -151,28 +160,16 @@ test("course history and course-specific history fields are rejected", async () 
   assert.equal((await request("DELETE", "/api/ai/history?mode=general&lessonId=507f1f77bcf86cd799439013")).status, 400);
 });
 
-test("quota and unavailable provider errors preserve safe status and messages", async () => {
-  global.fetch = async () => ({ ok: false, status: 429, json: async () => ({ category: "quota_exceeded", message: "The General AI Tutor quota is temporarily exhausted. Please try again later." }) });
-  const quota = await request("POST", "/api/ai/chat", { mode: "general", message: "Hello" });
-  assert.equal(quota.status, 429);
-  assert.match(quota.body.message, /quota/i);
-
-  global.fetch = async () => { throw new Error("connection refused"); };
-  const unavailable = await request("POST", "/api/ai/chat", { mode: "general", message: "Hello" });
-  assert.equal(unavailable.status, 503);
-  assert.match(unavailable.body.message, /temporarily unavailable/i);
-});
-
-test("malformed and timed-out provider responses fail safely", async () => {
-  global.fetch = async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError("bad json"); } });
-  const malformed = await request("POST", "/api/ai/chat", { mode: "general", message: "Hello" });
-  assert.equal(malformed.status, 502);
-  assert.match(malformed.body.message, /invalid response/i);
-
-  global.fetch = (_url, options) => new Promise((_resolve, reject) => {
-    options.signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })));
-  });
-  const timeout = await request("POST", "/api/ai/chat", { mode: "general", message: "Hello" });
-  assert.equal(timeout.status, 504);
-  assert.match(timeout.body.message, /too long/i);
+test("provider failures preserve safe responses and release quota", async () => {
+  for (const status of [429, 502, 503, 504]) {
+    const reservation = { key: "usage", token: "reserved" };
+    const settlements = [];
+    subscriptionService.reserveUsage = async () => reservation;
+    subscriptionService.settleUsage = async (...args) => settlements.push(args);
+    geminiService.generateAnswer = async () => { throw Object.assign(new Error("safe"), { status, publicMessage: "Safe provider error" }); };
+    const response = await request("POST", "/api/ai/chat", { mode: "general", message: "Hello" });
+    assert.equal(response.status, status);
+    assert.equal(response.body.message, "Safe provider error");
+    assert.deepEqual(settlements, [[reservation, false]]);
+  }
 });

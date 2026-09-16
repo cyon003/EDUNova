@@ -13,6 +13,9 @@ const orderSchema = new mongoose.Schema(
       index: true,
     },
 
+    paymentType: { type: String, enum: ["course", "subscription"], default: "course", immutable: true },
+    billingCycle: { type: String, enum: ["monthly", "yearly"], immutable: true },
+
     items: [
       {
         course: {
@@ -141,5 +144,14 @@ const orderSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+orderSchema.pre("validate", function () {
+  if (this.paymentType === "subscription") {
+    if (!["monthly", "yearly"].includes(this.billingCycle)) this.invalidate("billingCycle", "Premium requires a billing cycle");
+    if (this.totalAmount !== ({ monthly: 99, yearly: 999 })[this.billingCycle]) this.invalidate("totalAmount", "Invalid Premium price");
+    if (this.items.length) this.invalidate("items", "Premium payments cannot contain courses");
+    if (this.paymentMethod !== "manual_qr") this.invalidate("paymentMethod", "Premium requires manual payment approval");
+  } else if (this.billingCycle != null) this.invalidate("billingCycle", "Course orders cannot contain a subscription cycle");
+});
 
 module.exports = mongoose.model("Order", orderSchema);

@@ -46,12 +46,22 @@ function getRoleLanding(user) {
 function App() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [sessionError, setSessionError] = useState("");
+  const [restoreAttempt, setRestoreAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
-    restoreSession().finally(() => { if (active) setLoading(false); });
+    restoreSession().then(() => {
+      if (active) { setSessionError(""); setLoading(false); }
+    }).catch(() => {
+      if (active) { setSessionError("Unable to restore your session right now. Please check your connection and retry."); setLoading(false); }
+    });
     return () => { active = false; };
-  }, []);
+  }, [restoreAttempt]);
+
+  if (sessionError) {
+    return <div className="app-session-loading" role="alert"><p>{sessionError}</p><button onClick={() => { setSessionError(""); setLoading(true); setRestoreAttempt(value => value + 1); }}>Retry</button></div>;
+  }
 
   if (loading) {
     return <div className="app-session-loading" role="status">Restoring your EDUNova session…</div>;

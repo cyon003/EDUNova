@@ -9,7 +9,7 @@ const authenticateToken = require(
 );
 const { sendPasswordResetEmail } = require("../services/emailService");
 const { buildPasswordResetUrl, createResetToken, hashResetToken, validatePassword } = require("../utils/passwordSecurity");
-const { RefreshSession, accessToken, clearRefreshCookie, createSession, hashToken, publicUser, readCookie, revokeUserSessions, setRefreshCookie } = require("../services/sessionService");
+const { SessionRejection, rotateSession, RefreshSession, accessToken, clearRefreshCookie, createSession, hashToken, publicUser, readCookie, revokeUserSessions, setRefreshCookie } = require("../services/sessionService");
 
 const router = express.Router();
 
@@ -155,40 +155,20 @@ router.post("/login", loginLimiter, async (req, res) => {
 });
 
 router.post("/refresh", refreshLimiter, async (req, res) => {
-  const rawToken = readCookie(req);
-  if (!rawToken) return res.status(401).json({ message: "Refresh session is missing or expired" });
-  const tokenHash = hashToken(rawToken);
   try {
-    const existing = await RefreshSession.findOne({ tokenHash }).select("+tokenHash +replacedByHash");
-    if (!existing) { clearRefreshCookie(res); return res.status(401).json({ message: "Refresh session is invalid" }); }
-    if (existing.revokedAt) {
-      if (existing.revokeReason === "rotated") await RefreshSession.updateMany({ familyId: existing.familyId, revokedAt: null }, { $set: { revokedAt: new Date(), revokeReason: "reuse_detected" } });
-      clearRefreshCookie(res);
-      return res.status(401).json({ message: "Refresh session has been revoked" });
-    }
-    if (existing.expiresAt <= new Date()) {
-      existing.revokedAt = new Date(); existing.revokeReason = "expired"; await existing.save(); clearRefreshCookie(res);
-      return res.status(401).json({ message: "Refresh session has expired" });
-    }
-    const user = await User.findById(existing.user);
-    if (!user || user.accountStatus !== "approved") {
-      await RefreshSession.updateMany({ familyId: existing.familyId, revokedAt: null }, { $set: { revokedAt: new Date(), revokeReason: "account_changed" } });
-      clearRefreshCookie(res);
-      return res.status(401).json({ message: "User session is no longer active" });
-    }
-    const rotated = await RefreshSession.findOneAndUpdate({ _id: existing._id, revokedAt: null }, { $set: { revokedAt: new Date(), revokeReason: "rotated", lastUsedAt: new Date() } }, { returnDocument: "after" });
-    if (!rotated) {
-      await RefreshSession.updateMany({ familyId: existing.familyId, revokedAt: null }, { $set: { revokedAt: new Date(), revokeReason: "reuse_detected" } });
-      clearRefreshCookie(res);
-      return res.status(401).json({ message: "Refresh token reuse was detected" });
-    }
-    const next = await createSession(user, req, existing.familyId, existing);
-    await RefreshSession.updateOne({ _id: existing._id }, { $set: { replacedByHash: next.tokenHash } });
+    const rawToken = readCookie(req);
+    if (!rawToken) throw new SessionRejection("Refresh session is missing or expired");
+    const { next, token, user } = await rotateSession(rawToken, req);
     setRefreshCookie(res, next.rawToken, next.expiresAt);
-    return res.json({ message: "Session refreshed", token: accessToken(user, next), user: publicUser(user) });
+    return res.json({ message: "Session refreshed", token, user });
   } catch (error) {
-    console.error("Refresh session error:", error.message); clearRefreshCookie(res);
-    return res.status(401).json({ message: error.message === "Session timeout reached. Please log in again." ? error.message : "Unable to refresh session" });
+    if (error instanceof SessionRejection || error instanceof URIError) {
+      clearRefreshCookie(res);
+      return res.status(401).json({ code: "SESSION_REJECTED", message: error instanceof SessionRejection ? error.message : "Refresh session is invalid" });
+    }
+    // Never log raw errors: database errors can contain authentication material.
+    console.error("Session refresh temporarily unavailable");
+    return res.status(503).json({ code: "SESSION_UNAVAILABLE", message: "Session refresh is temporarily unavailable. Please try again." });
   }
 });
 

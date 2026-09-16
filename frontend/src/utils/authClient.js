@@ -5,11 +5,25 @@ const TOKEN_MARKER = "managed-in-memory";
 const SESSION_MESSAGE_KEY = "edunova_session_message";
 const AUTH_EVENT = "edunova-auth-change";
 let accessToken = null;
+let accessRevision = 0;
 let snapshot = { user: null, version: 0 };
 let refreshPromise = null;
 let restorePromise = null;
 let originalFetch = null;
 let sessionOperations = Promise.resolve();
+
+export class RefreshError extends Error {
+  constructor(message, { definitive = false, status = null, cause } = {}) {
+    super(message, { cause });
+    this.name = "RefreshError";
+    this.definitive = definitive;
+    this.status = status;
+  }
+}
+
+export function classifyRefreshResponse(status) {
+  return status === 401 ? "rejected" : "recoverable";
+}
 
 export const getAuthSnapshot = () => snapshot;
 export const isCurrentSession = (version) => snapshot.version === version;
@@ -37,6 +51,7 @@ function assertCurrentSession(version) {
 
 function saveSession(user, token, version) {
   accessToken = token;
+  accessRevision++;
   localStorage.setItem("user", JSON.stringify(user));
   // Compatibility marker only: never use this value as a token or an identity.
   localStorage.setItem("token", TOKEN_MARKER);
@@ -69,8 +84,20 @@ function getNativeFetch() {
 
 // Serialize cookie-changing requests. A late refresh must finish before logout
 // clears its cookie, and logout must finish before another login sets a new one.
-function sessionOperation(operation) {
-  const result = sessionOperations.then(operation);
+function sessionOperation(operation, requireCoordination = false) {
+  const result = sessionOperations.then(() => {
+    const locks = globalThis.navigator?.locks;
+    if (!locks) {
+      // A home-grown expiring storage lease cannot safely exclude a suspended
+      // tab. Fail recoverably instead of risking reuse of a rotated cookie.
+      if (requireCoordination) throw new RefreshError("This browser needs a secure connection and Web Locks support to restore your session.");
+      return operation();
+    }
+    // Same-origin tabs share this lock (and cookie). Only the waiter is timed
+    // out; never release an acquired lock while its HTTP request is in flight.
+    // Browsers release held locks automatically when their tab closes.
+    return locks.request("edunova-auth-cookie", { signal: AbortSignal.timeout(15000) }, operation);
+  });
   sessionOperations = result.catch(() => {});
   return result;
 }
@@ -103,14 +130,22 @@ export function refreshSession() {
     });
     const data = await response.json().catch(() => ({}));
     assertCurrentSession(version);
-    if (!response.ok || !data.user?.id || !data.token) throw new Error(data.message || "Session refresh failed");
+    if (!response.ok) throw new RefreshError(
+      response.status === 401 ? "Your session has expired. Please log in again." : "Session refresh is temporarily unavailable. Please try again.",
+      { definitive: classifyRefreshResponse(response.status) === "rejected", status: response.status }
+    );
+    if (!data.user?.id || !data.token) throw new RefreshError("Invalid session response. Please try again.");
     // A refresh may renew this account, never silently switch to another one.
     if (snapshot.user && String(snapshot.user.id) !== String(data.user.id)) throw sessionChanged();
     saveSession(data.user, data.token, version);
     return data.user;
-  }).catch((error) => {
-    if (isCurrentSession(version)) clearSession({ expired: true });
-    throw error;
+  }, true).catch((error) => {
+    if (isCurrentSession(version)) {
+      if (error instanceof RefreshError && error.definitive) clearSession({ expired: true });
+      else accessToken = null; // Keep identity for recovery, never reuse a suspect token.
+    }
+    if (error instanceof RefreshError || error.name === "AbortError") throw error;
+    throw new RefreshError("Session refresh is temporarily unavailable. Please try again.", { cause: error });
   }).finally(() => {
     if (refreshPromise === pending) refreshPromise = null;
   });
@@ -119,7 +154,11 @@ export function refreshSession() {
 }
 
 export function restoreSession() {
-  if (!restorePromise) restorePromise = refreshSession().catch(() => null);
+  if (!restorePromise) restorePromise = refreshSession().catch((error) => {
+    restorePromise = null;
+    if (error instanceof RefreshError && error.definitive) return null;
+    throw error;
+  });
   return restorePromise;
 }
 
@@ -145,9 +184,15 @@ function isRefreshExcluded(input) {
 
 async function authenticatedFetch(input, init = {}, mayRetry = true, version = snapshot.version) {
   const apiRequest = isApiUrl(input);
+  if (apiRequest && !isRefreshExcluded(input) && snapshot.user && !accessToken) {
+    assertCurrentSession(version);
+    await refreshSession();
+  }
   const options = { ...init };
   const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
-  const hadToken = Boolean(accessToken);
+  const requestToken = accessToken;
+  const requestRevision = accessRevision;
+  const hadToken = Boolean(requestToken);
   if (apiRequest) {
     assertCurrentSession(version);
     options.credentials = "include";
@@ -161,7 +206,9 @@ async function authenticatedFetch(input, init = {}, mayRetry = true, version = s
   assertCurrentSession(version);
   if (response.status !== 401 || !mayRetry || !hadToken || isRefreshExcluded(input)) return response;
   try {
-    await refreshSession();
+    // A late response may refer to the token from before another request's
+    // successful refresh. Retry with the new token without another rotation.
+    if (!accessToken || accessRevision === requestRevision) await refreshSession();
   } catch (error) {
     if (snapshot.user) throw error;
     return response;
@@ -201,7 +248,8 @@ export { AUTH_EVENT, storedUser };
 
 export async function socketAuthentication() {
   const version = snapshot.version;
-  if (!accessToken || !snapshot.user) throw new Error("Please log in to use messaging");
+  if (!snapshot.user) throw new Error("Please log in to use messaging");
+  if (!accessToken) await refreshSession();
   const claims = JSON.parse(atob(accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
   if (claims.exp * 1000 <= Date.now() + 30000) await refreshSession();
   assertCurrentSession(version);

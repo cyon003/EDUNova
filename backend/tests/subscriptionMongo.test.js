@@ -54,7 +54,7 @@ test("subscription MongoDB and HTTP integration", { skip: process.env.RUN_SUBSCR
     await t.test("legacy user and endpoint authentication", async () => {
       await User.collection.updateOne({ _id: student._id }, { $unset: { subscription: "" } });
       assert.equal((await request("GET", "/subscription/me")).data.plan, "free");
-      for (const [method, route] of [["GET", "/me"], ["POST", "/upgrade"], ["POST", "/cancel"], ["POST", "/dev/simulate"]]) assert.equal((await request(method, `/subscription${route}`, method === "POST" ? {} : undefined, null)).status, 401);
+      for (const [method, route] of [["GET", "/me"], ["POST", "/upgrade"], ["POST", "/dev/simulate"]]) assert.equal((await request(method, `/subscription${route}`, method === "POST" ? {} : undefined, null)).status, 401);
     });
     await t.test("five successful chats then sixth rejected; history deletion preserves quota", async () => {
       for (let i = 0; i < 5; i++) assert.equal((await request("POST", "/ai/chat", { mode: "general", message: "Hello" })).status, 200);
@@ -119,7 +119,7 @@ test("subscription MongoDB and HTTP integration", { skip: process.env.RUN_SUBSCR
     await t.test("self-promotion blocked and development admin simulation protected", async () => {
       const body = { userId: student.id, plan: "premium", billingCycle: "monthly" };
       assert.equal((await request("POST", "/subscription/upgrade", body)).status, 400);
-      assert.equal((await request("POST", "/subscription/upgrade", { billingCycle: "monthly" })).status, 503);
+      assert.equal((await request("POST", "/subscription/upgrade", { billingCycle: "monthly", totalAmount: 1 })).status, 400);
       process.env.ENABLE_DEV_SUBSCRIPTIONS = "true";
       for (const environment of ["production", "staging", "test"]) {
         process.env.NODE_ENV = environment;
@@ -132,8 +132,13 @@ test("subscription MongoDB and HTTP integration", { skip: process.env.RUN_SUBSCR
       assert.equal((await request("POST", "/subscription/dev/simulate", body)).status, 403);
       assert.equal((await request("POST", "/subscription/dev/simulate", { ...body, billingCycle: "invalid" }, admin)).status, 400);
       assert.equal((await request("POST", "/subscription/dev/simulate", body, admin)).data.plan, "premium");
-      assert.equal((await request("POST", "/subscription/cancel", { plan: "premium" })).status, 400);
-      assert.equal((await request("POST", "/subscription/cancel", {})).data.plan, "free");
+      const before = (await User.findById(student._id)).subscription.toObject();
+      for (const payload of [{}, { plan: "free" }]) {
+        assert.equal((await request("POST", "/subscription/cancel", payload)).status, 404);
+      }
+      const after = (await User.findById(student._id)).subscription.toObject();
+      assert.deepEqual(after, before);
+      assert.equal((await request("GET", "/subscription/me")).data.plan, "premium");
       assert.equal((await request("POST", "/subscription/dev/simulate", { userId: student.id, plan: "free" }, admin)).data.plan, "free");
       process.env.NODE_ENV = "test";
     });

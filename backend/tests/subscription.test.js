@@ -19,6 +19,7 @@ test("Premium monthly/yearly allowances and expiration", () => {
     assert.equal(a.limit, 500);
     assert.equal(a.resetAt.toISOString(), "2026-10-01T00:00:00.000Z");
     assert.notEqual(a.key, service.allowance(user, a.resetAt).key);
+    assert.equal(service.currentSubscription(user, new Date(subscription.endDate.getTime() - 1)).plan, "premium");
     assert.equal(service.currentSubscription(user, subscription.endDate).plan, "free");
     assert.equal(service.currentSubscription(user, subscription.endDate).status, "expired");
     for (const patch of [{ status: "cancelled" }, { endDate: null }, { startDate: new Date("2027-01-01") }]) assert.equal(service.currentSubscription({ subscription: { ...subscription, ...patch } }, now).plan, "free");

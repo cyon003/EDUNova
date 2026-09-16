@@ -1,6 +1,5 @@
 const { randomUUID } = require("node:crypto");
 const AiUsage = require("../models/AiUsage");
-const User = require("../models/User");
 
 function currentSubscription(user, now = new Date()) {
   const value = user.subscription || {};
@@ -68,7 +67,4 @@ function premiumSubscription(billingCycle, now = new Date()) {
   return { plan: "premium", status: "active", billingCycle, startDate: now, endDate };
 }
 
-async function cancelSubscription(user) {
-  return User.findByIdAndUpdate(user._id, { $set: { subscription: { plan: "free", status: "cancelled", billingCycle: null, startDate: null, endDate: new Date() } } }, { returnDocument: "after", runValidators: true });
-}
-module.exports = { currentSubscription, allowance, getSubscription, reserveUsage, settleUsage, premiumSubscription, cancelSubscription };
+module.exports = { currentSubscription, allowance, getSubscription, reserveUsage, settleUsage, premiumSubscription };

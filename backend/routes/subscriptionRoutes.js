@@ -2,21 +2,28 @@ const express = require("express");
 const mongoose = require("mongoose");
 const authenticateToken = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
+const Order = require("../models/Order");
 const User = require("../models/User");
 const AdminAudit = require("../models/AdminAudit");
+const { checkoutSubscription } = require("../services/subscriptionPaymentService");
 const service = require("../services/subscriptionService");
 const router = express.Router();
 router.use(authenticateToken);
 const validBody = (body, keys) => body && !Array.isArray(body) && typeof body === "object" && Object.keys(body).every((key) => keys.includes(key));
-router.get("/me", async (req, res) => res.json(await service.getSubscription(req.user)));
-router.post("/upgrade", requireRole("student"), (req, res) => {
-  if (!validBody(req.body, ["billingCycle"]) || !["monthly", "yearly"].includes(req.body.billingCycle)) return res.status(400).json({ message: "Choose monthly or yearly billing" });
-  return res.status(503).json({ code: "PAYMENTS_NOT_AVAILABLE", message: "Premium purchases are not available yet. No payment has been taken." });
+router.get("/me", async (req, res) => {
+  const subscription = await service.getSubscription(req.user);
+  const pendingPayment = await Order.findOne({ student: req.user._id, paymentType: "subscription", status: { $in: ["pending", "awaiting_verification", "rejected"] } })
+    .select("billingCycle status orderReference totalAmount").sort({ createdAt: -1 }).lean();
+  return res.json({ ...subscription, pendingPayment });
 });
-router.post("/cancel", requireRole("student"), async (req, res) => {
-  if (!validBody(req.body, [])) return res.status(400).json({ message: "Cancellation accepts no subscription fields" });
-  const user = await service.cancelSubscription(req.user);
-  return res.json(await service.getSubscription(user));
+router.post("/upgrade", requireRole("student"), async (req, res) => {
+  if (!validBody(req.body, ["billingCycle"]) || !["monthly", "yearly"].includes(req.body.billingCycle)) return res.status(400).json({ message: "Choose monthly or yearly billing" });
+  try {
+    const result = await checkoutSubscription(req.user._id, req.body.billingCycle);
+    return res.status(result.status).json(result.body);
+  } catch (error) {
+    return res.status(error.status || 500).json({ message: error.status ? error.message : "Unable to start Premium checkout" });
+  }
 });
 router.post("/dev/simulate", (req, res, next) => {
   if (process.env.NODE_ENV !== "development" || process.env.ENABLE_DEV_SUBSCRIPTIONS !== "true") return res.sendStatus(404);

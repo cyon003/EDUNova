@@ -28,6 +28,7 @@ export default function CheckoutPage() {
   const checkoutSource = query.get("from");
 
   const [order, setOrder] = useState(null);
+  const isSubscription = order?.paymentType === "subscription";
   const [paymentSettings, setPaymentSettings] = useState(null);
   const [qrObjectUrl, setQrObjectUrl] = useState("");
   const [qrLoading, setQrLoading] = useState(true);
@@ -388,7 +389,7 @@ export default function CheckoutPage() {
       }
 
       setInfo(
-        "Payment slip submitted successfully. Your payment is now awaiting verification."
+        isSubscription ? "Premium payment submitted — awaiting admin approval." : "Payment slip submitted successfully. Your payment is now awaiting verification."
       );
     } catch (err) {
       console.error("Payment slip upload error:", err);
@@ -407,6 +408,7 @@ export default function CheckoutPage() {
   // --------------------------------------------------
 
   const handleBack = () => {
+    if (isSubscription || checkoutSource === "subscription") { navigate("/subscription"); return; }
     // Cart checkout -> Cart
     if (checkoutSource === "cart") {
       navigate("/cart");
@@ -459,8 +461,8 @@ export default function CheckoutPage() {
 
       <div className="checkout-intro">
         <p className="checkout-eyebrow">YOUR NEXT CHAPTER</p>
-        <h1>{isCompleted ? "You’re ready to learn." : isAwaitingVerification ? "We’ve received your payment slip." : "A little closer to your next lesson."}</h1>
-        <p>{isCompleted ? "Your payment is approved. Your courses are ready when you are." : "Pay by bank transfer, send your slip, and we’ll take care of the rest."}</p>
+        <h1>{isCompleted ? "You’re ready to learn." : isAwaitingVerification ? "We’ve received your payment slip." : (isSubscription ? "More learning with EDUNova Premium." : "A little closer to your next lesson.")}</h1>
+        <p>{isCompleted ? (isSubscription ? "Your Premium payment is approved. View your plan for its current status and expiry." : "Your payment is approved. Your courses are ready when you are.") : "Pay by bank transfer, send your slip, and we’ll take care of the rest."}</p>
       </div>
 
       {!order ? (
@@ -488,10 +490,10 @@ export default function CheckoutPage() {
                   <FaCheckCircle className="processing-icon" />
                   <p className="checkout-eyebrow">{isCompleted ? "PAYMENT APPROVED" : "AWAITING VERIFICATION"}</p>
                   <h2>{isCompleted ? "Your learning starts here." : "Thanks. We’ll check it from here."}</h2>
-                  <p>{isCompleted ? "Your course access is now available." : "An administrator will review your slip. Your courses become available once payment is approved."}</p>
+                  <p>{isCompleted ? (isSubscription ? "Your Premium time has been activated or extended. View your plan for its current expiry." : "Your course access is now available.") : (isSubscription ? "Premium payment submitted — awaiting admin approval. This purchase adds Premium time only after approval." : "An administrator will review your slip. Your courses become available once payment is approved.")}</p>
                   <div className="checkout-reference">Order reference <strong>{order.orderReference}</strong></div>
-                  <button type="button" className="checkout-btn-primary" onClick={() => navigate(isCompleted ? "/my-courses" : "/home")}>
-                    {isCompleted ? "Go to my learning" : "Back to home"}
+                  <button type="button" className="checkout-btn-primary" onClick={() => navigate(isSubscription ? "/subscription" : isCompleted ? "/my-courses" : "/home")}>
+                    {isSubscription ? "View subscription" : isCompleted ? "Go to my learning" : "Back to home"}
                   </button>
                 </section>
               )}
@@ -522,7 +524,7 @@ export default function CheckoutPage() {
                 <section className="checkout-card">
                   <div className="checkout-section-heading"><span>02</span><div><h2>{isRejected ? "Upload a new payment slip" : "Send your payment slip"}</h2><p>{isRejected ? "Your previous slip was rejected. Review the reason and try again." : "Upload the receipt from your bank after completing the transfer."}</p></div></div>
                   {isRejected && <div className="checkout-error" role="alert">{order.rejectionReason || "Please check your transfer details and upload a clear payment receipt."}</div>}
-                  <PaymentUploadSection selectedFile={selectedFile} setSelectedFile={setSelectedFile} uploading={uploading} uploadPaymentSlip={uploadPaymentSlip} />
+                  <PaymentUploadSection isSubscription={isSubscription} selectedFile={selectedFile} setSelectedFile={setSelectedFile} uploading={uploading} uploadPaymentSlip={uploadPaymentSlip} />
                 </section>
               )}
             </div>
@@ -530,6 +532,7 @@ export default function CheckoutPage() {
             <aside className="checkout-summary" aria-label="Order summary">
               <p className="checkout-eyebrow">YOUR ORDER</p><h2>A good investment in you.</h2>
               <div className="checkout-summary-items">
+                {isSubscription && <div className="checkout-summary-item"><div className="checkout-summary-thumb"><FaShoppingBag /></div><div className="checkout-summary-info"><span className="checkout-summary-name">EDUNova Premium</span><span className="checkout-summary-level">{order.billingCycle === "yearly" ? "Yearly subscription" : "Monthly subscription"}</span></div><span className="checkout-summary-price">THB {totalAmount.toFixed(2)}</span></div>}
                 {order.items?.map((item, index) => (
                   <div key={item.course?._id || index} className="checkout-summary-item">
                     <div className="checkout-summary-thumb">{item.course?.thumbnail ? <img src={apiAssetUrl(item.course.thumbnail)} alt="" /> : <FaShoppingBag />}</div>
@@ -540,7 +543,7 @@ export default function CheckoutPage() {
               </div>
               <div className="checkout-summary-total"><span>Total due</span><strong>{totalAmount > 0 ? formatCoursePrice(totalAmount) : "Free"}</strong></div>
               <dl className="checkout-order-meta"><div><dt>Reference</dt><dd>{order.orderReference}</dd></div><div><dt>Status</dt><dd>{isCompleted ? "Approved" : isAwaitingVerification ? "Under review" : isRejected ? "Slip rejected" : "Awaiting payment"}</dd></div></dl>
-              <p className="checkout-secure-note"><FaLock /> Payments are reviewed by our team before course access is granted.</p>
+              <p className="checkout-secure-note"><FaLock /> Payments are reviewed by our team before your purchase is activated.</p>
               <a className="checkout-support" href="mailto:support@edunova.com">Need a hand? Contact support ↗</a>
             </aside>
           </div>
@@ -550,7 +553,7 @@ export default function CheckoutPage() {
   );
 }
 
-function PaymentUploadSection({ selectedFile, setSelectedFile, uploading, uploadPaymentSlip }) {
+function PaymentUploadSection({ isSubscription, selectedFile, setSelectedFile, uploading, uploadPaymentSlip }) {
   return (
     <div className="checkout-upload">
       <div className={`checkout-file-picker ${selectedFile ? "has-file" : ""}`}>
@@ -562,7 +565,7 @@ function PaymentUploadSection({ selectedFile, setSelectedFile, uploading, upload
       <button type="button" className="checkout-btn-primary" onClick={uploadPaymentSlip} disabled={!selectedFile || uploading}>
         {uploading ? <><FaSpinner className="spin" /> Submitting…</> : <>Submit payment slip <span aria-hidden="true">→</span></>}
       </button>
-      <p className="checkout-upload-note">Course access begins after your payment is approved.</p>
+      <p className="checkout-upload-note">{isSubscription ? "Premium begins after admin approval. There is no automatic renewal." : "Course access begins after your payment is approved."}</p>
     </div>
   );
 }

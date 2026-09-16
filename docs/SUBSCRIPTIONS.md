@@ -4,7 +4,7 @@
 
 - Existing accounts automatically behave as Free. No migration is needed.
 - Students: Free has 5 successful AI messages per UTC day; Premium has 500 per UTC calendar month, including yearly subscribers.
-- Premium pricing: ฿99/month or ฿999/year. Expiration returns the effective plan to Free. Cancellation switches immediately to Free; there is no automatic billing or renewal.
+- Premium pricing: ฿99/month or ฿999/year. Premium expires automatically at the end of the paid period. There is no automatic renewal. Premium remains active until `subscription.endDate` (the Premium expiry timestamp); at that time, the effective plan becomes Free. Students cannot cancel their paid period.
 - Tutor/Admin accounts have no subscription quota. Their existing per-minute abuse limiter still applies.
 - Course access, paid course checkout, enrollment and confusion detection retain their existing rules. Premium does not buy courses.
 - History remains available to both plans. The backend Gemini service has a bounded context budget, so this implementation does not advertise extended history as an additional Premium benefit.
@@ -35,7 +35,7 @@ Open `/subscription`, or use the new plan panel in `/profile` or `/ai-tutor`.
 
 ## Simulate Premium locally
 
-The only new application environment variable is `ENABLE_DEV_SUBSCRIPTIONS`, default `false`, documented in `backend/.env.example`. It enables the admin simulation endpoint only when `NODE_ENV` is exactly `development`. Missing, test, staging and production environments cannot use it.
+`ENABLE_DEV_SUBSCRIPTIONS` is optional for local development only, defaults to `false`, and is documented in `backend/.env.example`. No new production environment variable is required. It enables the admin simulation endpoint only when `NODE_ENV` is exactly `development`. Missing, test, staging and production environments cannot use it.
 
 1. In your existing **local** `backend/.env`, set `ENABLE_DEV_SUBSCRIPTIONS=true` and ensure `NODE_ENV=development`. Restart the backend.
 2. Sign in to the local frontend as an existing Admin.
@@ -77,9 +77,8 @@ The action is recorded in the existing AdminAudit collection. Sign back in as th
 
 All routes require existing JWT authentication:
 
-- `GET /api/subscription/me`: effective plan, lifecycle dates, usage, remaining capacity (subtracts in-flight reservations), UTC reset time; staff receive `aiUsage.exempt: true` and null limits.
-- `POST /api/subscription/upgrade`: student only; accepts exactly `{ "billingCycle": "monthly" | "yearly" }`. Returns `503 PAYMENTS_NOT_AVAILABLE` without changing the account. The existing manual course-payment system is not a subscription gateway.
-- `POST /api/subscription/cancel`: student only; accepts `{}` and immediately switches to Free.
+- `GET /api/subscription/me`: effective plan, lifecycle dates, usage, remaining capacity (subtracts in-flight reservations), UTC reset time and `pendingPayment`; staff receive `aiUsage.exempt: true` and null limits.
+- `POST /api/subscription/upgrade`: student only; accepts exactly `{ "billingCycle": "monthly" | "yearly" }`. Creates a server-priced ฿99/฿999 order (201), or resumes an existing pending, submitted or rejected Premium order (200). Extra fields, including client prices, are rejected (400). Premium activates only through the existing admin payment approval flow. See [Premium payment implementation](PREMIUM_PAYMENTS.md).
 - `POST /api/subscription/dev/simulate`: development + explicit flag + existing Admin role; validates student ID, plan and billing cycle. Unavailable outside development.
 - Existing `POST /api/ai/chat`: retains short-term limiting; subscription exhaustion returns `429 AI_QUOTA_EXCEEDED` with plan, limit, usage and reset time.
 
@@ -90,10 +89,10 @@ cd backend
 npm run check
 npm test
 # Also run real MongoDB concurrency and HTTP coverage (mongod must be on PATH):
-RUN_SUBSCRIPTION_MONGO_TESTS=true npm test
+RUN_PAYMENT_MONGO_TESTS=true RUN_SUBSCRIPTION_MONGO_TESTS=true npm test
 ```
 
-The integration test starts a disposable localhost MongoDB process on an available port in the OS temporary directory. It never loads `.env`, connects to your application database, or calls Gemini. Without the opt-in variable, this integration test is explicitly skipped.
+The integration tests start disposable localhost MongoDB processes on available ports in the OS temporary directory. The payment test uses a replica set to exercise transactions. They never load `.env`, connect to your application database, or call Gemini. Without the opt-in variables, these integration tests are explicitly skipped. The payment workflow requires a transaction-capable MongoDB replica set, as does existing course checkout; quota reservations alone still work on standalone MongoDB.
 
 ```sh
 cd frontend
@@ -102,7 +101,7 @@ npm run lint
 npm run build
 ```
 
-Coverage includes legacy users, 5/500 limits, UTC resets, concurrent reservations, failed provider/history writes, expired leases/subscriptions, history deletion, authentication, promotion attempts, development/production guards, cancellation, staff exemptions and existing rate limiting.
+Coverage includes legacy users, 5/500 limits, UTC resets, concurrent reservations, failed provider/history writes, expired leases/subscriptions, history deletion, authentication, promotion attempts, development/production guards, removal of student cancellation without losing paid time, staff exemptions and existing rate limiting.
 
 ## File inventory
 

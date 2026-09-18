@@ -5,6 +5,7 @@ const enrollmentSchema = new mongoose.Schema(
     student: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     course: { type: mongoose.Schema.Types.ObjectId, ref: "Course", required: true },
     completedLessons: { type: [Number], default: [] },
+    completedLessonDates: { type: Map, of: Date, default: {} },
     completedMissions: { type: [String], default: [] },
     currentLessonIndex: { type: Number, default: 0, min: 0 },
     videoPositions: { type: Map, of: Number, default: {} },

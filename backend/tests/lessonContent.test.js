@@ -120,19 +120,39 @@ test("tutor can upload main video and supporting document without extraction", a
   const course = fakeCourse();
   Course.findOne = async () => course;
   Course.findById = async () => course;
-  const response = await multipartRequest(`/api/tutor/courses/${course._id}/lessons`, { title: "Uploaded lesson", references: "[]" }, [
+  const response = await multipartRequest(`/api/tutor/courses/${course._id}/lessons`, { title: "Uploaded lesson", references: "[]", durationSeconds: "60" }, [
     { field: "video", name: "lesson.mp4", type: "video/mp4", content: Buffer.from("test-video") },
     { field: "resources", name: "guide.pdf", type: "application/pdf", content: Buffer.from("%PDF-test") },
   ]);
   assert.equal(response.status, 201);
   const lesson = course.lessons[0];
   assert.equal(lesson.primaryMedia.originalName, "lesson.mp4");
+  assert.equal(lesson.duration, "1:00");
   assert.equal(lesson.resources[0].originalName, "guide.pdf");
   assert.equal(Object.keys(lesson.resources[0]).some((key) => key.startsWith("extract")), false);
   await Promise.all([
     fs.promises.unlink(path.join(__dirname, "..", "uploads", "course-videos", lesson.primaryMedia.storedName)),
     fs.promises.unlink(path.join(__dirname, "..", "uploads", "lesson-resources", lesson.resources[0].storedName)),
   ]);
+});
+
+test("owning tutor can confirm an older media duration and a replacement updates it", async () => {
+  const course = fakeCourse();
+  const lesson = { _id: "507f1f77bcf86cd799439033", title: "Older video", duration: "Provider managed", primaryMedia: { storedName: "old.mp4", storage: "lesson-resources" } };
+  course.lessons.push(lesson);
+  Course.findOne = async (filter) => { assert.equal(String(filter.tutor), tutorId); return course; };
+  const invalid = await request("PATCH", `/api/tutor/courses/${course._id}/lessons/${lesson._id}`, { duration: "unknown" });
+  assert.equal(invalid.status, 400);
+  const confirmed = await request("PATCH", `/api/tutor/courses/${course._id}/lessons/${lesson._id}`, { title: "Older video", description: "", summary: "", transcript: "", references: [], duration: "1:00" });
+  assert.equal(confirmed.status, 200);
+  assert.equal(lesson.duration, "1:00");
+  assert.equal(course.moderationStatus, "published");
+  const replaced = await multipartRequest(`/api/tutor/courses/${course._id}/lessons/${lesson._id}/main-media`, { durationSeconds: "125" }, [
+    { field: "video", name: "replacement.mp3", type: "audio/mpeg", content: Buffer.from("test-audio") },
+  ]);
+  assert.equal(replaced.status, 200);
+  assert.equal(lesson.duration, "2:05");
+  await fs.promises.unlink(path.join(__dirname, "..", "uploads", "course-videos", lesson.primaryMedia.storedName));
 });
 
 test("owning tutor can edit persisted lesson content", async () => {

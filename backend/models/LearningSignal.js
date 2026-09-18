@@ -7,6 +7,7 @@ const learningSignalSchema = new mongoose.Schema(
     lessonId: { type: mongoose.Schema.Types.ObjectId, required: true },
     maximumVideoProgressPercent: { type: Number, default: 0, min: 0, max: 100 },
     activeTimeSeconds: { type: Number, default: 0, min: 0, validate: { validator: Number.isInteger, message: "Active time must be an integer" } },
+    activeTimeSecondsByWeek: { type: Map, of: Number, default: {} },
     pauseCount: { type: Number, default: 0, min: 0, validate: { validator: Number.isInteger, message: "Pause count must be an integer" } },
     replayCount: { type: Number, default: 0, min: 0, validate: { validator: Number.isInteger, message: "Replay count must be an integer" } },
     visitCount: { type: Number, default: 0, min: 0, validate: { validator: Number.isInteger, message: "Visit count must be an integer" } },

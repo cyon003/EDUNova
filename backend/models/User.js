@@ -35,6 +35,14 @@ const userSchema = new mongoose.Schema(
       default: "student",
     },
 
+    weeklyGoalMinutes: {
+      type: Number,
+      default: null,
+      min: 1,
+      max: 10080,
+      validate: { validator: (value) => value === null || Number.isInteger(value), message: "Weekly goal must be a whole number of minutes" },
+    },
+
     accountStatus: {
       type: String,
       enum: ["approved", "suspended"],

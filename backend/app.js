@@ -26,6 +26,7 @@ const paymentAdminRoutes = require("./routes/paymentAdminRoutes");
 const paymentAdminVerificationRoutes = require("./routes/paymentAdminVerificationRoutes");
 const aiRoutes = require("./routes/aiRoutes");
 const learningSignalRoutes = require("./routes/learningSignalRoutes");
+const weeklyGoalRoutes = require("./routes/weeklyGoalRoutes");
 
 const app = express();
 const configuredOrigins = allowedOrigins();
@@ -75,6 +76,7 @@ app.use(
 app.use("/api/subscription", require("./routes/subscriptionRoutes"));
 app.use("/api/ai", aiRoutes);
 app.use("/api/learning-signals", learningSignalRoutes);
+app.use("/api/weekly-goal", weeklyGoalRoutes);
 
 app.get("/", (_req, res) => res.send("EduNova backend is running"));
 app.get("/api/health", (_req, res) => res.json({ status: "ok", environment: process.env.NODE_ENV || "development" }));

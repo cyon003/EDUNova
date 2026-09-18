@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { FaBookOpen, FaCloudUploadAlt, FaGraduationCap, FaPlus, FaTimes } from "react-icons/fa";
 import { API_ROOT } from "../utils/courseApi";
 import { canPreviewResource, fileType, formatFileSize, getLessonPrimaryMedia, isMediaResource, lessonReferences } from "../utils/lessonMedia";
+import { formatMediaDuration, readMediaDuration } from "../utils/mediaDuration";
 
 const mediaExtensions = ["mp4", "webm", "ogv", "mov", "m4v", "mp3", "wav", "m4a", "ogg"];
 const resourceExtensions = ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "jpg", "jpeg", "png", "gif", "webp", ...mediaExtensions];
 const mediaAccept = ".mp4,.webm,.ogv,.mov,.m4v,.mp3,.wav,.m4a,.ogg";
 const resourceAccept = resourceExtensions.map((item) => `.${item}`).join(",");
 const maxFileSize = 2 * 1024 * 1024 * 1024;
-const emptyDraft = { title: "", transcript: "", description: "", summary: "", referenceLinks: "", mainVideo: null, documents: [] };
+const emptyDraft = { title: "", transcript: "", description: "", summary: "", referenceLinks: "", mainVideo: null, documents: [], durationSeconds: 0 };
 const editable = (lesson) => ({ ...emptyDraft, title: lesson?.title || "", transcript: lesson?.transcript || "", description: lesson?.description || "", summary: lesson?.summary || "", referenceLinks: lessonReferences(lesson).map((item) => `${item.label || "Reference"} | ${item.url}`).join("\n"), duration: lesson?.duration || "" });
 
 function UploadCard({ kind, title, hint, accept, multiple, files, onFiles, onRemove }) {
@@ -27,6 +28,7 @@ function LessonFields({ value, setValue }) {
     <label><span>Description (Optional)</span><textarea rows="4" value={value.description} onChange={(event)=>setValue({...value,description:event.target.value})}/></label>
     <label><span>Summary (Optional)</span><textarea rows="5" maxLength="5000" value={value.summary} onChange={(event)=>setValue({...value,summary:event.target.value})}/><small>{value.summary.length}/5000</small></label>
     <label><span>References (Optional)</span><textarea rows="4" placeholder="One per line: Label | https://example.com" value={value.referenceLinks} onChange={(event)=>setValue({...value,referenceLinks:event.target.value})}/></label>
+    {Object.hasOwn(value,"duration")&&<label><span>Video duration</span><input value={value.duration} readOnly/><small>Detected from the saved video. Save this lesson to enable automatic completion for older videos.</small></label>}
   </div>;
 }
 
@@ -67,6 +69,13 @@ export default function LessonManager({ course, form, setForm, add, update, remo
     if (invalid) { setMessage(`${invalid.name} has an unsupported type or exceeds 2 GiB.`); return []; }
     setMessage(""); return one ? chosen.slice(0,1) : chosen;
   };
+  const selectVideo = async (file, update) => {
+    try {
+      const durationSeconds = await readMediaDuration(file);
+      update((current) => ({ ...current, mainVideo: file, durationSeconds, ...(Object.hasOwn(current,"duration") ? { duration: formatMediaDuration(durationSeconds) } : {}) }));
+      setMessage("");
+    } catch (error) { setMessage(error.message); }
+  };
   const closeModal = () => { if (!dirty || window.confirm("Discard unsaved lesson changes?")) { setModalOpen(false); setForm({...form,...emptyDraft,resources:[]}); } };
   const createLesson = async (event) => { event.preventDefault(); setSaving(true); try { const saved=await add(); setSelected(Math.max(saved.lessons.length-1,0)); setDraft(editable(saved.lessons.at(-1))); setModalOpen(false); setMessage(""); } catch (error) { setMessage(error.message); } finally { setSaving(false); } };
   const showToast = (text) => { window.clearTimeout(toastTimer.current); setToast(text); toastTimer.current=window.setTimeout(()=>setToast(""),3000); };
@@ -76,16 +85,16 @@ export default function LessonManager({ course, form, setForm, add, update, remo
   return <div className="lesson-studio"><header><div><FaGraduationCap/><strong>EDUNOVA</strong><span>{course.name}</span></div><button onClick={close}>Close</button></header><div className="lesson-studio-layout"><main>
     {message&&<p className="lesson-manager-message" role="status">{message}</p>}
     {!lesson?<><div className="lesson-editor-heading"><h2>Edit Lesson</h2><button className="primary" type="button" onClick={()=>setModalOpen(true)}><FaPlus/> New Lesson</button></div><div className="lesson-preview empty"><FaBookOpen/><strong>Select a lesson or add the first one</strong></div></>:<>
-      <div className="lesson-preview">{primary&&persistedMedia.url?<video key={persistedMedia.url} src={persistedMedia.url} controls onError={()=>setMessage("This video format is not supported by your browser.")}/>:<div className="lesson-preview empty"><FaBookOpen/><strong>{persistedMedia.error||"No lesson video has been uploaded."}</strong></div>}</div>
+      <div className="lesson-preview">{primary&&persistedMedia.url?<video key={persistedMedia.url} src={persistedMedia.url} controls onLoadedMetadata={(event)=>{if(!/^\d+:\d{2}(?::\d{2})?$/.test(String(lesson.duration||"")))setDraft((current)=>current.mainVideo?current:{...current,duration:formatMediaDuration(event.currentTarget.duration)})}} onError={()=>setMessage("This video format is not supported by your browser.")}/>:<div className="lesson-preview empty"><FaBookOpen/><strong>{persistedMedia.error||"No lesson video has been uploaded."}</strong></div>}</div>
       <form className="form-grid lesson-builder lesson-editor" onSubmit={saveLesson}><div className="lesson-editor-heading wide"><h2>Edit Lesson</h2><button className="primary" type="button" onClick={()=>setModalOpen(true)}><FaPlus/> New Lesson</button></div><div className="lesson-upload-grid wide">
-        <UploadCard kind="video" title="Replace lesson video" hint="MP4, WebM or Ogg · one file" accept={mediaAccept} files={draft.mainVideo?[draft.mainVideo]:[]} onFiles={(files)=>{const chosen=validateFiles(files,mediaExtensions,true);if(chosen[0])setDraft({...draft,mainVideo:chosen[0]})}} onRemove={()=>setDraft({...draft,mainVideo:null})}/>
+        <UploadCard kind="video" title="Replace lesson video" hint="MP4, WebM or Ogg · one file" accept={mediaAccept} files={draft.mainVideo?[draft.mainVideo]:[]} onFiles={(files)=>{const chosen=validateFiles(files,mediaExtensions,true);if(chosen[0])void selectVideo(chosen[0],setDraft)}} onRemove={()=>setDraft({...draft,mainVideo:null,durationSeconds:0})}/>
         <UploadCard kind="documents" title="Add supporting documents" hint="PDF, Office, TXT, images and additional media" accept={resourceAccept} multiple files={draft.documents} onFiles={(files)=>setDraft({...draft,documents:[...draft.documents,...validateFiles(files,resourceExtensions)]})} onRemove={(index)=>setDraft({...draft,documents:draft.documents.filter((_,item)=>item!==index)})}/>
       </div><div className="wide lesson-current-media"><strong>Existing main video</strong><span>{primary?.originalName||"None"}</span>{primary&&<button type="button" onClick={()=>removeMain(lesson._id)}>Remove Video</button>}</div><LessonFields value={draft} setValue={setDraft}/><footer className="lesson-editor-actions wide">{toast&&<span className="lesson-save-toast" role="status" aria-live="polite">{toast}</span>}<button type="button" onClick={()=>{setDraft(editable(lesson));setMessage("")}}>Cancel</button><button className="primary" disabled={saving}>{saving?"Saving...":"Save"}</button></footer></form>
       {lesson.resources?.length>0&&<section className="lesson-resource-status-list" aria-label="Existing supporting resources">{lesson.resources.filter((resource)=>String(primary?.resourceId)!==String(resource._id)).map((resource)=><div key={resource._id}><div><strong>{resource.originalName}</strong><small>{fileType(resource)} · {formatFileSize(resource.size)} · {isMediaResource(resource)?"Supporting video":"Supporting resource"}</small></div><span>{canPreviewResource(resource)&&<button type="button" onClick={()=>accessResource(resource,"view")}>View</button>}<button type="button" onClick={()=>accessResource(resource,"download")}>Download</button>{isMediaResource(resource)&&<button type="button" onClick={()=>selectMain(lesson._id,resource._id)}>Set as main</button>}<button type="button" onClick={()=>removeResource(lesson._id,resource._id)}>Delete</button></span></div>)}</section>}
     </>}
   </main><aside><header><h2>Course content</h2><span>{course.lessons.length} lessons</span></header>{course.lessons.map((item,index)=><button className={selected===index?"active":""} onClick={()=>{setSelected(index);setDraft(editable(item));setMessage("")}} key={item._id}><span>{String(index+1).padStart(2,"0")}</span><div><strong>{item.title}</strong><small>{getLessonPrimaryMedia(item)?"Main video":"No video"} · {item.resources?.length||0} resources</small></div><i onClick={(event)=>{event.stopPropagation();remove(item._id)}}>Delete</i></button>)}</aside></div>
   {modalOpen&&<div className="lesson-modal-overlay" role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)closeModal()}}><section className="lesson-modal" role="dialog" aria-modal="true" aria-labelledby="add-lesson-title"><header><div><small>COURSE CONTENT</small><h2 id="add-lesson-title">Add Lesson</h2></div><button type="button" aria-label="Close Add Lesson" onClick={closeModal}><FaTimes/></button></header><form onSubmit={createLesson}><div className="lesson-upload-grid">
-    <UploadCard kind="video" title="Upload lesson video" hint="MP4, WebM or Ogg · one file" accept={mediaAccept} files={form.mainVideo?[form.mainVideo]:[]} onFiles={(files)=>{const chosen=validateFiles(files,mediaExtensions,true);if(chosen[0])setForm({...form,mainVideo:chosen[0]})}} onRemove={()=>setForm({...form,mainVideo:null})}/>
+    <UploadCard kind="video" title="Upload lesson video" hint="MP4, WebM or Ogg · one file" accept={mediaAccept} files={form.mainVideo?[form.mainVideo]:[]} onFiles={(files)=>{const chosen=validateFiles(files,mediaExtensions,true);if(chosen[0])void selectVideo(chosen[0],setForm)}} onRemove={()=>setForm({...form,mainVideo:null,durationSeconds:0})}/>
     <UploadCard kind="documents" title="Upload documents" hint="PDF, Office, TXT, images and additional media" accept={resourceAccept} multiple files={form.resources} onFiles={(files)=>setForm({...form,resources:[...form.resources,...validateFiles(files,resourceExtensions)]})} onRemove={(index)=>setForm({...form,resources:form.resources.filter((_,item)=>item!==index)})}/>
   </div><LessonFields value={form} setValue={setForm}/><footer><button type="button" onClick={closeModal}>Cancel</button><button className="primary" disabled={saving}>{saving?"Saving lesson...":"Save Lesson"}</button></footer></form></section></div>}
   </div>;

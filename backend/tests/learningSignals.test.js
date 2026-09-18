@@ -15,6 +15,7 @@ const Note = require("../models/Note");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 const app = require("../app");
+const { weekStartUTC } = require("../services/weeklyGoalService");
 
 const ids = { student: "507f1f77bcf86cd799439061", otherStudent: "507f1f77bcf86cd799439062", tutor: "507f1f77bcf86cd799439063", admin: "507f1f77bcf86cd799439064", course: "507f1f77bcf86cd799439065", lesson: "507f1f77bcf86cd799439066", otherLesson: "507f1f77bcf86cd799439067" };
 const originals = {};
@@ -96,6 +97,8 @@ test("LearningSignal schema separates its label and enforces one student-course-
   assert.ok(unique);
   assert.equal(LearningSignal.schema.path("confusionFeedback").options.enum.includes("confused"), true);
   assert.equal(LearningSignal.schema.path("maximumVideoProgressPercent").options.max, 100);
+  const signal = new LearningSignal({ student: ids.student, course: ids.course, lessonId: ids.lesson, activeTimeSecondsByWeek: { [weekStartUTC()]: 35 } });
+  assert.equal(signal.activeTimeSecondsByWeek.get(weekStartUTC()), 35);
 });
 
 test("learning signal endpoints require authentication and student role", async () => {
@@ -122,6 +125,7 @@ test("initial state, atomic updates, maximum progress, and student isolation are
   await request("PATCH", `/api/learning-signals/${ids.course}/${ids.lesson}`, { maximumVideoProgressPercent: 30, activeTimeSecondsDelta: 10 }, token);
   const saved = records.get(`${ids.student}:${ids.course}:${ids.lesson}`);
   assert.equal(saved.maximumVideoProgressPercent, 80); assert.equal(saved.activeTimeSeconds, 35); assert.equal(saved.visitCount, 1); assert.equal(records.size, 1);
+  assert.equal(saved[`activeTimeSecondsByWeek.${weekStartUTC()}`], 35);
   currentUser = { _id: ids.otherStudent, role: "student", tokenVersion: 0, accountStatus: "approved" };
   const isolated = await request("GET", `/api/learning-signals/${ids.course}/${ids.lesson}`, undefined, auth(ids.otherStudent, "student"));
   assert.equal(isolated.body.maximumVideoProgressPercent, 0);
@@ -205,8 +209,11 @@ test("feedback is optional, persists, can change, and rejects unknown fields", a
   assert.equal((await request("PATCH", `/api/learning-signals/${ids.course}/${ids.lesson}/feedback`, { feedback: "clear", studentId: ids.otherStudent }, token)).status, 400);
 });
 
-test("existing progress workflow synchronizes trusted lesson completion", async () => {
-  const response = await request("PATCH", "/api/enrollments/signal-course/progress", { completedLessons: [0] }, auth(ids.student, "student"));
+test("lesson completion uses the authenticated endpoint and synchronizes its signal", async () => {
+  const token = auth(ids.student, "student");
+  assert.equal((await request("PATCH", "/api/enrollments/signal-course/progress", { completedLessons: [0] }, token)).status, 400);
+  assert.equal(bulkOperations.length, 0);
+  const response = await request("POST", "/api/enrollments/signal-course/lessons/0/complete", undefined, token);
   assert.equal(response.status, 200); assert.equal(bulkOperations.length, 1);
   assert.equal(bulkOperations[0].updateOne.update.$set.lessonCompleted, true);
   assert.equal(bulkOperations[0].updateOne.upsert, true);

@@ -90,7 +90,7 @@ export function useLearningSignal({ courseId, lessonId }) {
       .then((response) => { if (!response.ok) throw new Error("Learning activity could not be restored."); return response.json(); })
       .then((saved) => { if (target.current === currentTarget && isCurrentSession(version)) { setSignal(saved); setSignalKey(key); setFeedbackState(""); setTrackingError(""); } })
       .catch((error) => { if (error.name !== "AbortError" && target.current === currentTarget && isCurrentSession(version)) setTrackingError(error.message); });
-    const activeTimer = window.setInterval(() => { if (shouldCountActiveTime(document.visibilityState)) pending.current.activeTimeSecondsDelta += 1; }, 1000);
+    const activeTimer = window.setInterval(() => { if (playing.current && shouldCountActiveTime(document.visibilityState)) pending.current.activeTimeSecondsDelta += 1; }, 1000);
     const flushTimer = window.setInterval(() => flushRef.current(), LEARNING_SIGNAL_FLUSH_MS);
     const visibility = () => { if (document.visibilityState === "hidden") flushRef.current({ keepalive: true }); };
     const pageExit = () => flushRef.current({ keepalive: true });
@@ -106,12 +106,15 @@ export function useLearningSignal({ courseId, lessonId }) {
   const mediaHandlers = {
     onLoadedMetadata(event) { lastPlaybackTime.current = event.currentTarget.currentTime || 0; recordMaximumProgress(event.currentTarget); },
     onPlay() { playing.current = true; },
+    onPlaying() { playing.current = true; },
+    onWaiting() { playing.current = false; },
+    onStalled() { playing.current = false; },
     onPointerDown() { mediaIntentAt.current = Date.now(); },
     onKeyDown(event) { if ([" ", "k", "K"].includes(event.key)) mediaIntentAt.current = Date.now(); },
     onTimeUpdate(event) { recordMaximumProgress(event.currentTarget); lastPlaybackTime.current = event.currentTarget.currentTime; },
     onSeeking(event) { const next = event.currentTarget.currentTime; if (isBackwardReplay(lastPlaybackTime.current, next)) pending.current.replayCountDelta += 1; lastPlaybackTime.current = next; },
-    onPause(event) { if (isStudentPause({ wasPlaying: playing.current, intentAt: mediaIntentAt.current, ended: event.currentTarget.ended })) pending.current.pauseCountDelta += 1; playing.current = false; mediaIntentAt.current = 0; },
-    onEnded() { playing.current = false; pending.current.maximumVideoProgressPercent = 100; meaningfulActivity.current = true; },
+    onPause(event) { if (isStudentPause({ wasPlaying: playing.current, intentAt: mediaIntentAt.current, ended: event.currentTarget.ended })) pending.current.pauseCountDelta += 1; playing.current = false; mediaIntentAt.current = 0; void flushRef.current(); },
+    onEnded() { playing.current = false; pending.current.maximumVideoProgressPercent = 100; meaningfulActivity.current = true; void flushRef.current(); },
   };
   const saveFeedback = useCallback(async (feedback) => {
     if (!studentId || !courseId || !lessonId || feedbackState === "saving" || !isCurrentSession(version)) return;

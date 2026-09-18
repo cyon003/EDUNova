@@ -306,6 +306,14 @@
 .student-goals article > div > span { color: #a8afd8; font-size: 9px; }
 .student-goals article button { display: flex; align-items: center; gap: 5px; margin-top: 8px; padding: 6px 8px; color: #a78bfa; font: inherit; font-size: 8px; font-weight: 800; cursor: pointer; background: transparent; border: 1px solid rgba(141, 99, 234, 0.25); border-radius: 7px; }
 .student-goals article button:disabled { cursor: default; opacity: 0.4; }
+.student-weekly-goal p { margin: 8px 0 0; color: #a8afd8; font-size: 10px; }
+.student-goals > p, .student-goals > small { display: block; margin: 9px 0; color: #a8afd8; font-size: 10px; line-height: 1.5; }
+.student-weekly-goal-form { display: grid; gap: 9px; margin-top: 13px; }
+.student-weekly-goal-form label { color: #e8e1ff; font-size: 11px; font-weight: 700; }
+.student-weekly-goal-form input { width: 100%; padding: 9px 11px; color: #fff; font: inherit; background: #171225; border: 1px solid rgba(141, 99, 234, 0.35); border-radius: 8px; }
+.student-weekly-goal-form > div { display: flex; gap: 8px; }
+.student-weekly-goal-form button, .student-goals > p button { padding: 7px 11px; color: #fff; font: inherit; font-size: 10px; font-weight: 700; cursor: pointer; background: #7450c2; border: 0; border-radius: 7px; }
+.student-weekly-goal-form button:disabled { cursor: default; opacity: 0.6; }
 
 .student-content-grid {
   display: grid;

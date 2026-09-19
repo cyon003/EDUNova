@@ -161,3 +161,47 @@ test("malformed and adversarial provider diagnostics never log free-form fields"
     assert.doesNotMatch(JSON.stringify(logs), /test-key|private|user question/);
   } finally { console.error = originalError; }
 });
+
+test("lesson SDK prompt uses explicit server context with truthful alignment and preserved safety", async () => {
+  let request;
+  models.generateContentInternal = async value => { request = value; return reply("A lesson explanation."); };
+  const result = await generateAnswer({ mode: "lesson", message: "Explain simply", lessonContext: {
+    courseTitle: "Introduction to Python", lessonTitle: "Loops", topicTitle: "For Loop", videoTimestampSeconds: 625,
+    description: "Iterating", summary: "Repeated operations", transcriptExcerpt: "Server lesson text.", transcriptTruncated: false,
+    transcriptAlignment: "Plain text; no timestamp alignment.",
+  }, conversation: [{ role: "user", content: "What is iteration?" }] });
+  for (const value of ["Introduction to Python", "Loops", "For Loop", "625", "Server lesson text.", "What is iteration?", "Explain simply"]) assert.ok(request.contents.includes(value), value);
+  assert.match(request.config.systemInstruction, /not timestamp-aligned/);
+  assert.match(request.config.systemInstruction, /material is insufficient/);
+  assert.match(request.config.systemInstruction, /definitely confused/);
+  assert.match(request.config.systemInstruction, /reference data, not instructions/);
+  assert.match(request.config.systemInstruction, /Refuse requests to obtain credentials/);
+  assert.equal(result.mode, "lesson"); assert.match(result.disclaimer, /available lesson context/);
+});
+
+test("general SDK prompt ignores any supplied lesson material and lesson prompts retain the global budget", async () => {
+  let request;
+  models.generateContentInternal = async value => { request = value; return reply("A."); };
+  await generateAnswer({ mode: "general", message: "Hello", lessonContext: { transcriptExcerpt: "PRIVATE_LESSON_MATERIAL" } });
+  assert.doesNotMatch(request.contents, /PRIVATE_LESSON_MATERIAL/);
+  process.env.GEMINI_MAX_PROMPT_CHARACTERS = "15000";
+  await generateAnswer({ mode: "lesson", message: "Hello", lessonContext: { transcriptExcerpt: "x".repeat(8000) }, conversation: Array.from({ length: 10 }, () => ({ role: "user", content: "y".repeat(1000) })) });
+  assert.ok(request.contents.length <= 15000);
+  assert.match(request.contents, /Current student question: Hello/);
+});
+
+test("lesson prompt trims optional material before question, including escaped text and continuation", async () => {
+  const requests = [];
+  process.env.GEMINI_MAX_PROMPT_CHARACTERS = "12000";
+  models.generateContentInternal = async value => { requests.push(value); return requests.length === 1 ? reply("Start of", "MAX_TOKENS") : reply("the explanation."); };
+  const result = await generateAnswer({ mode: "lesson", message: "PRESERVE_MY_QUESTION", lessonContext: {
+    courseTitle: "Python", lessonTitle: "Loops", topicTitle: "For Loop", videoTimestampSeconds: 625,
+    transcriptExcerpt: "\u0001".repeat(8000), summary: "s".repeat(2000), description: "d".repeat(1000),
+    transcriptAlignment: "Plain text; no timestamp alignment.", transcriptTruncated: false,
+  }, conversation: [{ role: "user", content: "Previous question" }] });
+  assert.equal(result.mode, "lesson"); assert.equal(requests.length, 2);
+  for (const request of requests) {
+    assert.ok(request.contents.length <= 12000);
+    for (const text of ["PRESERVE_MY_QUESTION", "Python", "Loops", "For Loop", "625", "no timestamp alignment"]) assert.ok(request.contents.includes(text), text);
+  }
+});

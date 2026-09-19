@@ -19,8 +19,8 @@ test("weekly goal dashboard loads and saves the authenticated student's real goa
 
 test("study time accrues only during visible, playing lesson media", async () => {
   const hook = await source("src/hooks/useLearningSignal.js");
-  assert.match(hook, /playing\.current && shouldCountActiveTime\(document\.visibilityState\)/);
-  assert.match(hook, /onPause\(event\)[^]*playing\.current = false/);
-  assert.match(hook, /onEnded\(\)[^]*playing\.current = false/);
-  assert.match(hook, /void flushRef\.current\(\)/);
+  assert.match(hook, /session\.playing && shouldCountActiveTime\(document\.visibilityState\)/);
+  assert.match(hook, /onPause\(event\)[^]*session\.playing = false/);
+  assert.match(hook, /onEnded\(\)[^]*session\.playing = false/);
+  assert.match(hook, /void flushTarget\(session\)/);
 });

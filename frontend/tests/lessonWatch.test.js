@@ -15,7 +15,7 @@ test("student lesson player restores server watch position and guards seeks befo
   assert.match(hook, /Date\.now\(\) - lastReportAt\.current >= 4000/);
   assert.match(player, /useLessonWatch/);
   assert.match(player, /controls=\{lessonWatch\.ready\}/);
-  assert.match(player, /onSeeked=\{lessonWatch\.mediaHandlers\.onSeeked\}/);
+  assert.match(player, /onSeeked=\{\(event\) => \{ lessonWatch\.mediaHandlers\.onSeeked\(event\); learningSignal\.mediaHandlers\.onSeeked\(event\); \}\}/);
   assert.match(player, /onCompleted: \(enrollment\) =>/);
   assert.match(player, /lessonWatch\.mediaHandlers\.onEnded\(event\)/);
 });

@@ -41,12 +41,12 @@ test("hook restores feedback, protects Strict Mode visits, batches, and flushes 
   assert.equal(STRICT_MODE_VISIT_WINDOW_MS, 2000);
   assert.match(hook, /recentVisits\.get\(visitKey\)/);
   assert.match(hook, /method: "PATCH"[^]*keepalive/);
-  assert.match(hook, /window\.setInterval\(\(\) => flushRef\.current\(\), LEARNING_SIGNAL_FLUSH_MS\)/);
+  assert.match(hook, /window\.setInterval\(\(\) => flushTarget\(session\), LEARNING_SIGNAL_FLUSH_MS\)/);
   assert.match(hook, /visibilitychange/);
   assert.match(hook, /pagehide/);
-  assert.match(hook, /flushRef\.current\(\{ keepalive: true \}\)/);
+  assert.match(hook, /flushTarget\(session, \{ keepalive: true \}\)/);
   assert.match(hook, /setSignal\(saved\)/);
-  assert.match(hook, /pending\.current\.[a-zA-Z]+[^]*sessionFetch/);
+  assert.match(hook, /session\.pending[^]*sessionFetch/);
 });
 
 test("timeupdate accumulates locally and tracking failures cannot break lesson behavior", async () => {

@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 const source = await readFile(new URL('../src/pages/TutorDashboard.jsx', import.meta.url), 'utf8');
 const code = source.slice(source.indexOf('function confusionLevel'), source.indexOf('\nfunction ', source.indexOf('function CourseHeatmapSection') + 1));
 const compiled = await transformWithOxc(code, 'heatmap.jsx', { jsx: { runtime: 'classic' } });
-const { Analytics, CourseHeatmapSection, confusionLevel } = new Function('React', 'useState', 'apiAssetUrl', 'FaBookOpen', 'when', 'Header', `${compiled.code}; return {Analytics, CourseHeatmapSection, confusionLevel};`)(React, React.useState, x=>x, ()=>null, x=>x, ({title})=>React.createElement('h1',null,title));
+const { Analytics, CourseHeatmapSection, confusionLevel, TopicSignals, topicTime } = new Function('React', 'useState', 'apiAssetUrl', 'FaBookOpen', 'when', 'Header', `${compiled.code}; return {Analytics, CourseHeatmapSection, confusionLevel, TopicSignals, topicTime};`)(React, React.useState, x=>x, ()=>null, x=>x, ({title})=>React.createElement('h1',null,title));
 const lesson = (count, rate=0) => ({lessonId:`internal-${count}`,lessonOrder:count,lessonTitle:`Topic ${count}`,predictionCount:count,confusionRate:rate});
 const course = {courseId:'internal-course',courseTitle:'Applied mathematics',category:'Science',totalStudentsAnalyzed:8,predictionLessonCount:3,overallConfusionRate:40,lessons:[lesson(0),lesson(3),lesson(5,40),lesson(8,75)]};
 const render = (Component, props) => renderToStaticMarkup(React.createElement(Component,props));
@@ -59,4 +59,33 @@ test('analytics keeps courses separate and shows stale insights alongside refres
  assert.match(sections[2],/World history/);assert.match(sections[2],/Ancient civilizations/);assert.doesNotMatch(sections[2],/Topic 5/);
  assert.match(html,/role="alert"/);assert.match(html,/Try again/);
  assert.match(render(Analytics,{data:{...data,heatmapCourses:[]}}),/No confusion insights yet/);
+});
+
+const topic = (observedStudents=10, confusedStudents=8) => ({topicId:'internal-topic',title:'While Loop',startTimeSeconds:480,endTimeSeconds:720,observedStudents,confusedStudents,sampleSufficient:observedStudents>=5,confusionRate:observedStudents>=5?Math.round(confusedStudents/observedStudents*100):null,latestConfusionAt:null});
+test('topic rows show rate, counts, ranges and behavioral-inference explanation alongside lesson heatmap',()=>{
+ const html=render(CourseHeatmapSection,{course:{...course,lessons:[{...lesson(10,50),topics:[topic()]}]}});
+ for(const text of ['Topic signals','While Loop','80%','8 of 10 students who sufficiently viewed this topic showed confusion signals','08:00','12:00','High potential confusion','50%','at least 50% unique video coverage','not proof of confusion']) assert.ok(html.includes(text),text);
+ assert.doesNotMatch(html,/internal-topic/);
+});
+test('insufficient topic samples show collecting and observed count without a severity band',()=>{
+ const html=render(TopicSignals,{lesson:{lessonTitle:'Basics',topics:[topic(3,2)]}});
+ assert.match(html,/Collecting data/);assert.match(html,/3 sufficiently-exposed students/);
+ assert.doesNotMatch(html,/67%|Low potential|Moderate potential|High potential/);
+});
+test('topics remain visible before any prediction, while legacy empty lessons remain safe',()=>{
+ const html=render(CourseHeatmapSection,{course:{...course,overallConfusionRate:null,lessons:[{...lesson(0),topics:[topic(0,0)]}]}});
+ assert.match(html,/While Loop/);assert.match(html,/0 sufficiently-exposed students/);assert.match(html,/Collecting data/);
+ assert.match(render(TopicSignals,{lesson:{lessonTitle:'Legacy'}}),/No topics defined/);
+ assert.match(render(TopicSignals,{lesson:{lessonTitle:'Legacy',topics:[]}}),/Lesson-level insights remain available/);
+});
+test('topic threshold labels reuse existing heatmap bands and show zero only with enough observations',()=>{
+ for(const [count,label] of [[0,'Low'],[4,'Moderate'],[7,'High']]) {
+  const html=render(TopicSignals,{lesson:{lessonTitle:'Basics',topics:[topic(10,count)]}});
+  assert.match(html,new RegExp(`${label} potential confusion`));assert.ok(html.includes(`${count*10}%`));
+ }
+ assert.equal(topicTime(0),'00:00');assert.equal(topicTime(625),'10:25');assert.equal(topicTime(3600),'60:00');assert.equal(topicTime(NaN),'—');
+});
+test('historical/unmapped counts are secondary aggregates and never named topics',()=>{
+ const html=render(TopicSignals,{lesson:{lessonTitle:'Basics',topics:[topic()],unmappedConfusionStudents:2,historicalConfusionStudents:3}});
+ assert.match(html,/2 lesson-observed students with unmapped signals/);assert.match(html,/3 with signals for deleted topics/);assert.match(html,/counts can overlap/);
 });

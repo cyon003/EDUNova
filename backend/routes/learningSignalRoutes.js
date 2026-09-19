@@ -8,6 +8,9 @@ const requireRole = require("../middleware/roleMiddleware");
 const { requestPrediction } = require("../services/confusionPredictionService");
 const { weekStartUTC } = require("../services/weeklyGoalService");
 
+const { recordConfusionEvent } = require("../services/confusionEventService");
+const { validateRanges } = require("../utils/videoExposure");
+const { saveRanges } = require("../services/videoExposureService");
 const router = express.Router();
 const interactionFields = new Set(["maximumVideoProgressPercent", "activeTimeSecondsDelta", "pauseCountDelta", "replayCountDelta", "visitCountDelta"]);
 const feedbackFields = new Set(["feedback"]);
@@ -80,6 +83,16 @@ router.get("/:courseId/:lessonId", async (req, res) => {
   } catch (error) { console.error("Get learning signal error:", error); return res.status(500).json({ message: "Unable to load learning activity" }); }
 });
 
+router.patch("/:courseId/:lessonId/exposure", async (req, res) => {
+  try {
+    const error = validateRanges(req.body);
+    if (error) return res.status(400).json({ message: error });
+    const target = await authorizedSignalTarget(req, res); if (!target) return;
+    const saved = await saveRanges({ student: req.user._id, course: target.course._id, lessonId: target.lesson._id }, req.body.watchedRanges);
+    return res.json({ totalUniqueWatchedSeconds: saved.totalUniqueWatchedSeconds });
+  } catch (error) { return res.status(error.status || 503).json({ message: "Video exposure could not be saved" }); }
+});
+
 router.patch("/:courseId/:lessonId", async (req, res) => {
   try {
     const validationError = validateInteractions(req.body);
@@ -107,7 +120,9 @@ router.patch("/:courseId/:lessonId/feedback", async (req, res) => {
 
 router.post("/:courseId/:lessonId/prediction", async (req, res) => {
   try {
-    if (req.body && Object.keys(req.body).length) return res.status(400).json({ message: "Prediction input is derived from the authenticated learning signal" });
+    const body = req.body ?? {};
+    if (!hasOnly(body, new Set(["videoTimestampSeconds"]))) return res.status(400).json({ message: "Prediction input is derived from the authenticated learning signal" });
+    if (Object.hasOwn(body, "videoTimestampSeconds") && (typeof body.videoTimestampSeconds !== "number" || !Number.isFinite(body.videoTimestampSeconds) || body.videoTimestampSeconds < 0)) return res.status(400).json({ message: "Video timestamp must be a finite non-negative number" });
     const target = await authorizedSignalTarget(req, res); if (!target) return;
     const filter = { student: req.user._id, course: target.course._id, lessonId: target.lesson._id };
     const existing = await LearningSignal.findOne(filter);
@@ -125,6 +140,9 @@ router.post("/:courseId/:lessonId/prediction", async (req, res) => {
       predictedAt: prediction.predictedAt ? new Date(prediction.predictedAt) : new Date(),
     };
     const saved = await safeUpsert(filter, { $set: { aiPrediction }, $setOnInsert: { confusionFeedback: null, feedbackUpdatedAt: null, lessonCompleted: signal.lessonCompleted } });
+    if (aiPrediction.prediction === "confused" && Object.hasOwn(body, "videoTimestampSeconds")) {
+      await recordConfusionEvent({ student: req.user._id, course: target.course._id, lesson: target.lesson, timestamp: body.videoTimestampSeconds, prediction: aiPrediction, features });
+    }
     return res.json({ prediction: aiPrediction.prediction, confusionProbability: aiPrediction.confusionProbability, clearProbability: aiPrediction.clearProbability, modelVersion: aiPrediction.modelVersion, predictedAt: aiPrediction.predictedAt, confusionFeedback: saved.confusionFeedback ?? null });
   } catch (error) {
     console.error("Learning confusion prediction error:", error);

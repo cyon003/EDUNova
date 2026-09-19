@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { MAX_TOPIC_TITLE, topicRangesError } = require("../utils/lessonTopics");
 
 const courseSchema = new mongoose.Schema(
   {
@@ -75,6 +76,15 @@ const courseSchema = new mongoose.Schema(
           default: "",
           trim: true,
           maxlength: [5000, "Lesson summary cannot exceed 5000 characters"],
+        },
+        topics: {
+          type: [{
+            title: { type: String, required: true, trim: true, maxlength: MAX_TOPIC_TITLE },
+            startTimeSeconds: { type: Number, required: true, min: 0 },
+            endTimeSeconds: { type: Number, required: true, min: 0 },
+          }],
+          default: [],
+          validate: { validator: topics => !topicRangesError(topics), message: "Invalid, unordered or overlapping lesson topics" },
         },
         transcript: {
           type: String,

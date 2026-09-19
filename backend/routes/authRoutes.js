@@ -167,7 +167,11 @@ router.post("/refresh", refreshLimiter, async (req, res) => {
       return res.status(401).json({ code: "SESSION_REJECTED", message: error instanceof SessionRejection ? error.message : "Refresh session is invalid" });
     }
     // Never log raw errors: database errors can contain authentication material.
-    console.error("Session refresh temporarily unavailable");
+    console.error(
+    "Session refresh temporarily unavailable:",
+    error.name,
+    error.message
+);
     return res.status(503).json({ code: "SESSION_UNAVAILABLE", message: "Session refresh is temporarily unavailable. Please try again." });
   }
 });

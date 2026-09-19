@@ -1,8 +1,8 @@
 const mongoose = require("mongoose");
 
 // One order document per purchase session.
-// Stores the courses, server-side prices, payment reference,
-// uploaded slip information, and admin verification status.
+// Stores the courses, server-side prices, Stripe payment reference,
+// and payment completion status.
 
 const orderSchema = new mongoose.Schema(
   {
@@ -13,8 +13,18 @@ const orderSchema = new mongoose.Schema(
       index: true,
     },
 
-    paymentType: { type: String, enum: ["course", "subscription"], default: "course", immutable: true },
-    billingCycle: { type: String, enum: ["monthly", "yearly"], immutable: true },
+    paymentType: {
+      type: String,
+      enum: ["course", "subscription"],
+      default: "course",
+      immutable: true,
+    },
+
+    billingCycle: {
+      type: String,
+      enum: ["monthly", "yearly"],
+      immutable: true,
+    },
 
     items: [
       {
@@ -40,7 +50,7 @@ const orderSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // Unique reference shown to the student and checked by admin.
+    // Unique reference shown to the student.
     orderReference: {
       type: String,
       required: true,
@@ -63,78 +73,29 @@ const orderSchema = new mongoose.Schema(
       index: true,
     },
 
+    // Payment provider used for this order.
+    // Free courses do not need an external payment.
+    // Paid courses and Premium use Stripe Test Mode.
     paymentMethod: {
       type: String,
-      enum: ["manual_qr", "free", "stripe", "mock"],
-      default: "manual_qr",
+      enum: ["free", "stripe"],
+      default: "stripe",
     },
 
-    // Kept for compatibility with older orders / payment systems.
+    // Stripe Checkout Session ID.
+    //
+    // Kept in the existing paymentReference field so the
+    // rest of the application can continue using the field
+    // without needing a database migration.
     paymentReference: {
       type: String,
       default: "",
       trim: true,
+      index: true,
     },
 
-    // Payment slip information.
-    paymentSlip: {
-      originalName: {
-        type: String,
-        default: "",
-        trim: true,
-      },
-
-      storedName: {
-        type: String,
-        default: "",
-        trim: true,
-      },
-
-      mimeType: {
-        type: String,
-        default: "",
-        trim: true,
-      },
-
-      size: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      uploadedAt: {
-        type: Date,
-        default: null,
-      },
-    },
-
-    // Student submits the slip.
-    submittedAt: {
-      type: Date,
-      default: null,
-    },
-
-    // Admin verification information.
-    verifiedAt: {
-      type: Date,
-      default: null,
-    },
-
-    verifiedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-    },
-
-    // Filled when admin rejects the payment slip.
-    rejectionReason: {
-      type: String,
-      default: "",
-      trim: true,
-      maxlength: 1000,
-    },
-
-    // Set when payment is successfully approved.
+    // Set when Stripe payment has been successfully verified
+    // by the backend.
     paidAt: {
       type: Date,
       default: null,
@@ -146,12 +107,75 @@ const orderSchema = new mongoose.Schema(
 );
 
 orderSchema.pre("validate", function () {
+  // --------------------------------------------------
+  // Premium subscription validation
+  // --------------------------------------------------
+
   if (this.paymentType === "subscription") {
-    if (!["monthly", "yearly"].includes(this.billingCycle)) this.invalidate("billingCycle", "Premium requires a billing cycle");
-    if (this.totalAmount !== ({ monthly: 99, yearly: 999 })[this.billingCycle]) this.invalidate("totalAmount", "Invalid Premium price");
-    if (this.items.length) this.invalidate("items", "Premium payments cannot contain courses");
-    if (this.paymentMethod !== "manual_qr") this.invalidate("paymentMethod", "Premium requires manual payment approval");
-  } else if (this.billingCycle != null) this.invalidate("billingCycle", "Course orders cannot contain a subscription cycle");
+    if (!["monthly", "yearly"].includes(this.billingCycle)) {
+      this.invalidate(
+        "billingCycle",
+        "Premium requires a billing cycle."
+      );
+    }
+
+    const premiumPrices = {
+      monthly: 99,
+      yearly: 999,
+    };
+
+    if (
+      this.totalAmount !== premiumPrices[this.billingCycle]
+    ) {
+      this.invalidate(
+        "totalAmount",
+        "Invalid Premium price."
+      );
+    }
+
+    if (Array.isArray(this.items) && this.items.length > 0) {
+      this.invalidate(
+        "items",
+        "Premium payments cannot contain courses."
+      );
+    }
+
+    if (this.paymentMethod !== "stripe") {
+      this.invalidate(
+        "paymentMethod",
+        "Premium payments must use Stripe."
+      );
+    }
+
+    return;
+  }
+
+  // --------------------------------------------------
+  // Course order validation
+  // --------------------------------------------------
+
+  if (this.billingCycle != null) {
+    this.invalidate(
+      "billingCycle",
+      "Course orders cannot contain a subscription cycle."
+    );
+  }
+
+  // Paid courses use Stripe.
+  // Free courses use the "free" payment method.
+  if (this.totalAmount > 0 && this.paymentMethod !== "stripe") {
+    this.invalidate(
+      "paymentMethod",
+      "Paid course orders must use Stripe."
+    );
+  }
+
+  if (this.totalAmount === 0 && this.paymentMethod !== "free") {
+    this.invalidate(
+      "paymentMethod",
+      "Free course orders must use the free payment method."
+    );
+  }
 });
 
 module.exports = mongoose.model("Order", orderSchema);

@@ -247,3 +247,19 @@ test('exposure failures wait for the next normal batch and do not stop rolling p
  assert.equal(h.requests.filter(r=>r.url.endsWith('/exposure'))[1].body.watchedRanges[0].startTimeSeconds,0);
  await h.advance(10);assert.equal(h.predictions().length,1);
 });
+
+test('merged watch lifecycle counts active time only while playing and resets exposure across stalls',async()=>{
+ const h=harness();await h.advance(3);h.view().mediaHandlers.onWaiting();await h.advance(4,{moving:false});
+ h.view().mediaHandlers.onPlaying({currentTarget:h.media});await h.advance(2);
+ h.media.paused=true;h.view().mediaHandlers.onPause({currentTarget:h.media});await drain();
+ const patches=h.requests.filter(r=>r.method==='PATCH'&&!r.url.endsWith('/exposure'));
+ assert.equal(patches.reduce((sum,r)=>sum+(r.body.activeTimeSecondsDelta||0),0),5);
+ await h.advance(3,{moving:false});await h.view().flush();
+ assert.equal(h.requests.filter(r=>r.method==='PATCH'&&!r.url.endsWith('/exposure')).reduce((sum,r)=>sum+(r.body.activeTimeSecondsDelta||0),0),5);
+});
+
+test('an old video-ended callback cannot predict the new lesson after navigation',async()=>{
+ const h=harness();await h.advance(2);const old=h.view().requestPrediction;
+ await h.switchLesson('next');const before=h.predictions().length;
+ assert.equal(await old(),false);assert.equal(h.predictions().length,before);
+});

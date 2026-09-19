@@ -22,6 +22,7 @@ const authenticateToken = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
 const { revokeUserSessions } = require("../services/sessionService");
 const { validatePassword } = require("../utils/passwordSecurity");
+const { statedDurationSeconds } = require("../services/lessonWatchService");
 
 const { topicFields } = require("../utils/lessonTopics");
 const router = express.Router();
@@ -267,10 +268,16 @@ router.patch("/courses/:courseId/lessons/:lessonId", async (req, res) => {
     const referenceContent = referenceFields(req.body, true);
     if (lessonContent.error) return res.status(400).json({ message: lessonContent.error });
     if (referenceContent.error) return res.status(400).json({ message: referenceContent.error });
+    if (req.body.duration !== undefined && req.body.duration !== lesson.duration && !statedDurationSeconds(req.body.duration)) {
+      return res.status(400).json({ message: "Video duration must be minutes:seconds" });
+    }
+    const contentChanged = ["title", "description"].some((key) => req.body[key] !== undefined && String(req.body[key]) !== String(lesson[key] || ""))
+      || ["summary", "transcript"].some((key) => lessonContent.values[key] !== undefined && lessonContent.values[key] !== String(lesson[key] || ""))
+      || (referenceContent.references !== undefined && JSON.stringify(referenceContent.references.map(({ label, url }) => ({ label: label || "", url }))) !== JSON.stringify((lesson.references || []).map(({ label, url }) => ({ label: label || "", url }))));
     ["title", "description", "duration"].forEach((key) => { if (req.body[key] !== undefined) lesson[key] = req.body[key]; });
     Object.assign(lesson, lessonContent.values, topicContent.values);
     if (referenceContent.references) lesson.references = referenceContent.references;
-    if (course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
+    if (contentChanged && course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
     await course.save();
     return res.json(course);
   } catch (error) { return res.status(500).json({ message: "Unable to update lesson", error: error.message }); }
@@ -283,7 +290,13 @@ router.post("/courses/:courseId/lessons/:lessonId/main-media", uploadLessonFiles
     const lesson = course?.lessons.id(req.params.lessonId);
     if (!lesson) { fs.unlink(req.file.path, () => {}); return res.status(404).json({ message: "Lesson not found" }); }
     const previous = lesson.primaryMedia?.storedName && lesson.primaryMedia.storage === "course-videos" ? lesson.primaryMedia.storedName : null;
+    const durationSeconds = Number(req.body.durationSeconds);
+    if (req.body.durationSeconds !== undefined && (!Number.isSafeInteger(durationSeconds) || durationSeconds <= 0 || durationSeconds > 86400)) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ message: "A valid video duration is required" });
+    }
     lesson.primaryMedia = mediaDescriptor(req.file);
+    lesson.duration = req.body.durationSeconds === undefined ? "Provider managed" : `${Math.floor(durationSeconds / 60)}:${String(durationSeconds % 60).padStart(2, "0")}`;
     lesson.posterUrl = await createLessonPoster(req.file);
     lesson.primaryMediaRemoved = false;
     await course.save();

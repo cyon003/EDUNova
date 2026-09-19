@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { FaBookOpen, FaChevronRight, FaClock, FaGraduationCap, FaPlay, FaSearch } from "react-icons/fa";
 import mathematicsImage from "../assets/images/mathematic.jpeg";
 import { API_ROOT, courseDuration, courseThumbnail } from "../utils/courseApi";
+import { nextIncompleteLessonIndex } from "../utils/lessonProgress";
 import "../styles/MyCourses.css";
 
 function MyCourses() {
@@ -43,7 +44,7 @@ function MyCourses() {
     const completed = enrollment.completedLessons?.length || 0;
     const progress = totalLessons ? Math.min(Math.round(completed / totalLessons * 100), 100) : 0;
     const completionStatus = totalLessons > 0 && progress === 100 ? "Completed" : progress > 0 ? "In progress" : "Not started";
-    return { ...mergedCourse, enrollmentId: enrollment._id, completed, totalLessons, progress, completionStatus, currentLessonIndex: enrollment.currentLessonIndex || 0 };
+    return { ...mergedCourse, enrollmentId: enrollment._id, completed, totalLessons, progress, completionStatus, currentLessonIndex: nextIncompleteLessonIndex(totalLessons, enrollment.completedLessons, enrollment.currentLessonIndex) };
   }), [enrollments]);
 
   const filteredCourses = courses.filter((course) => `${course.name} ${course.category}`.toLowerCase().includes(query.trim().toLowerCase())).filter((course) => status === "All" || (status === "Completed" ? course.progress === 100 : course.progress < 100));

@@ -125,7 +125,7 @@ export function useLearningSignal({ courseId, lessonId }) {
     predictionRequests.set(session.key, pendingRequest);
     return pendingRequest;
   }, [flushTarget, isActive]);
-  const requestPrediction = useCallback(() => predictTarget(target.current), [predictTarget]);
+  const requestPrediction = useCallback(() => target.current?.key === currentKey ? predictTarget(target.current) : Promise.resolve(false), [currentKey, predictTarget]);
   const dismissRecommendation = useCallback(() => {
     const session = target.current;
     if (session) { startRecommendationCooldown(session.cooldownKey); session.recommendationOpen = false; }
@@ -152,7 +152,7 @@ export function useLearningSignal({ courseId, lessonId }) {
       .then((response) => { if (!response.ok) throw new Error("Learning activity could not be restored."); return response.json(); })
       .then((saved) => { if (isActive(session)) { if (!session.hasNewPrediction) setSignal(saved); setSignalKey(key); setFeedbackState(""); setTrackingError(""); } })
       .catch((error) => { if (error.name !== "AbortError" && isActive(session)) setTrackingError(error.message); });
-    const activeTimer = window.setInterval(() => { if (shouldCountActiveTime(document.visibilityState)) { session.pending.activeTimeSecondsDelta += 1; session.activity++; } }, 1000);
+    const activeTimer = window.setInterval(() => { if (session.playing && shouldCountActiveTime(document.visibilityState)) { session.pending.activeTimeSecondsDelta += 1; session.activity++; } }, 1000);
     const flushTimer = window.setInterval(() => flushTarget(session), LEARNING_SIGNAL_FLUSH_MS);
     const predictionTimer = window.setInterval(() => { void predictTarget(session, { rolling: true }); }, PREDICTION_INTERVAL_MS);
     const visibility = () => { session.exposure.reset(); if (document.visibilityState === "hidden") flushTarget(session, { keepalive: true }); };
@@ -175,7 +175,10 @@ export function useLearningSignal({ courseId, lessonId }) {
   };
   const mediaHandlers = {
     onLoadedMetadata(event) { const session = target.current; if (!session) return; session.exposure.reset(); session.media = event.currentTarget; session.lastPlaybackTime = event.currentTarget.currentTime || 0; recordMaximumProgress(session, event.currentTarget); },
-    onPlay(event) { const session = target.current; if (!session) return; session.playing = true; session.media = event.currentTarget; session.exposure.reset(); session.exposure.sample(event.currentTarget, document.visibilityState === "visible"); },
+    onPlay(event) { const session = target.current; if (!session) return; session.playing = !event.currentTarget.paused; session.media = event.currentTarget; session.exposure.reset(); session.exposure.sample(event.currentTarget, document.visibilityState === "visible"); },
+    onPlaying(event) { const session = target.current; if (!session) return; session.playing = !event.currentTarget.paused; session.media = event.currentTarget; session.exposure.reset(); session.exposure.sample(event.currentTarget, document.visibilityState === "visible"); },
+    onWaiting() { const session = target.current; if (!session) return; session.playing = false; session.exposure.reset(); },
+    onStalled() { const session = target.current; if (!session) return; session.playing = false; session.exposure.reset(); },
     onPointerDown() { if (target.current) target.current.mediaIntentAt = Date.now(); },
     onKeyDown(event) { if (target.current && [" ", "k", "K"].includes(event.key)) target.current.mediaIntentAt = Date.now(); },
     onTimeUpdate(event) {
@@ -189,8 +192,8 @@ export function useLearningSignal({ courseId, lessonId }) {
     onSeeking(event) { const session = target.current; if (!session) return; session.exposure.reset(); const next = event.currentTarget.currentTime; if (isBackwardReplay(session.lastPlaybackTime, next)) { session.pending.replayCountDelta++; session.activity++; session.videoActivity++; } session.lastPlaybackTime = next; },
     onSeeked(event) { const session = target.current; if (!session) return; session.exposure.reset(); session.exposure.sample(event.currentTarget, document.visibilityState === "visible"); },
     onRateChange() { target.current?.exposure.reset(); },
-    onPause(event) { const session = target.current; if (!session) return; session.exposure.sample(event.currentTarget, document.visibilityState === "visible", undefined, true); if (isStudentPause({ wasPlaying: session.playing, intentAt: session.mediaIntentAt, ended: event.currentTarget.ended })) { session.pending.pauseCountDelta++; session.activity++; session.videoActivity++; } session.playing = false; session.mediaIntentAt = 0; },
-    onEnded() { const session = target.current; if (!session) return; session.exposure.sample(session.media, document.visibilityState === "visible", undefined, true); void flushExposure(session); session.playing = false; session.pending.maximumVideoProgressPercent = 100; session.activity++; },
+    onPause(event) { const session = target.current; if (!session) return; session.exposure.sample(event.currentTarget, document.visibilityState === "visible", undefined, true); if (isStudentPause({ wasPlaying: session.playing, intentAt: session.mediaIntentAt, ended: event.currentTarget.ended })) { session.pending.pauseCountDelta++; session.activity++; session.videoActivity++; } session.playing = false; session.mediaIntentAt = 0; void flushTarget(session); },
+    onEnded() { const session = target.current; if (!session) return; session.exposure.sample(session.media, document.visibilityState === "visible", undefined, true); session.playing = false; session.pending.maximumVideoProgressPercent = 100; session.activity++; void flushTarget(session); },
   };
   const saveFeedback = useCallback(async (feedback) => {
     const session = target.current;

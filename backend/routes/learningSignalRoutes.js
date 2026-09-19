@@ -6,6 +6,7 @@ const LearningSignal = require("../models/LearningSignal");
 const authenticateToken = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
 const { requestPrediction } = require("../services/confusionPredictionService");
+const { weekStartUTC } = require("../services/weeklyGoalService");
 
 const { recordConfusionEvent } = require("../services/confusionEventService");
 const { validateRanges } = require("../utils/videoExposure");
@@ -59,6 +60,7 @@ function signalUpdate(body, now, lessonCompleted) {
   if (Object.hasOwn(body, "maximumVideoProgressPercent")) update.$max = { maximumVideoProgressPercent: body.maximumVideoProgressPercent };
   const increments = {};
   for (const field of Object.keys(caps)) if (body[field]) increments[field.replace("Delta", "")] = body[field];
+  if (body.activeTimeSecondsDelta) increments[`activeTimeSecondsByWeek.${weekStartUTC(now)}`] = body.activeTimeSecondsDelta;
   if (Object.keys(increments).length) update.$inc = increments;
   return update;
 }

@@ -185,6 +185,7 @@ function CourseLessons({
   enrolled,
   completedLessons,
   onToggleLesson,
+  completingLessonIndex,
 }) {
   const lessons = course.lessons ?? [];
 
@@ -284,7 +285,7 @@ function CourseLessons({
                     />
                   )}
 
-                  {enrolled && (
+                  {enrolled && !primaryMedia && (
                     <button
                       type="button"
                       className={
@@ -293,6 +294,7 @@ function CourseLessons({
                           : "lesson-complete-button"
                       }
                       onClick={() => onToggleLesson(index)}
+                      disabled={completedLessons.includes(index) || completingLessonIndex === index}
                     >
                       <FaCheck />
 
@@ -784,31 +786,12 @@ function CourseDetail() {
   const [enrollmentMessage, setEnrollmentMessage] =
     useState("");
 
-  const lessonProgressKey =
-    `edunova-lesson-progress-${courseSlug}`;
-
   const missionProgressKey =
     `edunova-mission-progress-${courseSlug}`;
 
   const [completedLessons, setCompletedLessons] =
-    useState(() => {
-      try {
-        const storedLessons =
-          JSON.parse(
-            localStorage.getItem(
-              lessonProgressKey
-            )
-          );
-
-        return Array.isArray(
-          storedLessons
-        )
-          ? storedLessons
-          : [];
-      } catch {
-        return [];
-      }
-    });
+    useState([]);
+  const [completingLessonIndex, setCompletingLessonIndex] = useState(null);
 
   const [completedMissions, setCompletedMissions] =
     useState(() => {
@@ -930,6 +913,7 @@ function CourseDetail() {
     const loadEnrollment =
       async () => {
         try {
+          setCompletedLessons([]);
           const response =
             await fetch(
               `${API_ROOT}/enrollments/me`,
@@ -977,26 +961,12 @@ function CourseDetail() {
               enrollment =
                 await syncResponse.json();
 
-              const storedLessons =
-                JSON.parse(
-                  localStorage.getItem(
-                    lessonProgressKey
-                  )
-                );
-
               const storedMissions =
                 JSON.parse(
                   localStorage.getItem(
                     missionProgressKey
                   )
                 );
-
-              const localLessons =
-                Array.isArray(
-                  storedLessons
-                )
-                  ? storedLessons
-                  : [];
 
               const localMissions =
                 Array.isArray(
@@ -1006,7 +976,6 @@ function CourseDetail() {
                   : [];
 
               if (
-                localLessons.length ||
                 localMissions.length
               ) {
                 const progressResponse =
@@ -1020,8 +989,6 @@ function CourseDetail() {
                         Authorization: `Bearer ${token}`,
                       },
                       body: JSON.stringify({
-                        completedLessons:
-                          localLessons,
                         completedMissions:
                           localMissions,
                       }),
@@ -1085,7 +1052,6 @@ function CourseDetail() {
     currentUser?.id,
     currentUser?.role,
     enrolledCourses,
-    lessonProgressKey,
     missionProgressKey,
   ]);
 
@@ -1371,7 +1337,6 @@ function CourseDetail() {
   };
 
   const saveProgress = async (
-    lessonItems,
     missionItems
   ) => {
     const token =
@@ -1388,8 +1353,6 @@ function CourseDetail() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          completedLessons:
-            lessonItems,
           completedMissions:
             missionItems,
         }),
@@ -1441,35 +1404,27 @@ function CourseDetail() {
     }
   };
 
-  const toggleLesson = (
+  const toggleLesson = async (
     index
   ) => {
-    const updated =
-      completedLessons.includes(
-        index
-      )
-        ? completedLessons.filter(
-            (item) =>
-              item !== index
-          )
-        : [
-            ...completedLessons,
-            index,
-          ];
-
-    setCompletedLessons(
-      updated
-    );
-
-    localStorage.setItem(
-      lessonProgressKey,
-      JSON.stringify(updated)
-    );
-
-    saveProgress(
-      updated,
-      completedMissions
-    );
+    if (completedLessons.includes(index) || completingLessonIndex !== null) return;
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    setCompletingLessonIndex(index);
+    try {
+      const response = await fetch(
+        `${API_ROOT}/enrollments/${course.slug}/lessons/${index}/complete`,
+        { method: "POST", headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!response.ok) throw new Error("Unable to complete lesson");
+      const enrollment = await response.json();
+      setCompletedLessons(enrollment.completedLessons);
+    } catch (error) {
+      console.error("Complete lesson error:", error);
+      setEnrollmentMessage("Unable to save lesson completion. Please try again.");
+    } finally {
+      setCompletingLessonIndex(null);
+    }
   };
 
   const completeMission = (
@@ -1497,10 +1452,7 @@ function CourseDetail() {
       JSON.stringify(updated)
     );
 
-    saveProgress(
-      completedLessons,
-      updated
-    );
+    saveProgress(updated);
   };
 
   const submitReport = async (
@@ -1769,6 +1721,7 @@ function CourseDetail() {
           onToggleLesson={
             toggleLesson
           }
+          completingLessonIndex={completingLessonIndex}
         />
 
         {enrolled && (

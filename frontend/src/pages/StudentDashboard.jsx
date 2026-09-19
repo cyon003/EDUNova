@@ -31,6 +31,7 @@ import MessageBox from "../components/MessageBox";
 import DashboardSearch from "../components/DashboardSearch";
 import NotificationBell from "../components/NotificationBell";
 import { API_ROOT, courseDuration } from "../utils/courseApi";
+import { nextIncompleteLessonIndex } from "../utils/lessonProgress";
 import { logout } from "../utils/authClient";
 
 const dailyPlan = [
@@ -96,10 +97,13 @@ function StudentDashboard() {
   const [continueDestination, setContinueDestination] = useState("/my-courses");
   const [savedCourseItems, setSavedCourseItems] = useState([]);
   const [learningStats, setLearningStats] = useState({ activeCourses: 0, studySeconds: 0, completedLessons: 0, completedCourses: 0, streak: 0, recentActivities: [], courses: [] });
-  const [goals, setGoals] = useState([
-    { id: "lessons", label: "Complete lessons", current: 3, target: 5 },
-    { id: "hours", label: "Study hours", current: 4, target: 7 },
-  ]);
+  const [weeklyGoal, setWeeklyGoal] = useState(null);
+  const [weeklyGoalInput, setWeeklyGoalInput] = useState("");
+  const [weeklyGoalEditing, setWeeklyGoalEditing] = useState(false);
+  const [weeklyGoalLoading, setWeeklyGoalLoading] = useState(true);
+  const [weeklyGoalSaving, setWeeklyGoalSaving] = useState(false);
+  const [weeklyGoalError, setWeeklyGoalError] = useState("");
+  const [weeklyGoalReload, setWeeklyGoalReload] = useState(0);
   const noteFolders = ["All Notes", ...new Set([...learningStats.courses.map((course) => course.name), ...notes.map((note) => note.course)].filter(Boolean))];
   const lessonNotes = notes.filter((note) => note.sourceType === "saved_from_summary");
   const personalNotes = notes.filter((note) => note.sourceType !== "saved_from_summary");
@@ -133,8 +137,8 @@ function StudentDashboard() {
       const lessonCount = course?.lessons?.length || 0;
       if (!slug) return "/my-courses";
       if (!lessonCount) return `/courses/${slug}`;
-      const savedIndex = Number.isInteger(currentLessonIndex) ? currentLessonIndex : Array.from({ length: lessonCount }, (_, index) => index).find((index) => !completedLessons.includes(index)) ?? 0;
-      return `/courses/${slug}/learn/${Math.min(savedIndex, lessonCount - 1) + 1}`;
+      const nextIndex = nextIncompleteLessonIndex(lessonCount, completedLessons, currentLessonIndex);
+      return `/courses/${slug}/learn/${nextIndex + 1}`;
     };
     const loadContinueDestination = async () => {
       const token = localStorage.getItem("token");
@@ -179,7 +183,7 @@ function StudentDashboard() {
         const lessonCount = catalogCourse.lessons?.length || 0;
         const completedCount = item.completedLessons?.length || 0;
         const progress = lessonCount ? Math.min(Math.round(completedCount / lessonCount * 100), 100) : 0;
-        const currentLessonIndex = Math.min(item.currentLessonIndex || 0, Math.max(lessonCount - 1, 0));
+        const currentLessonIndex = nextIncompleteLessonIndex(lessonCount, item.completedLessons, item.currentLessonIndex);
         return { slug: catalogCourse.slug, name: catalogCourse.name, lesson: catalogCourse.lessons?.[currentLessonIndex]?.title || "Lessons coming soon", lessonCount, completedCount, progress, currentLessonIndex, color: ["purple", "blue", "pink"][index % 3] };
       });
       const recentActivities = enrollments.flatMap((item) => (item.recentActivity || []).map((activity) => ({ ...activity, courseName: item.course?.name || "Course" }))).sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt)).slice(0, 5);
@@ -208,6 +212,32 @@ function StudentDashboard() {
     loadStats();
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadWeeklyGoal = async () => {
+      setWeeklyGoalLoading(true);
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) throw new Error("Please sign in to view your weekly goal.");
+        const response = await fetch(`${API_ROOT}/weekly-goal/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error("Unable to load your weekly goal.");
+        const goal = await response.json();
+        setWeeklyGoal(goal);
+        setWeeklyGoalInput(goal.weeklyGoalMinutes ? String(goal.weeklyGoalMinutes) : "");
+        setWeeklyGoalError("");
+      } catch (error) {
+        if (error.name !== "AbortError") setWeeklyGoalError(error.message);
+      } finally {
+        if (!controller.signal.aborted) setWeeklyGoalLoading(false);
+      }
+    };
+    loadWeeklyGoal();
+    return () => controller.abort();
+  }, [weeklyGoalReload, activeSection]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -378,8 +408,33 @@ function StudentDashboard() {
     setCompletedPlan((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   };
 
-  const advanceGoal = (id) => {
-    setGoals((current) => current.map((goal) => goal.id === id ? { ...goal, current: Math.min(goal.current + 1, goal.target) } : goal));
+  const saveWeeklyGoal = async (event) => {
+    event.preventDefault();
+    const value = weeklyGoalInput.trim();
+    const minutes = Number(value);
+    if (!/^\d+$/.test(value) || !Number.isInteger(minutes) || minutes < 1 || minutes > 10080) {
+      setWeeklyGoalError("Enter a whole number between 1 and 10080 minutes.");
+      return;
+    }
+    setWeeklyGoalSaving(true);
+    setWeeklyGoalError("");
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("Please sign in to save your weekly goal.");
+      const response = await fetch(`${API_ROOT}/weekly-goal/me`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ weeklyGoalMinutes: minutes }),
+      });
+      const goal = await response.json();
+      if (!response.ok) throw new Error(goal.message || "Unable to save your weekly goal.");
+      setWeeklyGoal(goal);
+      setWeeklyGoalEditing(false);
+    } catch (error) {
+      setWeeklyGoalError(error.message);
+    } finally {
+      setWeeklyGoalSaving(false);
+    }
   };
 
   return (
@@ -456,8 +511,23 @@ function StudentDashboard() {
             </div>
           </section>
           <section className="student-panel student-goals">
-            <header><div><span>THIS WEEK</span><h2>Goals and milestones</h2></div><FaBullseye /></header>
-            {goals.map((goal) => <article key={goal.id}><div><strong>{goal.label}</strong><span>{goal.current} of {goal.target}</span></div><div className="student-goal-progress"><span style={{ width: `${(goal.current / goal.target) * 100}%` }} /></div><button type="button" onClick={() => advanceGoal(goal.id)} disabled={goal.current === goal.target}><FaPlus /> Add progress</button></article>)}
+            <header><div><span>THIS WEEK</span><h2>Weekly learning goal</h2></div><FaBullseye /></header>
+            {weeklyGoalLoading ? <p>Loading your weekly goal…</p> : <>
+              {weeklyGoal?.weeklyGoalMinutes ? <article className="student-weekly-goal">
+                <div><strong>Weekly learning goal</strong><span>{weeklyGoal.learningMinutes} / {weeklyGoal.weeklyGoalMinutes} min</span></div>
+                <div className="student-goal-progress" role="progressbar" aria-label="Weekly learning goal progress" aria-valuenow={weeklyGoal.completionPercentage} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${weeklyGoal.completionPercentage}%` }} /></div>
+                <p>{weeklyGoal.completionPercentage}% completed · {weeklyGoal.remainingMinutes} min remaining</p>
+                <p>Status: {weeklyGoal.goalStatus === "completed" ? "Goal reached" : "In progress"}</p>
+                <button type="button" onClick={() => setWeeklyGoalEditing(true)}>Change goal</button>
+              </article> : <p>How many minutes would you like to study each week?</p>}
+              {(!weeklyGoal?.weeklyGoalMinutes || weeklyGoalEditing) && <form className="student-weekly-goal-form" onSubmit={saveWeeklyGoal}>
+                <label htmlFor="weekly-goal-minutes">Weekly goal (minutes)</label>
+                <input id="weekly-goal-minutes" type="number" min="1" max="10080" step="1" value={weeklyGoalInput} onChange={(event) => setWeeklyGoalInput(event.target.value)} required />
+                <div><button type="submit" disabled={weeklyGoalSaving}>{weeklyGoalSaving ? "Saving…" : "Save goal"}</button>{weeklyGoal?.weeklyGoalMinutes && <button type="button" onClick={() => { setWeeklyGoalEditing(false); setWeeklyGoalInput(String(weeklyGoal.weeklyGoalMinutes)); setWeeklyGoalError(""); }}>Cancel</button>}</div>
+              </form>}
+              <small>Study time counts while a course lesson is playing in a visible tab. The week starts Monday (UTC).</small>
+            </>}
+            {weeklyGoalError && <p role="alert">{weeklyGoalError} <button type="button" onClick={() => setWeeklyGoalReload((value) => value + 1)}>Retry</button></p>}
           </section>
         </div>
 

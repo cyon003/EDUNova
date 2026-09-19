@@ -6,6 +6,7 @@ import { API_ROOT, getPublicCourse } from "../utils/courseApi";
 import { LessonSummaryPanel, VideoTranscriptPanel } from "../components/Summaries";
 import { useAuth } from "../hooks/useAuth";
 import { useLearningSignal } from "../hooks/useLearningSignal";
+import ConfusionRecommendation from "../components/ConfusionRecommendation.jsx";
 import "../styles/LessonPlayer.css";
 
 function readArray(key) {
@@ -232,6 +233,8 @@ function LessonPlayer() {
             onPointerDown={learningSignal.mediaHandlers.onPointerDown}
             onKeyDown={learningSignal.mediaHandlers.onKeyDown}
             onSeeking={learningSignal.mediaHandlers.onSeeking}
+            onSeeked={learningSignal.mediaHandlers.onSeeked}
+            onRateChange={learningSignal.mediaHandlers.onRateChange}
             onTimeUpdate={(event) => { learningSignal.mediaHandlers.onTimeUpdate(event); if (event.currentTarget.currentTime - lastLocalSave.current >= 3) { lastLocalSave.current = event.currentTarget.currentTime; saveVideoPosition(event.currentTarget.currentTime); } }}
             onPause={(event) => { learningSignal.mediaHandlers.onPause(event); const studiedSeconds = playStartedAt.current ? Math.max(Math.round((Date.now() - playStartedAt.current) / 1000), 1) : 0; playStartedAt.current = null; saveVideoPosition(event.currentTarget.currentTime); syncProgress({ index: lessonIndex, seconds: event.currentTarget.currentTime, studiedSeconds }); }}
             onEnded={() => {
@@ -251,6 +254,14 @@ function LessonPlayer() {
             Your browser does not support HTML video.
           </video> : <div className="lesson-media-unavailable">{mediaError || (primaryMedia ? "Loading lesson video..." : "No lesson video has been uploaded.")}</div>}
         </div>
+
+        {learningSignal.recommendation && <ConfusionRecommendation
+          onDismiss={learningSignal.dismissRecommendation}
+          onAskAI={() => {
+            const learningContext = learningSignal.takeRecommendationContext();
+            if (learningContext) navigate("/ai-tutor", { state: { learningContext } });
+          }}
+        />}
 
         <article className="lesson-player-content">
           <div className="lesson-player-heading"><div><small>LESSON {lessonIndex + 1} OF {lessons.length}</small><h1>{lesson.title}</h1><p>{lesson.description}</p></div>{enrolled && <button type="button" className={completedLessons.includes(lessonIndex) ? "completed" : ""} onClick={toggleComplete}><FaCheck /> {completedLessons.includes(lessonIndex) ? "Completed" : "Mark complete"}</button>}</div>

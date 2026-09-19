@@ -11,6 +11,9 @@ const { uploadDirectory } = require("../config/storage");
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
 const LearningSignal = require("../models/LearningSignal");
+const ConfusionEvent = require("../models/ConfusionEvent");
+const LessonVideoExposure = require("../models/LessonVideoExposure");
+const { topicAnalytics, topicEventPipeline } = require("../services/topicAnalyticsService");
 const Note = require("../models/Note");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
@@ -20,6 +23,7 @@ const requireRole = require("../middleware/roleMiddleware");
 const { revokeUserSessions } = require("../services/sessionService");
 const { validatePassword } = require("../utils/passwordSecurity");
 
+const { topicFields } = require("../utils/lessonTopics");
 const router = express.Router();
 const LESSON_SUMMARY_MAX_LENGTH = 5000;
 const LESSON_TRANSCRIPT_MAX_LENGTH = 50000;
@@ -216,6 +220,11 @@ router.post("/courses/:courseId/lessons", receiveLessonFiles, async (req, res) =
     const externalVideoUrl = String(req.body.videoUrl || "").trim();
     const videoFile = req.files?.video?.[0];
     const resourceFiles = req.files?.resources || [];
+    const topicContent = topicFields(req.body, [], Math.round(Number(req.body.durationSeconds)));
+    if (topicContent.error) {
+      [...(req.files?.video || []), ...resourceFiles].forEach(file => fs.unlink(file.path, () => {}));
+      return res.status(400).json({ message: topicContent.error });
+    }
     const lessonContent = lessonContentFields(req.body);
     const referenceContent = referenceFields(req.body);
     if (lessonContent.error) {
@@ -237,7 +246,7 @@ router.post("/courses/:courseId/lessons", receiveLessonFiles, async (req, res) =
     const references = [...referenceContent.references];
     if (externalVideoUrl && !references.some((item) => item.url === externalVideoUrl)) references.push({ label: new URL(externalVideoUrl).hostname, url: externalVideoUrl });
     const resources = resourceFiles.map((file) => ({ originalName: file.originalname, storedName: file.filename, mimeType: file.mimetype, size: file.size, url: `${req.protocol}://${req.get("host")}/uploads/lesson-resources/${file.filename}` }));
-    course.lessons.push({ title: req.body.title, description: req.body.description || "", ...lessonContent.values, duration, videoUrl: "", primaryMedia: videoFile ? mediaDescriptor(videoFile) : undefined, posterUrl: await createLessonPoster(videoFile), primaryMediaRemoved: false, references, resources });
+    course.lessons.push({ title: req.body.title, description: req.body.description || "", ...lessonContent.values, ...topicContent.values, duration, videoUrl: "", primaryMedia: videoFile ? mediaDescriptor(videoFile) : undefined, posterUrl: await createLessonPoster(videoFile), primaryMediaRemoved: false, references, resources });
     if (course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
     await course.save();
     return res.status(201).json(await Course.findById(course._id));
@@ -252,12 +261,14 @@ router.patch("/courses/:courseId/lessons/:lessonId", async (req, res) => {
     const course = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id });
     const lesson = course?.lessons.id(req.params.lessonId);
     if (!lesson) return res.status(404).json({ message: "Lesson not found" });
+    const topicContent = topicFields(req.body, lesson.topics || []);
+    if (topicContent.error) return res.status(400).json({ message: topicContent.error });
     const lessonContent = lessonContentFields(req.body, true);
     const referenceContent = referenceFields(req.body, true);
     if (lessonContent.error) return res.status(400).json({ message: lessonContent.error });
     if (referenceContent.error) return res.status(400).json({ message: referenceContent.error });
     ["title", "description", "duration"].forEach((key) => { if (req.body[key] !== undefined) lesson[key] = req.body[key]; });
-    Object.assign(lesson, lessonContent.values);
+    Object.assign(lesson, lessonContent.values, topicContent.values);
     if (referenceContent.references) lesson.references = referenceContent.references;
     if (course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
     await course.save();
@@ -381,6 +392,9 @@ router.get("/analytics", async (req, res) => {
         && prediction.confusionProbability >= 0 && prediction.confusionProbability <= 1
         && prediction.clearProbability >= 0 && prediction.clearProbability <= 1;
     });
+    const eventGroups = courseIds.length ? await ConfusionEvent.aggregate(topicEventPipeline(courseIds)) : [];
+    const exposures = courseIds.length ? await LessonVideoExposure.find({ course: { $in: courseIds } }).select("student course lessonId watchedRanges").lean() : [];
+    const topicInsights = topicAnalytics(courses, validSignals, eventGroups, exposures);
     const signalsByLesson = new Map();
     validSignals.forEach((signal) => {
       const key = `${signal.course}:${signal.lessonId}`;
@@ -401,16 +415,16 @@ router.get("/analytics", async (req, res) => {
         const confused = items.filter((item) => item.aiPrediction.prediction === "confused").length;
         const latestItem = items.filter((item) => item.aiPrediction.predictedAt && Number.isFinite(new Date(item.aiPrediction.predictedAt).getTime())).sort((a, b) => new Date(b.aiPrediction.predictedAt) - new Date(a.aiPrediction.predictedAt))[0];
         const latest = latestItem?.aiPrediction.predictedAt || null;
-        return { lessonId: lesson._id, lessonOrder: index + 1, lessonTitle: lesson.title, predictionCount: items.length, predictedClear: items.length - confused, predictedConfused: confused, confusionRate: items.length ? Math.round((confused / items.length) * 100) : null, modelVersion: latestItem?.aiPrediction.modelVersion || null, latestPredictionAt: latest };
+        return { lessonId: lesson._id, lessonOrder: index + 1, lessonTitle: lesson.title, predictionCount: items.length, predictedClear: items.length - confused, predictedConfused: confused, confusionRate: items.length ? Math.round((confused / items.length) * 100) : null, modelVersion: latestItem?.aiPrediction.modelVersion || null, latestPredictionAt: latest, ...topicInsights.get(`${course._id}:${lesson._id}`) };
       });
       const analyzedLessons = lessons.filter((lesson) => lesson.predictionCount > 0);
       const coursePredictions = analyzedLessons.reduce((sum, lesson) => sum + lesson.predictionCount, 0);
       const courseConfused = analyzedLessons.reduce((sum, lesson) => sum + lesson.predictedConfused, 0);
       const totalStudentsAnalyzed = new Set(validSignals.filter((signal) => String(signal.course) === String(course._id)).map((signal) => String(signal.student))).size;
-      return { courseId: course._id, courseTitle: course.name, courseCover: course.thumbnail || "", category: course.category || "General Education", predictionLessonCount: analyzedLessons.length, totalStudentsAnalyzed, overallConfusionRate: coursePredictions >= 5 ? Math.round((courseConfused / coursePredictions) * 100) : null, lessons: analyzedLessons };
+      return { courseId: course._id, courseTitle: course.name, courseCover: course.thumbnail || "", category: course.category || "General Education", predictionLessonCount: analyzedLessons.length, totalStudentsAnalyzed, overallConfusionRate: coursePredictions >= 5 ? Math.round((courseConfused / coursePredictions) * 100) : null, lessons: lessons.filter(lesson => lesson.predictionCount > 0 || lesson.topics.length > 0) };
     });
     return res.json({ generatedAt: new Date().toISOString(), totalStudentsAnalyzed: new Set(validSignals.filter((signal) => signal.student).map((signal) => String(signal.student))).size, totalStudents: uniqueStudents, totalEnrollments, averageProgress: totalEnrollments ? Math.round(enrollments.reduce((sum, item) => sum + percent(item), 0) / totalEnrollments) : 0, completionRate: totalEnrollments ? Math.round((enrollments.filter((item) => percent(item) === 100).length / totalEnrollments) * 100) : 0, mostPopularCourse: [...rows].sort((a, b) => b.enrollments - a.enrollments)[0]?.name || "No enrollments yet", courses: rows, heatmapCourses });
-  } catch (error) { return res.status(500).json({ message: "Unable to load analytics", error: error.message }); }
+  } catch (error) { return res.status(500).json({ message: "Unable to load analytics" }); }
 });
 
 router.get("/profile", async (req, res) => {

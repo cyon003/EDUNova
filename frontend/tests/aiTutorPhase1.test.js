@@ -10,10 +10,10 @@ test("legacy AI chatbot route redirects to the primary General AI Tutor route", 
   assert.match(app, /path="\/ai-chatbot" element={<Navigate to="\/ai-tutor" replace \/>}/);
 });
 
-test("AskAI page has no course mode controls or grounded source presentation", async () => {
+test("AskAI preserves general access without restoring legacy course controls or source claims", async () => {
   const page = await source("src/pages/AiChatbot.jsx");
-  assert.doesNotMatch(page, /Course Assistant|assistant-mode-selector|assistant-course|assistant-lesson|courseId|lessonId|confidence|assistant-sources/);
-  assert.match(page, /mode: "general"/);
+  assert.doesNotMatch(page, /Course Assistant|assistant-mode-selector|assistant-course|assistant-lesson|confidence|assistant-sources/);
+  assert.match(page, /learningContext \? "lesson" : "general"/);
   assert.match(page, /AskAI/);
 });
 

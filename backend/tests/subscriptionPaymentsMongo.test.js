@@ -174,6 +174,10 @@ test("Premium and course payments on a disposable MongoDB replica set", { skip: 
       const pending = await request("POST", "/orders/checkout", { courseIds: [paid.id], totalAmount: 1, paymentType: "subscription" });
       assert.equal(pending.status, 201); assert.equal(pending.data.order.totalAmount, 250); assert.equal(pending.data.order.paymentType, "course");
       assert.equal((await request("POST", "/orders/buy-now", { courseId: paid.id })).data.order._id, pending.data.order._id);
+      assert.equal(pending.data.order.paymentMethod, "stripe", "new paid course checkout uses Stripe");
+      assert.equal(await Enrollment.countDocuments({ student: student._id, course: paid._id }), 0);
+      // Existing manual orders must remain approvable after the Stripe rollout.
+      await Order.updateOne({ _id: pending.data.order._id }, { $set: { paymentMethod: "manual_qr" } });
       await slip(pending.data.order);
       assert.equal((await approve(pending.data.order)).status, 200);
       assert.equal(await Enrollment.countDocuments({ student: student._id, course: paid._id }), 1);

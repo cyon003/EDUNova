@@ -23,6 +23,7 @@ const requireRole = require("../middleware/roleMiddleware");
 const { revokeUserSessions } = require("../services/sessionService");
 const { validatePassword } = require("../utils/passwordSecurity");
 const { statedDurationSeconds } = require("../services/lessonWatchService");
+const { sendQuizMediaFile, QUIZ_MEDIA_TYPES, MAX_IMAGE_BYTES, MAX_AUDIO_BYTES, newStoredName, describeQuizMedia, quizMediaNames, deleteQuizMediaFiles, quizMediaDirectory } = require("../utils/quizMedia");
 
 const { topicFields } = require("../utils/lessonTopics");
 const router = express.Router();
@@ -80,6 +81,125 @@ const uploadLessonFiles = multer({
 const receiveLessonFiles = uploadLessonFiles.fields([{ name: "video", maxCount: 1 }, { name: "resources", maxCount: 10 }]);
 router.use(authenticateToken);
 router.use(requireRole("tutor"));
+
+function quizFields(body, partial = false, courseId = null) {
+  if (partial && body.quiz === undefined) {
+    return {};
+  }
+
+  let quiz = body.quiz;
+
+  if (typeof quiz === "string") {
+    try {
+      quiz = JSON.parse(quiz);
+    } catch {
+      return { error: "Quiz data is invalid" };
+    }
+  }
+
+  if (quiz === null || quiz === undefined || quiz === "") {
+    return { values: { quiz: null } };
+  }
+
+  if (typeof quiz !== "object" || Array.isArray(quiz)) {
+    return { error: "Quiz must be an object" };
+  }
+
+  const title = String(quiz.title || "Lesson Quiz").trim();
+
+  if (title.length > 200) {
+    return { error: "Quiz title cannot exceed 200 characters" };
+  }
+
+  if (!Array.isArray(quiz.questions)) {
+    return { error: "Quiz questions must be an array" };
+  }
+
+  if (quiz.questions.length > 20) {
+    return { error: "A quiz cannot contain more than 20 questions" };
+  }
+
+  if (quiz.questions.length === 0) {
+    return { error: "Add at least one question to the quiz, or remove the quiz" };
+  }
+
+  const questions = [];
+
+  for (const [index, item] of quiz.questions.entries()) {
+    if (!item || typeof item !== "object") {
+      return { error: `Question ${index + 1} is invalid` };
+    }
+
+    const question = String(item.question || "").trim();
+
+    if (!question) {
+      return { error: `Question ${index + 1} cannot be empty` };
+    }
+
+    const type = item.type || "multiple_choice";
+
+    if (!["multiple_choice", "true_false"].includes(type)) {
+      return { error: `Question ${index + 1} has an invalid type` };
+    }
+
+    let options = Array.isArray(item.options)
+      ? item.options.map((option) => String(option?.text ?? option ?? "").trim())
+      : [];
+
+    if (type === "true_false") {
+      options = ["True", "False"];
+    }
+
+    if (type === "multiple_choice") {
+      if (options.length < 2 || options.length > 5) {
+        return {
+          error: `Question ${index + 1} must have between 2 and 5 choices`,
+        };
+      }
+
+      if (options.some((option) => !option)) {
+        return {
+          error: `Question ${index + 1} contains an empty choice`,
+        };
+      }
+    }
+
+    const correctOption = Number(item.correctOption);
+
+    if (
+      !Number.isInteger(correctOption) ||
+      correctOption < 0 ||
+      correctOption >= options.length
+    ) {
+      return {
+        error: `Question ${index + 1} has an invalid correct answer`,
+      };
+    }
+
+    const attachment = describeQuizMedia(item.media, courseId);
+
+    if (attachment.error) {
+      return { error: `Question ${index + 1}: ${attachment.error}` };
+    }
+
+    questions.push({
+      question,
+      type,
+      options: options.map((text) => ({ text })),
+      correctOption,
+      ...(attachment.media ? { media: attachment.media } : {}),
+    });
+  }
+
+  return {
+    values: {
+      quiz: {
+        title,
+        questions,
+      },
+    },
+  };
+}
 
 function lessonContentFields(body, partial = false) {
   const result = {};
@@ -214,6 +334,66 @@ router.delete("/courses/:courseId", async (req, res) => {
   } catch (error) { return res.status(500).json({ message: "Unable to delete course", error: error.message }); }
 });
 
+// ---- Quiz question attachments (picture or audio) ----
+async function ownedCourse(req, res, next) {
+  try {
+    const course = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id });
+    if (!course) return res.status(404).json({ message: "Course not found" });
+    req.ownedCourse = course;
+    return next();
+  } catch { return res.status(404).json({ message: "Course not found" }); }
+}
+
+const uploadQuizMedia = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, callback) => callback(null, quizMediaDirectory()),
+    filename: (req, file, callback) => callback(null, newStoredName(req.params.courseId, file.originalname)),
+  }),
+  limits: { fileSize: MAX_AUDIO_BYTES, files: 1 },
+  fileFilter: (_req, file, callback) => {
+    const type = QUIZ_MEDIA_TYPES[path.extname(file.originalname).toLowerCase()];
+    if (!type || !file.mimetype.startsWith(`${type.kind}/`)) {
+      return callback(Object.assign(new Error("Attach a picture (JPG, PNG, GIF, WebP) or an audio file (MP3, WAV, M4A, OGG)"), { status: 400 }));
+    }
+    return callback(null, true);
+  },
+}).single("file");
+
+function receiveQuizMedia(req, res, next) {
+  uploadQuizMedia(req, res, (error) => {
+    if (!error) return next();
+    if (error.code === "LIMIT_FILE_SIZE") return res.status(413).json({ message: "That file is too large. Pictures can be up to 5 MB and audio up to 15 MB" });
+    return res.status(error.status || 400).json({ message: error.status ? error.message : "Unable to upload the attachment" });
+  });
+}
+
+router.post("/courses/:courseId/quiz-media", ownedCourse, receiveQuizMedia, (req, res) => {
+  if (!req.file) return res.status(400).json({ message: "Choose a picture or audio file" });
+  const type = QUIZ_MEDIA_TYPES[path.extname(req.file.filename).toLowerCase()];
+  if (type.kind === "image" && req.file.size > MAX_IMAGE_BYTES) {
+    fs.unlink(req.file.path, () => {});
+    return res.status(413).json({ message: "Pictures can be up to 5 MB" });
+  }
+  return res.status(201).json({ media: { originalName: req.file.originalname.slice(0, 200), storedName: req.file.filename, mimeType: type.mime, size: req.file.size, kind: type.kind } });
+});
+
+router.get("/courses/:courseId/quiz-media/:storedName", ownedCourse, (req, res) => {
+  const described = describeQuizMedia({ storedName: req.params.storedName }, req.ownedCourse._id);
+  if (described.error) return res.status(404).json({ message: "Attachment not found" });
+  return sendQuizMediaFile(res, req.params.storedName, described.media.mimeType);
+});
+
+// Removes an uploaded attachment that no saved quiz uses (for example when the
+// tutor removes it before saving). Attachments that a saved quiz still uses are
+// left alone; they are cleaned up when the quiz is saved without them.
+router.delete("/courses/:courseId/quiz-media/:storedName", ownedCourse, (req, res) => {
+  const described = describeQuizMedia({ storedName: req.params.storedName }, req.ownedCourse._id);
+  if (described.error) return res.status(404).json({ message: "Attachment not found" });
+  const inUse = req.ownedCourse.lessons.some((lesson) => quizMediaNames(lesson.quiz).includes(req.params.storedName));
+  if (!inUse) deleteQuizMediaFiles([req.params.storedName]);
+  return res.status(204).end();
+});
+
 router.post("/courses/:courseId/lessons", receiveLessonFiles, async (req, res) => {
   try {
     const course = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id });
@@ -228,11 +408,19 @@ router.post("/courses/:courseId/lessons", receiveLessonFiles, async (req, res) =
     }
     const lessonContent = lessonContentFields(req.body);
     const referenceContent = referenceFields(req.body);
+    const quizContent = quizFields(req.body, false, course._id);
     if (lessonContent.error) {
       [...(req.files?.video || []), ...resourceFiles].forEach((file) => fs.unlink(file.path, () => {}));
       return res.status(400).json({ message: lessonContent.error });
     }
     if (referenceContent.error) return res.status(400).json({ message: referenceContent.error });
+    if (quizContent.error) {
+       [...(req.files?.video || []), ...resourceFiles].forEach((file) => {
+        fs.unlink(file.path, () => {});
+      });
+
+      return res.status(400).json({ message: quizContent.error });
+    }
     if (!req.body.title || (!videoFile && !externalVideoUrl && !resourceFiles.length && !referenceContent.references.length)) return res.status(400).json({ message: "Lesson title and at least one video, resource, or reference are required" });
     if (externalVideoUrl) {
       try {
@@ -247,7 +435,7 @@ router.post("/courses/:courseId/lessons", receiveLessonFiles, async (req, res) =
     const references = [...referenceContent.references];
     if (externalVideoUrl && !references.some((item) => item.url === externalVideoUrl)) references.push({ label: new URL(externalVideoUrl).hostname, url: externalVideoUrl });
     const resources = resourceFiles.map((file) => ({ originalName: file.originalname, storedName: file.filename, mimeType: file.mimetype, size: file.size, url: `${req.protocol}://${req.get("host")}/uploads/lesson-resources/${file.filename}` }));
-    course.lessons.push({ title: req.body.title, description: req.body.description || "", ...lessonContent.values, ...topicContent.values, duration, videoUrl: "", primaryMedia: videoFile ? mediaDescriptor(videoFile) : undefined, posterUrl: await createLessonPoster(videoFile), primaryMediaRemoved: false, references, resources });
+    course.lessons.push({ title: req.body.title, description: req.body.description || "", ...lessonContent.values, ...topicContent.values, duration, videoUrl: "", primaryMedia: videoFile ? mediaDescriptor(videoFile) : undefined, posterUrl: await createLessonPoster(videoFile), primaryMediaRemoved: false, references, resources, quiz: quizContent.values.quiz });
     if (course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
     await course.save();
     return res.status(201).json(await Course.findById(course._id));
@@ -266,8 +454,10 @@ router.patch("/courses/:courseId/lessons/:lessonId", async (req, res) => {
     if (topicContent.error) return res.status(400).json({ message: topicContent.error });
     const lessonContent = lessonContentFields(req.body, true);
     const referenceContent = referenceFields(req.body, true);
+    const quizContent = quizFields(req.body, true, course._id);
     if (lessonContent.error) return res.status(400).json({ message: lessonContent.error });
     if (referenceContent.error) return res.status(400).json({ message: referenceContent.error });
+    if (quizContent.error) return res.status(400).json({ message: quizContent.error });
     if (req.body.duration !== undefined && req.body.duration !== lesson.duration && !statedDurationSeconds(req.body.duration)) {
       return res.status(400).json({ message: "Video duration must be minutes:seconds" });
     }
@@ -277,8 +467,13 @@ router.patch("/courses/:courseId/lessons/:lessonId", async (req, res) => {
     ["title", "description", "duration"].forEach((key) => { if (req.body[key] !== undefined) lesson[key] = req.body[key]; });
     Object.assign(lesson, lessonContent.values, topicContent.values);
     if (referenceContent.references) lesson.references = referenceContent.references;
-    if (contentChanged && course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
+    const previousQuizMedia = quizContent.values ? quizMediaNames(lesson.quiz) : [];
+    if (quizContent.values) lesson.quiz = quizContent.values.quiz;
+    if ((contentChanged || quizContent.values) && course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
     await course.save();
+    // Attachments that are no longer part of the quiz are removed from disk.
+    const keptQuizMedia = new Set(quizMediaNames(lesson.quiz));
+    deleteQuizMediaFiles(previousQuizMedia.filter((storedName) => !keptQuizMedia.has(storedName)));
     return res.json(course);
   } catch (error) { return res.status(500).json({ message: "Unable to update lesson", error: error.message }); }
 });
@@ -358,6 +553,7 @@ router.delete("/courses/:courseId/lessons/:lessonId", async (req, res) => {
     if (lesson.primaryMedia?.storage === "course-videos" && lesson.primaryMedia.storedName) fs.unlink(path.join(videoDirectory, path.basename(lesson.primaryMedia.storedName)), () => {});
     else if (lesson.videoUrl?.includes("/uploads/course-videos/")) fs.unlink(path.join(videoDirectory, path.basename(lesson.videoUrl)), () => {});
     lesson.resources.forEach((resource) => { try { fs.unlink(safeResourcePath(resource.storedName), () => {}); } catch { /* Invalid legacy paths are never followed. */ } });
+    deleteQuizMediaFiles(quizMediaNames(lesson.quiz));
     lesson.deleteOne();
     if (course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
     await course.save();

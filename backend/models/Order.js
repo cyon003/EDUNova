@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 // One order document per purchase session.
 // Stores the courses, server-side prices, payment reference,
 // uploaded slip information, and admin verification status.
+// New course checkout explicitly uses Stripe; Premium and legacy orders retain manual approval.
 
 const orderSchema = new mongoose.Schema(
   {
@@ -69,14 +70,15 @@ const orderSchema = new mongoose.Schema(
       default: "manual_qr",
     },
 
-    // Kept for compatibility with older orders / payment systems.
+    // Stripe Checkout Session ID, or legacy payment reference.
     paymentReference: {
+      index: true,
       type: String,
       default: "",
       trim: true,
     },
 
-    // Payment slip information.
+    // Payment slip information for Premium and legacy manual course orders.
     paymentSlip: {
       originalName: {
         type: String,

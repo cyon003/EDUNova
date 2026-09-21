@@ -6,6 +6,7 @@ const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
 const authenticateToken = require("../middleware/authMiddleware");
 const { restrictCourseContent } = require("../utils/courseAccess");
+const { withoutQuizzes } = require("../utils/quizAccess");
 const { uploadDirectory } = require("../config/storage");
 
 const router = express.Router();
@@ -86,7 +87,8 @@ router.get("/", async (req, res) => {
       rating: -1,
       name: 1,
     });
-    return res.status(200).json(courses);
+    // The public list never needs quiz content.
+    return res.status(200).json(courses.map(withoutQuizzes));
   } catch (error) {
     console.error("Get courses error:", error);
     return res.status(500).json({ message: "Unable to load courses" });

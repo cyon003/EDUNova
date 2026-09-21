@@ -206,3 +206,74 @@ test("authorized student lesson response includes persisted summary and transcri
   assert.equal(response.body.summary, "Tutor summary");
   assert.equal(response.body.transcript, "Tutor transcript");
 });
+
+const sampleQuiz = { title: "Greetings", questions: [{ question: "What is ni hao?", type: "multiple_choice", options: ["hello", "bye"], correctOption: 0 }] };
+
+test("tutor can save a quiz while creating a lesson", async () => {
+  const course = fakeCourse();
+  Course.findOne = async () => course;
+  Course.findById = async () => course;
+  const response = await multipartRequest(`/api/tutor/courses/${course._id}/lessons`, { title: "Quiz lesson", videoUrl: "https://example.com/lesson.mp4", quiz: JSON.stringify(sampleQuiz) }, []);
+  assert.equal(response.status, 201);
+  assert.equal(course.lessons[0].quiz.title, "Greetings");
+  assert.deepEqual(course.lessons[0].quiz.questions[0].options, [{ text: "hello" }, { text: "bye" }]);
+  assert.equal(course.lessons[0].quiz.questions[0].correctOption, 0);
+});
+
+test("owning tutor can add, change and remove a lesson quiz with PATCH", async () => {
+  const course = fakeCourse();
+  const lesson = { _id: "507f1f77bcf86cd799439032", title: "Lesson", quiz: null };
+  course.lessons.push(lesson);
+  Course.findOne = async () => course;
+  const path = `/api/tutor/courses/${course._id}/lessons/${lesson._id}`;
+  let response = await request("PATCH", path, { title: "Lesson", quiz: sampleQuiz });
+  assert.equal(response.status, 200);
+  assert.equal(lesson.quiz.questions.length, 1);
+  response = await request("PATCH", path, { title: "Renamed" });
+  assert.equal(lesson.quiz.questions.length, 1, "omitting quiz must leave it untouched");
+  response = await request("PATCH", path, { quiz: null });
+  assert.equal(response.status, 200);
+  assert.equal(lesson.quiz, null);
+});
+
+test("lesson quiz must have at least one valid question", async () => {
+  const course = fakeCourse();
+  const lesson = { _id: "507f1f77bcf86cd799439033", title: "Lesson", quiz: null };
+  course.lessons.push(lesson);
+  Course.findOne = async () => course;
+  const path = `/api/tutor/courses/${course._id}/lessons/${lesson._id}`;
+  let response = await request("PATCH", path, { quiz: { title: "Empty", questions: [] } });
+  assert.equal(response.status, 400);
+  response = await request("PATCH", path, { quiz: { title: "Bad", questions: [{ question: "Q?", type: "multiple_choice", options: ["a", ""], correctOption: 0 }] } });
+  assert.equal(response.status, 400);
+  assert.equal(lesson.quiz, null);
+});
+
+const mergedTopics = [{ title: "Greeting", startTimeSeconds: 0, endTimeSeconds: 30 }];
+test("lesson creation and editing preserve topics, quiz and duration together", async () => {
+  const course = fakeCourse();
+  Course.findOne = async () => course;
+  Course.findById = async () => course;
+  const created = await multipartRequest(`/api/tutor/courses/${course._id}/lessons`, {
+    title: "Combined lesson", videoUrl: "https://example.com/video.mp4", durationSeconds: "60",
+    topics: JSON.stringify(mergedTopics), quiz: JSON.stringify(sampleQuiz),
+  }, []);
+  assert.equal(created.status, 201);
+  const lesson = course.lessons[0];
+  lesson._id = "507f1f77bcf86cd799439034";
+  assert.deepEqual(lesson.topics, mergedTopics);
+  assert.equal(lesson.duration, "1:00");
+  assert.equal(lesson.quiz.questions[0].correctOption, 0);
+  const route = `/api/tutor/courses/${course._id}/lessons/${lesson._id}`;
+  const updated = await request("PATCH", route, { topics: [{...mergedTopics[0], title: "Updated"}], quiz: {...sampleQuiz, title: "Updated quiz"} });
+  assert.equal(updated.status, 200);
+  assert.equal(lesson.topics[0].title, "Updated");
+  assert.equal(lesson.quiz.title, "Updated quiz");
+  assert.equal(lesson.duration, "1:00");
+  assert.equal((await request("PATCH", route, { topics: [{...mergedTopics[0], endTimeSeconds: -1}], quiz: null })).status, 400);
+  assert.equal(lesson.quiz.title, "Updated quiz", "invalid topics cannot remove the quiz");
+  assert.equal((await request("PATCH", route, { topics: [], quiz: {questions: []} })).status, 400);
+  assert.equal(lesson.topics.length, 1, "invalid quiz cannot erase topics");
+  assert.equal((await request("PATCH", route, { quiz: null })).status, 200);
+  assert.equal(lesson.topics.length, 1);
+});

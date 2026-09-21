@@ -1,0 +1,40 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { transformWithOxc } from "vite";
+const source = await readFile(new URL("../src/components/LessonManager.jsx", import.meta.url), "utf8");
+const clean = source.replace(/^import[\s\S]*?;\n/gm, "").replace("export default ", "");
+const result = await transformWithOxc(clean, "LessonManager.jsx", { jsx: { runtime: "classic" } });
+const icon = () => React.createElement("span");
+const { LessonFields, QuizEditor, editable } = new Function("React", "useId", "useRef", "useEffect", "FaTrash", "FaPlus", "QuizAttachment", "lessonReferences", `${result.code};return {LessonFields, QuizEditor, editable};`)(React, () => "quiz", value => ({ current: value }), () => {}, icon, icon, icon, lesson => lesson.references || []);
+const nodes = tree => !tree || typeof tree !== "object" ? [] : Array.isArray(tree) ? tree.flatMap(nodes) : [tree, ...nodes(tree.props?.children)];
+const lesson = { title: "Lesson", duration: "1:00", topics: [{ _id: "topic-1", title: "Intro", startTimeSeconds: 0, endTimeSeconds: 30 }], quiz: { title: "Quiz", questions: [{question: "True?", type: "true_false", options: [{text: "True"}, {text: "False"}], correctOption: 1, media: {storedName: "audio", originalName: "audio.mp3", mimeType: "audio/mpeg", size: 10, kind: "audio"} }] } };
+test("lesson editor retains topic IDs, duration, quiz answers and media", () => {
+  const draft = editable(lesson);
+  assert.deepEqual(draft.topics, lesson.topics);
+  assert.equal(draft.duration, "1:00");
+  assert.equal(draft.durationSeconds, 0);
+  assert.deepEqual(draft.quiz.questions[0].options, ["True", "False"]);
+  assert.equal(draft.quiz.questions[0].correctOption, 1);
+  assert.equal(draft.quiz.questions[0].media.storedName, "audio");
+});
+test("editing a topic timestamp keeps its ID and the quiz intact", () => {
+  const draft = editable(lesson); let updated;
+  const tree = LessonFields({value: draft, setValue: value => { updated = value; }});
+  const end = nodes(tree).find(node => node.type === "input" && node.props.type === "number" && node.props.value === 30);
+  end.props.onChange({target: {value: "45"}});
+  assert.equal(updated.topics[0].endTimeSeconds, 45);
+  assert.equal(updated.topics[0]._id, "topic-1");
+  assert.deepEqual(updated.quiz, draft.quiz);
+});
+test("topic fields and quiz editor both render", () => {
+  const draft = editable(lesson);
+  const fields = renderToStaticMarkup(LessonFields({value: draft, setValue() {}}));
+  const quiz = renderToStaticMarkup(QuizEditor({courseId: "course", quiz: draft.quiz, setQuiz() {}}));
+  assert.match(fields, /Lesson topics/);
+  assert.match(fields, /End \(seconds\)/);
+  assert.match(quiz, /True\?/);
+  assert.match(quiz, /Remove quiz/);
+});

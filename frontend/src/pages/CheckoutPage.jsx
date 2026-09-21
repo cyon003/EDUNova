@@ -1,3 +1,4 @@
+import StripeCheckout from "./StripeCheckout";
 import { useEffect, useState } from "react";
 import {
   FaArrowLeft,
@@ -439,6 +440,12 @@ export default function CheckoutPage() {
   // --------------------------------------------------
   // Loading
   // --------------------------------------------------
+
+  // Premium and submitted manual payments retain the existing approval flow.
+  if (!loading && order?.paymentType === "course" &&
+      order.paymentMethod === "stripe") {
+    return <StripeCheckout key={order._id} initialOrder={order} />;
+  }
 
   if (loading) {
     return <main className="checkout-page"><div className="checkout-loading" role="status"><FaSpinner className="spin" /> Loading your order…</div></main>;

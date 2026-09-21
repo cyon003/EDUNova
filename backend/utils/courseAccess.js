@@ -1,7 +1,7 @@
 function restrictCourseContent(course) {
   const restricted = typeof course.toObject === "function" ? course.toObject() : structuredClone(course);
   restricted.lessons = (restricted.lessons || []).map((lesson, index) => {
-    const restrictedLesson = { ...lesson, videoUrl: "", resources: [] };
+    const restrictedLesson = { ...lesson, videoUrl: "", resources: [], quiz: undefined };
     // Keep only enough metadata to render the free preview's player. File names
     // and storage locations stay server-side; the media route still authorizes it.
     const hasPreviewMedia = lesson.primaryMedia?.storedName || !lesson.primaryMediaRemoved && (

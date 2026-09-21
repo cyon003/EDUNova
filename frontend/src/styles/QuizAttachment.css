@@ -1,0 +1,19 @@
+/* Quiz question attachment (picture / audio). Own file and own class names so other quiz styles cannot clash with it. */
+.tutor-dashboard .lesson-quiz-editor .quiz-attach{display:grid;gap:8px}
+.tutor-dashboard .lesson-quiz-editor .quiz-attach-label{color:#c9bcd8;font-size:12px;font-weight:600}
+.tutor-dashboard .lesson-quiz-editor .quiz-attach-dropzone{display:grid;justify-items:center;gap:5px;width:100%;padding:18px 14px;color:#dfd0f5;font:inherit;text-align:center;cursor:pointer;background:#110b1c;border:1px dashed #5a4180;border-radius:10px;transition:border-color .15s,background .15s}
+.tutor-dashboard .lesson-quiz-editor .quiz-attach-dropzone:hover:not(:disabled){background:#1a1228;border-color:#a071e8}
+.tutor-dashboard .lesson-quiz-editor .quiz-attach-dropzone:disabled{cursor:progress;opacity:.7}
+.tutor-dashboard .lesson-quiz-editor .quiz-attach-dropzone svg{color:#a78bfa;font-size:22px}
+.tutor-dashboard .lesson-quiz-editor .quiz-attach-dropzone strong{font-size:13px}
+.tutor-dashboard .lesson-quiz-editor .quiz-attach-dropzone small{color:#a99bb8;font-size:11px;line-height:1.4}
+.tutor-dashboard .lesson-quiz-editor .quiz-attach-dropzone:focus-visible{outline:3px solid #b68cf2;outline-offset:2px}
+.tutor-dashboard .lesson-quiz-editor .quiz-attach-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px 14px;padding:12px;background:#110b1c;border:1px solid #3a2a50;border-radius:10px}
+.tutor-dashboard .lesson-quiz-editor .quiz-attach-preview{grid-column:1/-1}
+.tutor-dashboard .lesson-quiz-editor .quiz-attach-info{display:grid;gap:2px;min-width:0}
+.tutor-dashboard .lesson-quiz-editor .quiz-attach-info strong{overflow:hidden;color:#f1e9fb;font-size:13px;text-overflow:ellipsis;white-space:nowrap}
+.tutor-dashboard .lesson-quiz-editor .quiz-attach-info small{color:#a99bb8;font-size:11px}
+.tutor-dashboard .lesson-quiz-editor .quiz-attach-actions{display:flex;gap:8px}
+.tutor-dashboard .lesson-quiz-editor .lesson-quiz-ghost:disabled{opacity:.6;cursor:progress}
+.tutor-dashboard .lesson-quiz-editor .quiz-attach-error{margin:0;padding:9px 12px;color:#ffd5db;font-size:12px;background:#33161f;border:1px solid #85404f;border-radius:8px}
+@media(max-width:640px){.tutor-dashboard .lesson-quiz-editor .quiz-attach-card{grid-template-columns:1fr}}

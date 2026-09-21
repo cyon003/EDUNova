@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { canPreviewResource, fileType, formatFileSize, getLessonPrimaryMedia, lessonReferences, supportingResources, supportsLessonTranscript } from "../utils/lessonMedia";
 import { API_ROOT, getPublicCourse } from "../utils/courseApi";
 import { LessonSummaryPanel, VideoTranscriptPanel } from "../components/Summaries";
+import LessonQuiz from "../components/LessonQuiz";
 import { useAuth } from "../hooks/useAuth";
 import { useLearningSignal } from "../hooks/useLearningSignal";
 import ConfusionRecommendation from "../components/ConfusionRecommendation.jsx";
@@ -232,6 +233,7 @@ function LessonPlayer() {
   const primaryMedia = getLessonPrimaryMedia(lesson);
   const references = lessonReferences(lesson);
   const resources = supportingResources(lesson);
+  const hasQuiz = enrolled && lesson.quiz?.questions?.length > 0;
 
   return <main className="lesson-player-page">
     <header className="lesson-player-topbar">
@@ -313,10 +315,12 @@ function LessonPlayer() {
           {references.length>0&&<section className="lesson-materials"><h2>References</h2>{references.map((reference,index)=><a key={`${reference.url}-${index}`} href={reference.url} target="_blank" rel="noopener noreferrer">{reference.label||reference.url}</a>)}</section>}
           {resources.length>0&&<section className="lesson-materials"><h2>Downloadable Resources</h2>{resources.map(resource=><div className="lesson-resource-row" key={resource._id}><div><strong>{resource.originalName}</strong><small>{fileType(resource)} · {formatFileSize(resource.size)}</small></div><span>{canPreviewResource(resource)&&<button type="button" onClick={()=>openResource(resource,"view")}>View</button>}<button type="button" onClick={()=>openResource(resource,"download")}>Download</button></span></div>)}</section>}
           <div className="lesson-player-status"><span>{lessonWatch.status || syncMessage || (primaryMedia && enrolled && !completedLessons.includes(lessonIndex) ? /^\d+:\d{2}(?::\d{2})?$/.test(String(lesson.duration || "")) ? "Watch 95% of this lesson to complete it automatically" : "Ask your tutor to confirm this video's duration before completion" : "Your position is saved automatically")}</span><span><FaClock /> {lesson.duration}</span></div>
-          <nav className="lesson-tool-tabs" aria-label="Lesson tools">{[["content","Lesson"],["summary","Summary"],...(transcriptSupported?[["transcript","Transcript"]]:[]),["notes","Personal Notes"]].map(([id,label])=><button type="button" className={activeTool===id?"active":""} aria-pressed={activeTool===id} onClick={()=>setActiveTool(id)} key={id}>{label}</button>)}</nav>
+          <nav className="lesson-tool-tabs" aria-label="Lesson tools">{[["content","Lesson"],["summary","Summary"],...(transcriptSupported?[["transcript","Transcript"]]:[]),...(hasQuiz?[["quiz","Quiz"]]:[]),["notes","Personal Notes"]].map(([id,label])=><button type="button" className={activeTool===id?"active":""} aria-pressed={activeTool===id} onClick={()=>setActiveTool(id)} key={id}>{label}</button>)}</nav>
           {activeTool==="content"&&<section className="lesson-clarity-feedback" aria-labelledby="lesson-clarity-title"><div><h3 id="lesson-clarity-title">Was this lesson clear?</h3><p>Your answer is optional and helps your tutor improve the course.</p></div><div role="group" aria-label="Lesson clarity feedback"><button type="button" className={learningSignal.signal.confusionFeedback==="clear"?"selected":""} aria-pressed={learningSignal.signal.confusionFeedback==="clear"} disabled={learningSignal.feedbackState==="saving"} onClick={()=>learningSignal.saveFeedback("clear")}>Clear</button><button type="button" className={learningSignal.signal.confusionFeedback==="confused"?"selected":""} aria-pressed={learningSignal.signal.confusionFeedback==="confused"} disabled={learningSignal.feedbackState==="saving"} onClick={()=>learningSignal.saveFeedback("confused")}>I’m confused</button></div><small className={learningSignal.feedbackState==="error"?"error":""} role="status" aria-live="polite">{learningSignal.feedbackState==="saving"?"Saving…":learningSignal.feedbackState==="saved"?"Saved":learningSignal.feedbackState==="error"?learningSignal.trackingError:""}</small><small role="status" aria-live="polite">{learningSignal.predictionState==="loading"?"Reviewing your lesson activity…":learningSignal.predictionState==="success"?"Lesson activity reviewed.":learningSignal.predictionState==="error"?"Lesson activity review is unavailable.":""}</small></section>}
+          {activeTool==="content"&&hasQuiz&&<section className="lesson-quiz-callout"><div><h3>{lesson.quiz.title||"Lesson Quiz"}</h3><p>{lesson.quiz.questions.length} question{lesson.quiz.questions.length===1?"":"s"} · test what you learned in this lesson</p></div><button type="button" onClick={()=>setActiveTool("quiz")}>Take the quiz</button></section>}
           {activeTool==="summary"&&<LessonSummaryPanel lesson={lesson}/>}
           {activeTool==="transcript"&&transcriptSupported&&<VideoTranscriptPanel lesson={lesson}/>}
+          {activeTool==="quiz"&&hasQuiz&&<LessonQuiz key={`${courseSlug}-${lessonIndex}-${lesson.quiz._id||""}`} courseSlug={courseSlug} lessonIndex={lessonIndex} quiz={lesson.quiz} onBack={()=>setActiveTool("content")}/>}
           {activeTool==="notes"&&<LessonNotes key={JSON.stringify([user?.id, user?.role, courseSlug, lessonIndex, lesson.title])} courseSlug={courseSlug} lessonIndex={lessonIndex} lesson={lesson} user={user} />}
           <footer>
             <button type="button" onClick={() => openLesson(lessonIndex - 1)} disabled={lessonIndex === 0}><FaChevronLeft /> Previous lesson</button>

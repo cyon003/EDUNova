@@ -94,6 +94,7 @@ async function checkoutHtml(order) {
   const scope = {
     useState: () => [state[cursor++], () => {}], useEffect() {},
     useNavigate: () => () => {}, useLocation: () => ({ search: `?orderId=${order._id}` }),
+    StripeCheckout: () => React.createElement("div", null, "Stripe course checkout"),
     API_ROOT: "/api", apiAssetUrl: value => value,
     formatCoursePrice: value => `THB ${value.toFixed(2)}`,
   };
@@ -124,4 +125,10 @@ test("legacy course checkout keeps its course summary and approval messaging", a
   assert.match(html, /Algebra/); assert.match(html, /THB 250.00/);
   assert.match(html, /Your course access is now available/);
   assert.match(html, /Go to my learning/); assert.doesNotMatch(html, /EDUNova Premium/);
+});
+
+test("pending course payments use Stripe while Premium keeps manual approval", async () => {
+  const html = await checkoutHtml({ _id: "course-order", paymentType: "course", paymentMethod: "stripe", status: "pending", totalAmount: 250, items: [] });
+  assert.match(html, /Stripe course checkout/);
+  assert.doesNotMatch(html, /Submit payment slip/);
 });

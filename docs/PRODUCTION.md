@@ -123,7 +123,7 @@ history, provider timeouts and safe errors. Course documents are not sent to Gem
 
 ## Lesson resources
 
-Leave `UPLOAD_ROOT` empty in local development to use `backend/uploads`. In production, mount persistent storage and set an absolute path such as `UPLOAD_ROOT=/persistent/edunova/uploads`. At startup, Express creates the required subdirectories (`course-covers`, `course-videos`, `lesson-posters`, `lesson-resources`, `payment-qr`, `payment-slips`, `profile-photos`, and `tutor-applications`) beneath that root. The mounted root must be readable and writable by the operating-system user running Express; do not make payment slips or tutor-application files public at the reverse proxy. Back up the complete upload root together with MongoDB, since database records reference its generated filenames. Generated stored names are resolved only inside approved upload directories; unsafe paths are rejected. Resource contents are not extracted or sent to Gemini.
+Leave `UPLOAD_ROOT` empty in local development to use `backend/uploads`. In production, mount persistent storage and set an absolute path such as `UPLOAD_ROOT=/persistent/edunova/uploads`. At startup, Express creates the required subdirectories (`course-covers`, `course-videos`, `lesson-posters`, `lesson-resources`, `profile-photos`, and `tutor-applications`) beneath that root. The mounted root must be readable and writable by the operating-system user running Express; do not make payment slips or tutor-application files public at the reverse proxy. Back up the complete upload root together with MongoDB, since database records reference its generated filenames. Generated stored names are resolved only inside approved upload directories; unsafe paths are rejected. Resource contents are not extracted or sent to Gemini.
 
 ## Confusion prediction service
 
@@ -247,4 +247,4 @@ Use dedicated staging accounts and test data. Verify HTTPS cookies and session
 refresh, an unauthorized API/media request, a normal student/tutor/admin flow,
 SMTP password reset delivery, a Gemini response and quota/provider error, a
 Socket.IO message, one uploaded resource, and the model prediction endpoint.
-Do not send payment slips to real users or process real payments while testing.
+Use Stripe test mode only; do not process real payments while testing. See [Stripe payment configuration](PREMIUM_PAYMENTS.md) for the webhook endpoint, signing secret and enabled payment methods. Retain historical payment evidence privately.

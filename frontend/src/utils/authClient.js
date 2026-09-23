@@ -182,9 +182,35 @@ function isRefreshExcluded(input) {
   return /\/auth\/(login|signup|refresh|logout|forgot-password|reset-password)/.test(value);
 }
 
+// JWT expiry is a scheduling hint only; the server still validates every token.
+function accessNeedsRefresh() {
+  if (!accessToken) return true;
+  try {
+    const claims = JSON.parse(atob(accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return Number.isFinite(claims.exp) && claims.exp * 1000 <= Date.now();
+  } catch { return false; } // Malformed tokens are rejected by the server.
+}
+
+export function installSessionResume(onError = () => {}) {
+  const resume = () => {
+    if (document.visibilityState !== "visible" || !snapshot.user || !accessNeedsRefresh()) return;
+    // Focus, visibility and resumed requests all share refreshPromise and the
+    // existing cross-tab lock. Temporary failures retain the signed-in identity.
+    void refreshSession().catch(error => {
+      if (error.name !== "AbortError" && !error.definitive) onError(error);
+    });
+  };
+  window.addEventListener("focus", resume);
+  document.addEventListener("visibilitychange", resume);
+  return () => {
+    window.removeEventListener("focus", resume);
+    document.removeEventListener("visibilitychange", resume);
+  };
+}
+
 async function authenticatedFetch(input, init = {}, mayRetry = true, version = snapshot.version) {
   const apiRequest = isApiUrl(input);
-  if (apiRequest && !isRefreshExcluded(input) && snapshot.user && !accessToken) {
+  if (apiRequest && !isRefreshExcluded(input) && snapshot.user && accessNeedsRefresh()) {
     assertCurrentSession(version);
     await refreshSession();
   }

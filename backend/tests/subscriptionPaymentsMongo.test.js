@@ -70,122 +70,173 @@ test("Premium and course payments on a disposable MongoDB replica set", { skip: 
       const result = await request("POST", "/subscription/upgrade", { billingCycle: cycle });
       assert.equal(result.status, 201); return result.data.order;
     };
-    const slip = async (order, user = student, extra = {}) => {
-      const form = new FormData();
-      form.append("paymentSlip", new Blob(["%PDF-1.4 test slip"], { type: "application/pdf" }), "slip.pdf");
-      for (const [key, value] of Object.entries(extra)) form.append(key, value);
-      return request("POST", `/payment/${order._id}/slip`, form, user);
+    const Stripe = require("stripe");
+    const stripeService = require("../services/stripePaymentService");
+    const sessions = new Map(), keys = new Map();
+    const created = [];
+    const fakeCheckout = { sessions: {
+      async create(params, options) {
+        if (keys.has(options.idempotencyKey)) return sessions.get(keys.get(options.idempotencyKey));
+        const id = `cs_test_${created.length + 1}`;
+        const value = { ...params, id, url: `https://checkout.stripe.com/${id}`, status: "open", payment_status: "unpaid", currency: "thb", amount_total: params.line_items.reduce((sum, item) => sum + item.price_data.unit_amount, 0) };
+        sessions.set(id, value); keys.set(options.idempotencyKey, id); created.push(value); return value;
+      },
+      async retrieve(id) { if (!sessions.has(id)) throw new Error("Unknown session"); return sessions.get(id); },
+    } };
+    Object.defineProperty(stripeService, "checkout", { value: fakeCheckout });
+    Object.defineProperty(stripeService, "webhooks", { value: new Stripe("sk_test_local_fixture").webhooks });
+    process.env.STRIPE_WEBHOOK_SECRET = "whsec_local_fixture";
+    const start = async order => {
+      const result = await request("POST", "/stripe/create-checkout-session", { orderId: order._id });
+      assert.equal(result.status, 200, JSON.stringify(result.data));
+      return sessions.get(result.data.sessionId);
     };
-    const approve = order => request("POST", `/admin/payment-verification/${order._id}/approve`, {}, admin);
-    const reset = async () => { await Order.deleteMany({}); await User.updateOne({ _id: student._id }, { $unset: { subscription: "" } }); };
+    const verify = (session, user = student) => request("POST", "/stripe/verify-session", { sessionId: session.id }, user);
+    const paid = session => Object.assign(session, { status: "complete", payment_status: "paid", url: null });
+    const webhook = async (session, type = "checkout.session.completed", valid = true) => {
+      const payload = JSON.stringify({ id: `evt_${session.id}`, type, data: { object: { id: session.id } } });
+      const signature = Stripe.webhooks.generateTestHeaderString({ payload, secret: valid ? process.env.STRIPE_WEBHOOK_SECRET : "wrong" });
+      return fetch(`http://127.0.0.1:${server.address().port}/api/stripe/webhook`, { method: "POST", headers: { "Content-Type": "application/json", "stripe-signature": signature }, body: payload });
+    };
+    const reset = async () => { await Order.deleteMany({}); await Notification.deleteMany({}); await User.updateOne({ _id: student._id }, { $unset: { subscription: "" } }); };
+    const makeCourse = (slug, price) => Course.create({ slug, name: slug, description: "Test", level: "Beginner", duration: "1:00", rating: 0, moderationStatus: "published", price });
 
-    await t.test("server prices, student authorization, fake-price rejection and concurrent checkout reuse", async () => {
+    await t.test("Premium authorization, immutable server prices and concurrent checkout/session reuse", async () => {
       assert.equal((await request("POST", "/subscription/upgrade", { billingCycle: "monthly" }, null)).status, 401);
       assert.equal((await request("POST", "/subscription/upgrade", { billingCycle: "monthly" }, admin)).status, 403);
       assert.equal((await request("POST", "/subscription/upgrade", { billingCycle: "yearly", totalAmount: 1 })).status, 400);
-      const results = await Promise.all(Array.from({ length: 5 }, () => request("POST", "/subscription/upgrade", { billingCycle: "monthly" })));
+      const results = await Promise.all(Array.from({ length: 4 }, () => request("POST", "/subscription/upgrade", { billingCycle: "monthly" })));
       assert.equal(results.filter(r => r.status === 201).length, 1);
       assert.equal(new Set(results.map(r => r.data.order._id)).size, 1);
-      assert.equal(results[0].data.order.totalAmount, 99);
-      assert.match(results[0].data.order.orderReference, /^EDU-PREM-/);
-      const existing = await request("POST", "/subscription/upgrade", { billingCycle: "yearly" });
-      assert.equal(existing.data.order.billingCycle, "monthly");
-      assert.equal((await service.getSubscription(await User.findById(student._id))).plan, "free");
+      const order = results[0].data.order;
+      const checkouts = await Promise.all([start(order), start(order), start(order)]);
+      assert.equal(new Set(checkouts.map(item => item.id)).size, 1);
+      assert.equal(checkouts[0].amount_total, 9900);
+      assert.equal(checkouts[0].mode, "payment");
+      assert.equal(checkouts[0].payment_method_types, undefined);
+      assert.equal(checkouts[0].metadata.orderReference, order.orderReference);
+      assert.match(checkouts[0].cancel_url, /payment=cancelled/);
+      assert.equal((await verify(checkouts[0])).status, 402);
+      assert.equal((await verify(checkouts[0], other)).status, 403);
+      assert.equal((await request("POST", "/stripe/create-checkout-session", { orderId: order._id }, other)).status, 404);
+      assert.equal(service.currentSubscription(await User.findById(student._id)).plan, "free");
       await reset();
-      assert.equal((await checkout("yearly")).totalAmount, 999);
     });
 
-    await t.test("slip ownership, validation and submission cannot activate or alter Premium", async () => {
-      await reset(); const order = await checkout();
-      assert.equal((await slip(order, other)).status, 404);
-      assert.equal((await approve(order)).status, 409);
-      const invalid = new FormData(); invalid.append("paymentSlip", new Blob(["bad"], { type: "text/plain" }), "bad.txt");
-      assert.equal((await request("POST", `/payment/${order._id}/slip`, invalid)).status, 400);
-      const big = new FormData(); big.append("paymentSlip", new Blob([new Uint8Array(5 * 1024 * 1024 + 1)], { type: "application/pdf" }), "big.pdf");
-      assert.equal((await request("POST", `/payment/${order._id}/slip`, big)).status, 400);
-      const submitted = await slip(order, student, { billingCycle: "yearly", totalAmount: "1", paymentType: "course" });
-      assert.equal(submitted.status, 200); assert.equal(submitted.data.order.status, "awaiting_verification");
-      assert.equal((await service.getSubscription(await User.findById(student._id))).plan, "free");
-      const stored = await Order.findById(order._id);
-      assert.equal(stored.billingCycle, "monthly"); assert.equal(stored.totalAmount, 99); assert.equal(stored.paymentType, "subscription");
-      assert.equal((await request("GET", "/subscription/me")).data.pendingPayment._id, order._id);
-      assert.equal((await request("GET", `/orders/${order._id}`, undefined, other)).status, 404);
-      assert.equal((await request("POST", `/admin/payment-verification/${order._id}/approve`, {})).status, 403);
-      assert.equal((await request("POST", `/admin/payment-verification/${order._id}/approve`, {}, null)).status, 401);
-      const review = await request("GET", "/admin/payment-verification", undefined, admin);
-      assert.equal(review.data.orders[0].paymentType, "subscription");
-    });
-
-    await t.test("monthly/yearly approval activates correct calendar duration without enrolling", async () => {
+    await t.test("both Premium periods fulfill exactly once across parallel verification and signed webhook replays", async () => {
       for (const cycle of ["monthly", "yearly"]) {
-        await reset(); const order = await checkout(cycle); await slip(order);
-        const result = await approve(order); assert.equal(result.status, 200);
+        await reset();
+        const order = await checkout(cycle), session = await start(order);
+        assert.equal(session.amount_total, cycle === "monthly" ? 9900 : 99900);
+        assert.equal((await webhook(session, undefined, false)).status, 400);
+        assert.equal((await webhook(session)).status, 200); // unpaid completion waits for async success
+        assert.equal(service.currentSubscription(await User.findById(student._id)).plan, "free");
+        paid(session);
+        const results = await Promise.all([verify(session), verify(session), webhook(session), webhook(session, "checkout.session.async_payment_succeeded")]);
+        assert.ok(results.every(result => result.status === 200));
         const user = await User.findById(student._id);
-        assert.equal(user.subscription.startDate.toISOString(), result.data.order.verifiedAt);
-        assert.equal(user.subscription.endDate.toISOString(), service.premiumSubscription(cycle, user.subscription.startDate).endDate.toISOString());
-        assert.equal(service.allowance(user).limit, 500); assert.equal(service.allowance(user).period, "monthly");
-        assert.equal(await Enrollment.countDocuments({ student: student._id }), 0);
-        assert.equal((await request("GET", "/subscription/me")).data.pendingPayment, null);
+        const end = user.subscription.endDate.toISOString();
+        assert.equal(service.currentSubscription(user).plan, "premium");
+        assert.equal(service.allowance(user).limit, 500);
+        assert.equal(service.currentSubscription(user, user.subscription.endDate).plan, "free");
+        await verify(session); await webhook(session);
+        assert.equal((await User.findById(student._id)).subscription.endDate.toISOString(), end);
+        assert.equal(await Notification.countDocuments({ order: order._id }), 1);
+        assert.equal((await Order.findById(order._id)).status, "completed");
       }
     });
 
-    await t.test("active extension preserves time and competing/repeated approval applies once", async () => {
+    await t.test("existing Premium retains paid time and quota when extended", async () => {
       await reset();
-      const active = service.premiumSubscription("yearly");
-      await User.updateOne({ _id: student._id }, { $set: { subscription: active } });
-      const order = await checkout(); await slip(order);
-      const results = await Promise.all([approve(order), approve(order)]);
-      assert.deepEqual(results.map(r => r.status).sort(), [200, 409]);
-      const after = await User.findById(student._id);
-      assert.equal(after.subscription.endDate.toISOString(), service.premiumSubscription("monthly", active.endDate).endDate.toISOString());
-      assert.equal(after.subscription.startDate.toISOString(), active.startDate.toISOString());
-      assert.equal((await approve(order)).status, 409);
-      assert.equal((await User.findById(student._id)).subscription.endDate.toISOString(), after.subscription.endDate.toISOString());
+      const original = service.premiumSubscription("yearly");
+      await User.updateOne({ _id: student._id }, { $set: { subscription: original } });
+      const order = await checkout(), session = await start(order);
+      assert.equal((await User.findById(student._id)).subscription.endDate.toISOString(), original.endDate.toISOString());
+      paid(session); assert.equal((await verify(session)).status, 200);
+      const updated = await User.findById(student._id);
+      assert.equal(updated.subscription.startDate.toISOString(), original.startDate.toISOString());
+      assert.ok(updated.subscription.endDate > original.endDate);
+      assert.equal(service.allowance(updated).limit, 500);
     });
 
-    await t.test("expired repurchase begins at approval; rejection permits resubmission", async () => {
-      await reset();
-      await User.updateOne({ _id: student._id }, { $set: { subscription: { plan: "premium", status: "active", billingCycle: "yearly", startDate: new Date(0), endDate: new Date(1) } } });
-      assert.equal(service.allowance(await User.findById(student._id)).limit, 5);
-      const order = await checkout(); await slip(order);
-      assert.equal((await request("POST", `/admin/payment-verification/${order._id}/reject`, { reason: "Unreadable" }, admin)).status, 200);
-      assert.equal((await request("POST", "/subscription/upgrade", { billingCycle: "monthly" })).data.order._id, order._id);
-      assert.equal((await slip(order)).status, 200);
-      const approved = await approve(order);
-      const user = await User.findById(student._id);
-      assert.equal(user.subscription.startDate.toISOString(), approved.data.order.verifiedAt);
-      assert.equal(user.subscription.endDate.toISOString(), service.premiumSubscription("monthly", user.subscription.startDate).endDate.toISOString());
-    });
-
-    await t.test("approval transaction rolls back order decision if subscription data is invalid", async () => {
-      await reset(); const order = await checkout(); await slip(order);
-      await Order.collection.updateOne({ _id: new mongoose.Types.ObjectId(order._id) }, { $set: { totalAmount: 1 } });
-      assert.equal((await approve(order)).status, 400);
-      assert.equal((await Order.findById(order._id)).status, "awaiting_verification");
+    await t.test("failed async payment and expired/canceled checkout can retry without access", async () => {
+      await reset(); const order = await checkout(), session = await start(order);
+      assert.equal((await start(order)).id, session.id); // canceled browser can resume open checkout
+      session.status = "expired"; session.url = null;
+      const retry = await start(order); assert.notEqual(retry.id, session.id);
+      retry.status = "complete"; retry.url = null;
+      assert.equal((await verify(retry)).status, 402);
+      assert.equal((await webhook(retry, "checkout.session.async_payment_failed")).status, 200);
+      const retry2 = await start(order); assert.notEqual(retry2.id, retry.id);
       assert.equal(service.currentSubscription(await User.findById(student._id)).plan, "free");
+      assert.equal(await Notification.countDocuments({ order: order._id }), 0);
     });
 
-    await t.test("existing paid/free course checkout and approval preserve enrollment and cart behavior", async () => {
-      await reset();
-      const makeCourse = (slug, price) => Course.create({ slug, name: slug, description: "Test", level: "Beginner", duration: "1:00", rating: 0, moderationStatus: "published", price });
-      const paid = await makeCourse("paid-test", 250);
-      const free = await makeCourse("free-test", 0);
-      await Cart.create({ student: student._id, items: [{ course: paid._id }] });
-      const pending = await request("POST", "/orders/checkout", { courseIds: [paid.id], totalAmount: 1, paymentType: "subscription" });
-      assert.equal(pending.status, 201); assert.equal(pending.data.order.totalAmount, 250); assert.equal(pending.data.order.paymentType, "course");
-      assert.equal((await request("POST", "/orders/buy-now", { courseId: paid.id })).data.order._id, pending.data.order._id);
-      assert.equal(pending.data.order.paymentMethod, "stripe", "new paid course checkout uses Stripe");
-      assert.equal(await Enrollment.countDocuments({ student: student._id, course: paid._id }), 0);
-      // Existing manual orders must remain approvable after the Stripe rollout.
-      await Order.updateOne({ _id: pending.data.order._id }, { $set: { paymentMethod: "manual_qr" } });
-      await slip(pending.data.order);
-      assert.equal((await approve(pending.data.order)).status, 200);
-      assert.equal(await Enrollment.countDocuments({ student: student._id, course: paid._id }), 1);
+    await t.test("payment identity, currency and amount mismatch never fulfill, including completed-order replays", async () => {
+      await reset(); const order = await checkout(), session = paid(await start(order));
+      for (const [field, value] of [["amount_total", 1], ["currency", "usd"], ["mode", "subscription"], ["client_reference_id", "wrong"], ["id", "cs_other"]]) {
+        const original = session[field]; session[field] = value;
+        assert.equal((await verify({ id: [...sessions.entries()].find(([, item]) => item === session)[0] })).status, 409);
+        session[field] = original;
+      }
+      assert.equal((await verify(session)).status, 200);
+      session.currency = "usd"; assert.equal((await verify(session)).status, 409); session.currency = "thb";
+    });
+
+    await t.test("cart mixed prices, buy-now, free enrollment and paid-access enforcement", async () => {
+      await reset(); const course = await makeCourse("paid-test", 250.25), free = await makeCourse("free-test", 0);
+      await Cart.create({ student: student._id, items: [{ course: course._id }, { course: free._id }] });
+      assert.equal((await request("POST", `/enrollments/${course.slug}`, {})).status, 402);
+      const result = await request("POST", "/orders/checkout", { totalAmount: 1 });
+      assert.equal(result.status, 201); assert.equal(result.data.order.totalAmount, 250.25);
+      const order = result.data.order;
+      assert.equal(await Enrollment.countDocuments({ student: student._id, course: free._id }), 1, "mixed-cart free course bypasses Stripe");
+      assert.equal((await request("POST", "/orders/buy-now", { courseId: course.id })).data.order._id, order._id);
+      assert.equal(await Enrollment.countDocuments({ student: student._id, course: course._id }), 0);
+      const session = await start(order); assert.equal(session.amount_total, 25025); assert.equal(session.line_items.length, 2);
+      paid(session); await webhook(session); await verify(session);
+      assert.equal(await Enrollment.countDocuments({ student: student._id, course: course._id }), 1);
       assert.equal((await Cart.findOne({ student: student._id })).items.length, 0);
-      assert.equal(service.currentSubscription(await User.findById(student._id)).plan, "free");
-      const freeResult = await request("POST", "/orders/buy-now", { courseId: free.id });
-      assert.equal(freeResult.status, 201); assert.equal(freeResult.data.order.status, "completed");
-      assert.equal(await Enrollment.countDocuments({ student: student._id, course: free._id }), 1);
+      const free2 = await makeCourse("free-only", 0);
+      const count = created.length;
+      const freeResult = await request("POST", "/orders/buy-now", { courseId: free2.id });
+      assert.equal(freeResult.data.order.status, "completed"); assert.equal(freeResult.data.order.paymentMethod, "free");
+      assert.equal(created.length, count);
+      assert.equal((await request("POST", "/stripe/create-checkout-session", { orderId: freeResult.data.order._id })).status, 409);
+      const free3 = await makeCourse("free-direct", 0);
+      assert.equal((await request("POST", `/enrollments/${free3.slug}`, {})).status, 200);
+      const course2 = await makeCourse("buy-now", 100);
+      const buy = await request("POST", "/orders/buy-now", { courseId: course2.id });
+      paid(await start(buy.data.order)); await verify(sessions.get((await Order.findById(buy.data.order._id)).paymentReference));
+      assert.equal(await Enrollment.countDocuments({ student: student._id, course: course2._id }), 1);
+    });
+
+    await t.test("fulfillment failure rolls back all effects and webhook retry succeeds", async () => {
+      await reset();
+      const course = await makeCourse("retry-fulfillment", 123);
+      const result = await request("POST", "/orders/buy-now", { courseId: course.id });
+      const session = paid(await start(result.data.order));
+      await Course.updateOne({ _id: course._id }, { $set: { moderationStatus: "draft" } });
+      assert.equal((await webhook(session)).status, 500);
+      assert.equal((await Order.findById(result.data.order._id)).status, "pending");
+      assert.equal(await Notification.countDocuments({ order: result.data.order._id }), 0);
+      assert.equal(await Enrollment.countDocuments({ student: student._id, course: course._id }), 0);
+      await Course.updateOne({ _id: course._id }, { $set: { moderationStatus: "published" } });
+      assert.equal((await webhook(session)).status, 200);
+      assert.equal(await Enrollment.countDocuments({ student: student._id, course: course._id }), 1);
+    });
+
+    await t.test("historical manual records and paid enrollments remain; removed endpoints cannot approve", async () => {
+      const before = await Enrollment.countDocuments({ student: student._id });
+      const old = await Order.create({ student: student._id, paymentType: "subscription", billingCycle: "monthly", totalAmount: 99, orderReference: "LEGACY", paymentMethod: "manual_qr", status: "awaiting_verification", paymentSlip: { storedName: "historical.pdf" } });
+      const snapshot = old.toObject();
+      for (const route of [`/payment/${old.id}/slip`, `/admin/payment-verification/${old.id}/approve`, "/payment-settings", "/admin/payment-settings"]) {
+        assert.equal((await request("POST", route, {}, admin)).status, 404);
+      }
+      assert.equal((await request("POST", "/stripe/create-checkout-session", { orderId: old.id })).status, 409);
+      assert.deepEqual((await Order.findById(old.id)).toObject(), snapshot);
+      assert.equal(await Enrollment.countDocuments({ student: student._id }), before);
+      assert.equal((await request("GET", `/orders/${old.id}`)).status, 200);
     });
   } finally {
     if (server) await new Promise(resolve => server.close(resolve));

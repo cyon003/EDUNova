@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import NavigationManager from "./components/NavigationManager";
-import AdminPaymentVerification from "./pages/AdminPaymentVerification";
 import AdminCourses from "./pages/AdminCourses";
 import AdminOverview from "./pages/AdminOverview";
 import AdminReports from "./pages/AdminReports";
@@ -13,7 +12,7 @@ import AdminTutors from "./pages/AdminTutors";
 import AiChatbot from "./pages/AiChatbot";
 import Auth from "./pages/Auth";
 import CartPage from "./pages/CartPage";
-import CheckoutPage from "./pages/CheckoutPage";
+import StripeCheckout from "./pages/StripeCheckout";
 import CourseDetail from "./pages/CourseDetail";
 import Courses from "./pages/Courses";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -29,7 +28,7 @@ import StudentDashboard from "./pages/StudentDashboard";
 import TutorApplication from "./pages/TutorApplication";
 import TutorDashboard from "./pages/TutorDashboard";
 import UserHome from "./pages/UserHome";
-import { restoreSession } from "./utils/authClient";
+import { installSessionResume, restoreSession } from "./utils/authClient";
 import { useAuth } from "./hooks/useAuth";
 
 function RoleRoute({ user, allowedRoles, children }) {
@@ -58,6 +57,8 @@ function App() {
     });
     return () => { active = false; };
   }, [restoreAttempt]);
+
+  useEffect(() => installSessionResume(), []);
 
   if (sessionError) {
     return <div className="app-session-loading" role="alert"><p>{sessionError}</p><button onClick={() => { setSessionError(""); setLoading(true); setRestoreAttempt(value => value + 1); }}>Retry</button></div>;
@@ -95,7 +96,6 @@ function App() {
         <Route path="/admin-dashboard/tutor-applications" element={<RoleRoute user={user} allowedRoles={["admin"]}><AdminTutorApplications /></RoleRoute>} />
         <Route path="/admin-dashboard/students" element={<RoleRoute user={user} allowedRoles={["admin"]}><AdminStudents /></RoleRoute>} />
         <Route path="/admin-dashboard/courses" element={<RoleRoute user={user} allowedRoles={["admin"]}><AdminCourses /></RoleRoute>} />
-        <Route path="/admin-dashboard/payment-verification" element={<RoleRoute user={user} allowedRoles={["admin"]}><AdminPaymentVerification /></RoleRoute>} />
         <Route path="/admin-dashboard/reports" element={<RoleRoute user={user} allowedRoles={["admin"]}><AdminReports /></RoleRoute>} />
         <Route path="/admin-dashboard/settings" element={<RoleRoute user={user} allowedRoles={["admin"]}><AdminSettings /></RoleRoute>} />
 
@@ -103,7 +103,7 @@ function App() {
         <Route path="/courses/:courseSlug" element={<CourseDetail />} />
         <Route path="/courses/:courseSlug/learn/:lessonNumber?" element={<RoleRoute user={user} allowedRoles={["student"]}><LessonPlayer /></RoleRoute>} />
         <Route path="/cart" element={<RoleRoute user={user} allowedRoles={["student"]}><CartPage /></RoleRoute>} />
-        <Route path="/checkout" element={<RoleRoute user={user} allowedRoles={["student"]}><CheckoutPage /></RoleRoute>} />
+        <Route path="/checkout" element={<RoleRoute user={user} allowedRoles={["student"]}><StripeCheckout /></RoleRoute>} />
         <Route path="/order-success" element={<RoleRoute user={user} allowedRoles={["student"]}><OrderSuccess /></RoleRoute>} />
         <Route path="/popular-courses" element={<Navigate to="/courses#popular" replace />} />
         <Route path="/ai-tutor" element={<RoleRoute user={user} allowedRoles={["student", "tutor", "admin"]}><AiChatbot /></RoleRoute>} />

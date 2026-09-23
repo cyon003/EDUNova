@@ -12,7 +12,7 @@ router.use(authenticateToken);
 const validBody = (body, keys) => body && !Array.isArray(body) && typeof body === "object" && Object.keys(body).every((key) => keys.includes(key));
 router.get("/me", async (req, res) => {
   const subscription = await service.getSubscription(req.user);
-  const pendingPayment = await Order.findOne({ student: req.user._id, paymentType: "subscription", status: { $in: ["pending", "awaiting_verification", "rejected"] } })
+  const pendingPayment = await Order.findOne({ student: req.user._id, paymentType: "subscription", paymentMethod: "stripe", status: "pending" })
     .select("billingCycle status orderReference totalAmount").sort({ createdAt: -1 }).lean();
   return res.json({ ...subscription, pendingPayment });
 });

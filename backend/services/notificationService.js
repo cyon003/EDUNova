@@ -85,54 +85,10 @@ function notifyAccountStatus({
   });
 }
 
-/*
- * Notify a student when a manual payment is approved.
- */
-function notifyPaymentApproved({
-  user,
-  order,
-  orderReference,
-  courseNames,
-}) {
-  return createNotification({
-    user,
-    order: order?._id || order || null,
-    source: "ADMIN",
-    type: "system",
-    title: "Payment Approved",
-    message: `Your payment for ${
-      courseNames || "your course"
-    } has been approved. Order ${orderReference} is completed and your course access is now available.`,
-  });
-}
-
-/*
- * Notify a student when a manual payment is rejected.
- */
-function notifyPaymentRejected({
-  user,
-  order,
-  orderReference,
-  reason = "",
-}) {
-  return createNotification({
-    user,
-    order: order?._id || order || null,
-    source: "ADMIN",
-    type: "system",
-    title: "Payment Rejected",
-    message: `Your payment for order ${orderReference} was rejected.${
-      reason ? ` Reason: ${reason}` : ""
-    } You can upload a new payment slip and submit it again.`,
-  });
-}
-
 module.exports = {
   createNotification,
   notifyCourseSubmitted,
   notifyCourseDecision,
   notifyTutorApplication,
   notifyAccountStatus,
-  notifyPaymentApproved,
-  notifyPaymentRejected,
 };

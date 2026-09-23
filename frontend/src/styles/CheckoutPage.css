@@ -35,34 +35,11 @@
 .checkout-section-heading > span { color: var(--checkout-accent); font-size: 11px; font-weight: 700; }
 .checkout-section-heading h2 { font-size: 17px; font-weight: 600; letter-spacing: -.025em; }
 .checkout-section-heading p { margin-top: 5px; color: var(--checkout-muted); font-size: 12px; }
-.checkout-transfer { display: grid; grid-template-columns: minmax(155px, .85fr) minmax(0, 1fr); gap: 26px; align-items: center; }
-.checkout-qr { display: grid; place-items: center; aspect-ratio: 1; padding: 12px; border: 1px solid var(--checkout-line); background: white; border-radius: 4px; color: var(--checkout-muted); font-size: 12px; text-align: center; }
-.checkout-qr img { width: 100%; height: auto; aspect-ratio: 1; object-fit: contain; }
-.checkout-qr-empty { display: grid; justify-items: center; gap: 8px; }
-.checkout-qr-empty svg { font-size: 26px; color: #80877e; }
-.checkout-qr-empty strong { font-size: 12px; }
-.checkout-qr-empty p { font-size: 11px; line-height: 1.5; }
-.checkout-bank { min-width: 0; }
 .checkout-amount { display: block; margin: 4px 0 18px; font-size: clamp(23px, 2.2vw, 30px); letter-spacing: -.05em; line-height: 1.3; font-variant-numeric: tabular-nums; }
-.checkout-bank-details { display: grid; gap: 10px; }
-.checkout-bank-details dt, .checkout-order-meta dt { color: var(--checkout-muted); font-size: 10px; }
-.checkout-bank-details dd { font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
-.checkout-account-number { font-variant-numeric: tabular-nums; letter-spacing: .04em; }
-.checkout-transfer-note { padding-top: 20px; margin-top: 22px; border-top: 1px solid #ecece5; color: var(--checkout-muted); font-size: 11px; }
-.checkout-upload { display: grid; gap: 15px; }
-.checkout-file-picker { position: relative; display: grid; justify-items: center; gap: 7px; padding: 25px 18px; border: 1px dashed #b8bfb3; border-radius: 5px; background: #fafbf7; text-align: center; }
-.checkout-file-picker:hover, .checkout-file-picker:focus-within { border-color: var(--checkout-accent); background: #f0f5ef; }
-.checkout-file-picker:focus-within { outline: 2px solid var(--checkout-accent); outline-offset: 3px; }
-.checkout-file-picker > svg { color: var(--checkout-accent); font-size: 25px; margin-bottom: 4px; }
-.checkout-file-picker label { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; max-width: 100%; }
-.checkout-file-picker > span { font-size: 10px; color: var(--checkout-muted); }
-.checkout-file-picker input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.checkout-file-picker input:disabled { cursor: wait; }
-.checkout-file-picker.has-file { border-style: solid; border-color: #517e65; }
+.checkout-order-meta dt { color: var(--checkout-muted); font-size: 10px; }
 .checkout-btn-primary { width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 13px 20px; background: var(--checkout-accent); color: white; border: 1px solid var(--checkout-accent); border-radius: 5px; font-size: 12px !important; font-weight: 600 !important; cursor: pointer; transition: background .15s; }
 .checkout-btn-primary:hover:not(:disabled) { background: #1d4232; }
 .checkout-btn-primary:disabled { background: #e1e5dc; border-color: #e1e5dc; color: #70776b; cursor: not-allowed; }
-.checkout-upload-note { text-align: center; color: var(--checkout-muted); font-size: 10px; }
 .checkout-summary { position: sticky; top: 24px; min-width: 0; padding: 28px; background: #eeeee5; border: 1px solid #dddfd3; border-radius: 8px; }
 .checkout-summary h2 { margin: 8px 0 25px; font-family: Georgia, "Times New Roman", serif; font-size: 25px; font-weight: 400; line-height: 1.25; letter-spacing: -.025em; }
 .checkout-summary-items { display: grid; gap: 18px; }
@@ -99,9 +76,6 @@
 @keyframes checkout-spin { to { transform: rotate(360deg); } }
 @media (max-width: 1000px) {
   .checkout-layout { grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; }
-  .checkout-transfer { grid-template-columns: 1fr; }
-  .checkout-qr { width: min(100%, 240px); margin-inline: auto; }
-  .checkout-bank-details { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 740px) {
   .checkout-page { padding: 0 18px 40px; }
@@ -113,7 +87,6 @@
   .checkout-layout { grid-template-columns: minmax(0, 1fr); }
   .checkout-summary { position: static; }
   .checkout-card, .checkout-summary { padding: 22px; }
-  .checkout-transfer { grid-template-columns: minmax(0, 1fr); }
   .checkout-brand { font-size: 13px !important; }
   .checkout-brand span { font-size: 9px; }
 }

@@ -12,4 +12,4 @@ function getStripe() {
 }
 
 // Initialize only when a Stripe endpoint is used, not while loading the app.
-module.exports = { get checkout() { return getStripe().checkout; } };
+module.exports = { get checkout() { return getStripe().checkout; }, get webhooks() { return getStripe().webhooks; } };

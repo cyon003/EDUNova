@@ -3,17 +3,14 @@ import {
   FaBullhorn,
   FaHistory,
   FaPlus,
-  FaQrcode,
   FaSave,
   FaTimes,
   FaTrash,
-  FaUpload,
 } from "react-icons/fa";
 
 import AdminLayout from "../components/AdminLayout";
 import AdminListControls from "../components/AdminListControls";
 import { adminApi, formatAdminDate } from "../utils/adminApi";
-import { API_ROOT } from "../utils/courseApi";
 
 import "../styles/AdminLayout.css";
 
@@ -22,23 +19,10 @@ export default function AdminSettings() {
   const [announcements, setAnnouncements] = useState([]);
   const [audit, setAudit] = useState([]);
 
-  const [paymentSettings, setPaymentSettings] = useState({
-    receiverName: "",
-    paymentMethod: "",
-    accountName: "",
-    accountNumber: "",
-    isActive: true,
-  });
-
-  const [qrPreview, setQrPreview] = useState("");
-  const [qrFile, setQrFile] = useState(null);
-
   const [category, setCategory] = useState("");
   const [message, setMessage] = useState("");
 
   const [saving, setSaving] = useState(false);
-  const [savingPayment, setSavingPayment] = useState(false);
-  const [uploadingQr, setUploadingQr] = useState(false);
 
   const [announcementOpen, setAnnouncementOpen] = useState(false);
 
@@ -51,12 +35,6 @@ export default function AdminSettings() {
   const [auditCount, setAuditCount] = useState(5);
 
   // --------------------------------------------------
-  // Authentication helper
-  // --------------------------------------------------
-
-  const getToken = () => localStorage.getItem("token");
-
-  // --------------------------------------------------
   // Load all admin settings
   // --------------------------------------------------
 
@@ -64,20 +42,11 @@ export default function AdminSettings() {
         adminApi("/settings"),
         adminApi("/announcements"),
         adminApi("/audit"),
-        adminApi("/payment-settings"),
-      ]).then(([config, notices, activity, payment]) => {
+      ]).then(([config, notices, activity]) => {
       setSettings(config);
       setAnnouncements(notices);
       setAudit(activity);
 
-      const paymentData = payment?.settings || payment || {};
-      setPaymentSettings({
-        receiverName: paymentData.receiverName || "",
-        paymentMethod: paymentData.paymentMethod || "",
-        accountName: paymentData.accountName || "",
-        accountNumber: paymentData.accountNumber || "",
-        isActive: paymentData.isActive ?? true,
-      });
     }).catch((error) => {
       setMessage(error.message || "Unable to load settings.");
     }), []);
@@ -85,45 +54,6 @@ export default function AdminSettings() {
   useEffect(() => {
     load();
   }, [load]);
-
-  // --------------------------------------------------
-  // Load QR preview
-  // --------------------------------------------------
-
-  const loadQrPreview = useCallback(() => {
-    const token = localStorage.getItem("token");
-    if (!token) return Promise.resolve();
-
-    return fetch(`${API_ROOT}/admin/payment-settings/qr`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          setQrPreview("");
-          return;
-        }
-        const blob = await response.blob();
-        setQrPreview(URL.createObjectURL(blob));
-      })
-      .catch((error) => {
-        console.error("Load QR preview error:", error);
-        setQrPreview("");
-      });
-  }, []);
-
-  useEffect(() => {
-    loadQrPreview();
-  }, [loadQrPreview]);
-
-  useEffect(() => {
-    return () => {
-      if (qrPreview) URL.revokeObjectURL(qrPreview);
-    };
-  }, [qrPreview]);
-
-  // --------------------------------------------------
-  // Save platform settings
-  // --------------------------------------------------
 
   const save = async () => {
     if (
@@ -154,164 +84,6 @@ export default function AdminSettings() {
       setSaving(false);
     }
   };
-
-  // --------------------------------------------------
-  // Save payment settings
-  // --------------------------------------------------
-
-  const savePaymentSettings = async () => {
-    setSavingPayment(true);
-    setMessage("");
-
-    try {
-      const token = getToken();
-
-      if (!token) {
-        throw new Error("You are not logged in.");
-      }
-
-      const response = await fetch(
-        `${API_ROOT}/admin/payment-settings`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(paymentSettings),
-        }
-      );
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Unable to save payment settings."
-        );
-      }
-
-      const paymentData = data.settings || data;
-      setPaymentSettings({
-        receiverName: paymentData.receiverName || "",
-        paymentMethod: paymentData.paymentMethod || "",
-        accountName: paymentData.accountName || "",
-        accountNumber: paymentData.accountNumber || "",
-        isActive: paymentData.isActive ?? true,
-      });
-
-      setMessage("Payment settings saved successfully.");
-    } catch (error) {
-      setMessage(
-        error.message || "Unable to save payment settings."
-      );
-    } finally {
-      setSavingPayment(false);
-    }
-  };
-
-  // --------------------------------------------------
-  // Select QR file
-  // --------------------------------------------------
-
-  const handleQrFileChange = (event) => {
-    const file = event.target.files?.[0];
-
-    if (!file) {
-      setQrFile(null);
-      return;
-    }
-
-    const allowedTypes = [
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-    ];
-
-    if (!allowedTypes.includes(file.type)) {
-      setMessage("QR code must be JPG, PNG, or WEBP.");
-      event.target.value = "";
-      setQrFile(null);
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      setMessage("QR code must be smaller than 5 MB.");
-      event.target.value = "";
-      setQrFile(null);
-      return;
-    }
-
-    setQrFile(file);
-    setMessage("");
-  };
-
-  // --------------------------------------------------
-  // Upload QR code
-  // --------------------------------------------------
-
-  const uploadQr = async () => {
-    if (!qrFile) {
-      setMessage("Please choose a QR code image first.");
-      return;
-    }
-
-    setUploadingQr(true);
-    setMessage("");
-
-    try {
-      const token = getToken();
-
-      if (!token) {
-        throw new Error("You are not logged in.");
-      }
-
-      const formData = new FormData();
-      formData.append("qrCode", qrFile);
-
-      const response = await fetch(
-        `${API_ROOT}/admin/payment-settings/qr`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
-      );
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Unable to upload QR code."
-        );
-      }
-
-      setQrFile(null);
-
-      const fileInput = document.getElementById(
-        "payment-qr-upload"
-      );
-
-      if (fileInput) {
-        fileInput.value = "";
-      }
-
-      await loadQrPreview();
-
-      setMessage("Payment QR code uploaded successfully.");
-    } catch (error) {
-      setMessage(
-        error.message || "Unable to upload QR code."
-      );
-    } finally {
-      setUploadingQr(false);
-    }
-  };
-
-  // --------------------------------------------------
-  // Categories
-  // --------------------------------------------------
 
   const addCategory = () => {
     const value = category.trim();
@@ -532,329 +304,6 @@ export default function AdminSettings() {
                   ...settings,
                   allowSelfEnroll: event.target.checked,
                 })
-              }
-            />
-          </label>
-        </div>
-      </section>
-
-      {/* --------------------------------------------------
-          Manual QR Payment
-      -------------------------------------------------- */}
-
-      <section className="adm-card">
-        <header className="adm-card-hdr">
-          <div>
-            <span className="adm-card-title">
-              <FaQrcode /> Manual QR Payment
-            </span>
-
-            <p className="adm-muted">
-              Configure the bank/payment information students
-              will see when they purchase a paid course.
-            </p>
-          </div>
-
-          <button
-            className="adm-btn adm-btn-primary"
-            disabled={savingPayment}
-            onClick={savePaymentSettings}
-          >
-            <FaSave />
-            {savingPayment
-              ? "Saving..."
-              : "Save Payment Settings"}
-          </button>
-        </header>
-
-        <div className="adm-settings-grid">
-          <label className="adm-setting-field">
-            <span>Receiver Name</span>
-
-            <small>
-              Name displayed to students on the payment page.
-            </small>
-
-            <input
-              className="adm-input"
-              type="text"
-              value={paymentSettings.receiverName}
-              onChange={(event) =>
-                setPaymentSettings({
-                  ...paymentSettings,
-                  receiverName: event.target.value,
-                })
-              }
-              placeholder="Example: EDUNOVA COMPANY"
-            />
-          </label>
-
-          <label className="adm-setting-field">
-            <span>Payment Method</span>
-
-            <small>
-              Bank or payment service used to receive the transfer.
-            </small>
-
-            <input
-              className="adm-input"
-              type="text"
-              value={paymentSettings.paymentMethod}
-              onChange={(event) =>
-                setPaymentSettings({
-                  ...paymentSettings,
-                  paymentMethod: event.target.value,
-                })
-              }
-              placeholder="Example: PromptPay"
-            />
-          </label>
-
-          <label className="adm-setting-field">
-            <span>Account Name</span>
-
-            <small>
-              Name registered on the receiving account.
-            </small>
-
-            <input
-              className="adm-input"
-              type="text"
-              value={paymentSettings.accountName}
-              onChange={(event) =>
-                setPaymentSettings({
-                  ...paymentSettings,
-                  accountName: event.target.value,
-                })
-              }
-              placeholder="Example: EDUNOVA"
-            />
-          </label>
-
-          <label className="adm-setting-field">
-            <span>Account Number</span>
-
-            <small>
-              Receiving account number or PromptPay number.
-            </small>
-
-            <input
-              className="adm-input"
-              type="text"
-              value={paymentSettings.accountNumber}
-              onChange={(event) =>
-                setPaymentSettings({
-                  ...paymentSettings,
-                  accountNumber: event.target.value,
-                })
-              }
-              placeholder="Enter account number"
-            />
-          </label>
-        </div>
-
-        <div className="adm-toggle-list">
-          <label>
-            <div>
-              <strong>Enable manual QR payment</strong>
-
-              <small>
-                Students can use this payment method when
-                purchasing paid courses.
-              </small>
-            </div>
-
-            <input
-              type="checkbox"
-              checked={paymentSettings.isActive}
-              onChange={(event) =>
-                setPaymentSettings({
-                  ...paymentSettings,
-                  isActive: event.target.checked,
-                })
-              }
-            />
-          </label>
-        </div>
-
-        {/* QR upload */}
-
-        <div
-          style={{
-            marginTop: "24px",
-            paddingTop: "24px",
-            borderTop: "1px solid rgba(255,255,255,0.08)",
-          }}
-        >
-          <div style={{ marginBottom: "16px" }}>
-            <strong
-              style={{
-                display: "block",
-                marginBottom: "6px",
-              }}
-            >
-              Payment QR Code
-            </strong>
-
-            <small className="adm-muted">
-              Upload the QR code students should scan to make
-              the bank transfer. JPG, PNG, or WEBP — maximum 5 MB.
-            </small>
-          </div>
-
-          {qrPreview && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "20px",
-                marginBottom: "18px",
-                flexWrap: "wrap",
-              }}
-            >
-              <div
-                style={{
-                  width: "220px",
-                  height: "220px",
-                  background: "#fff",
-                  borderRadius: "12px",
-                  padding: "10px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <img
-                  src={qrPreview}
-                  alt="Current payment QR code"
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: "100%",
-                    objectFit: "contain",
-                  }}
-                />
-              </div>
-
-              <div>
-                <strong>Current QR Code</strong>
-
-                <p
-                  className="adm-muted"
-                  style={{ marginTop: "6px" }}
-                >
-                  This is the QR code currently shown to
-                  students.
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div
-            style={{
-              display: "flex",
-              gap: "10px",
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}
-          >
-            <label
-              htmlFor="payment-qr-upload"
-              className="adm-btn adm-btn-secondary"
-              style={{
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
-              <FaUpload />
-              Choose QR Image
-            </label>
-
-            <input
-              id="payment-qr-upload"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={handleQrFileChange}
-              style={{ display: "none" }}
-            />
-
-            {qrFile && (
-              <span className="adm-muted">
-                {qrFile.name}
-              </span>
-            )}
-
-            <button
-              type="button"
-              className="adm-btn adm-btn-primary"
-              disabled={!qrFile || uploadingQr}
-              onClick={uploadQr}
-            >
-              <FaUpload />
-              {uploadingQr ? "Uploading..." : "Upload QR"}
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* --------------------------------------------------
-          Security
-      -------------------------------------------------- */}
-
-      <section className="adm-card">
-        <header className="adm-card-hdr">
-          <div>
-            <span className="adm-card-title">
-              Security
-            </span>
-
-            <p className="adm-muted">
-              Session duration and failed-login limits are enforced by the server.
-            </p>
-          </div>
-        </header>
-
-        <div className="adm-settings-grid">
-          <label className="adm-setting-field">
-            <span>Session timeout (minutes)</span>
-
-            <small>
-              Maximum session length from login, including refreshes. Changes apply at login and refresh.
-            </small>
-
-            <input
-              className="adm-input"
-              type="number"
-              min="1"
-              value={settings.sessionTimeout}
-              onChange={(event) =>
-                updateNumber(
-                  "sessionTimeout",
-                  event.target.value
-                )
-              }
-            />
-          </label>
-
-          <label className="adm-setting-field">
-            <span>Maximum login attempts</span>
-
-            <small>
-              Account login is paused for 5 minutes after this
-              limit.
-            </small>
-
-            <input
-              className="adm-input"
-              type="number"
-              min="1"
-              value={settings.maxLoginAttempts}
-              onChange={(event) =>
-                updateNumber(
-                  "maxLoginAttempts",
-                  event.target.value
-                )
               }
             />
           </label>

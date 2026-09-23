@@ -70,6 +70,30 @@ test("a tutor cannot access another tutor's course resources", async () => {
   assert.equal(response.status, 403);
 });
 
+for (const status of ["unpublished", "pending"]) {
+  for (const role of ["tutor", "admin"]) {
+    test(`${role} can preview the first ${status} lesson with an authenticated media token`, async () => {
+      activeCourse.moderationStatus = status;
+      currentUser = { _id: ids.tutor, role, tokenVersion: 0, accountStatus: "approved" };
+      const response = await request("/api/courses/protected-course/lessons/0/media-access", token(ids.tutor, role));
+      assert.equal(response.status, 200);
+      const url = new URL(JSON.parse(response.body).url);
+      const claims = jwt.verify(url.searchParams.get("token"), process.env.JWT_SECRET);
+      assert.equal(claims.id, ids.tutor);
+      assert.equal(claims.previewAccess, undefined);
+      // Authorization succeeds on the stream too; this fixture has no file.
+      assert.equal((await request(url.pathname + url.search)).status, 404);
+    });
+  }
+}
+
+test("unpublished first lessons reject anonymous users and other tutors", async () => {
+  activeCourse.moderationStatus = "unpublished";
+  assert.equal((await request("/api/courses/protected-course/lessons/0/media-access")).status, 401);
+  currentUser = { _id: ids.otherTutor, role: "tutor", tokenVersion: 0, accountStatus: "approved" };
+  assert.equal((await request("/api/courses/protected-course/lessons/0/media-access", token(ids.otherTutor, "tutor"))).status, 403);
+});
+
 test("authorized users receive a safe 404 for missing media and resources", async () => {
   currentUser = { _id: ids.student, role: "student", tokenVersion: 0, accountStatus: "approved" }; enrolled = true;
   assert.equal((await request("/api/courses/protected-course/lessons/0/media", token(ids.student, "student"))).status, 404);

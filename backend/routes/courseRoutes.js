@@ -50,7 +50,8 @@ async function authorizedLesson(req, res) {
   if (!course) { res.status(404).json({ message: "Course not found" }); return null; }
   const lessonIndex = Number.parseInt(req.params.lessonIndex, 10);
   if (!Number.isInteger(lessonIndex) || lessonIndex < 0 || lessonIndex >= course.lessons.length) { res.status(404).json({ message: "Lesson not found" }); return null; }
-  if (req.previewAccess && course.moderationStatus === "published" && lessonIndex === 0) return { course, lesson: course.lessons[lessonIndex] };
+  if (req.previewAccess && course.moderationStatus === "published" && lessonIndex === 0) return { course, lesson: course.lessons[lessonIndex], publicPreview: true };
+  if (!req.user) { res.status(401).json({ message: "Authentication required" }); return null; }
   const ownsCourse = req.user.role === "tutor" && String(course.tutor) === String(req.user._id);
   const enrolled = req.user.role === "student" && await Enrollment.exists({ student: req.user._id, course: course._id });
   if (req.user.role !== "admin" && !ownsCourse && !enrolled) { res.status(403).json({ message: "You do not have access to this lesson resource" }); return null; }
@@ -176,7 +177,7 @@ async function createMediaAccess(req, res) {
     const access = await authorizedLesson(req, res);
     if (!access) return;
     if (!primaryMediaFor(access.lesson)) return res.status(404).json({ message: "Lesson media not found" });
-    const token = jwt.sign(req.previewAccess
+    const token = jwt.sign(access.publicPreview
       ? { previewAccess: true, mediaScope: `${req.params.slug.toLowerCase()}:${req.params.lessonIndex}` }
       : { id: req.user._id, role: req.user.role, tokenVersion: req.user.tokenVersion || 0, mediaScope: `${req.params.slug.toLowerCase()}:${req.params.lessonIndex}` }, process.env.JWT_SECRET, { expiresIn: "10m" });
     return res.json({ url: `${req.protocol}://${req.get("host")}/api/courses/${encodeURIComponent(req.params.slug.toLowerCase())}/lessons/${req.params.lessonIndex}/media?token=${encodeURIComponent(token)}` });
@@ -185,7 +186,12 @@ async function createMediaAccess(req, res) {
 
 router.get("/:slug/lessons/:lessonIndex/media-access", async (req, res, next) => {
   const lessonIndex = Number.parseInt(req.params.lessonIndex, 10);
-  if (lessonIndex === 0) { req.previewAccess = true; return createMediaAccess(req, res); }
+  if (lessonIndex === 0) {
+    req.previewAccess = true;
+    // Public previews need no login, but draft previews must retain the tutor
+    // or admin identity so authorization and the resulting media token work.
+    if (!req.headers.authorization) return createMediaAccess(req, res);
+  }
   return authenticateToken(req, res, () => createMediaAccess(req, res, next));
 });
 

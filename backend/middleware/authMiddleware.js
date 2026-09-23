@@ -48,9 +48,11 @@ const authenticateToken = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    return res.status(401).json({
-      message: "Invalid or expired login token",
-    });
+    if (error instanceof jwt.JsonWebTokenError || error instanceof jwt.TokenExpiredError || error instanceof jwt.NotBeforeError) {
+      return res.status(401).json({ message: "Invalid or expired login token" });
+    }
+    // Infrastructure failures do not establish that the user's session is invalid.
+    return res.status(503).json({ code: "AUTH_UNAVAILABLE", message: "Authentication is temporarily unavailable. Please retry." });
   }
 };
 

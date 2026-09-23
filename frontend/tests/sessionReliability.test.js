@@ -6,7 +6,7 @@ import { Buffer } from 'node:buffer';
 
 const source = (await readFile(new URL('../src/utils/authClient.js', import.meta.url), 'utf8'))
   .replace(/^import .*;\n/gm, '').replace(/^export \{.*\};\n/gm, '').replace(/\bexport /g, '');
-const build = new Function('globalThis', 'window', 'localStorage', 'sessionStorage', 'CustomEvent', 'API_ROOT', `${source}; return {establishSession,refreshSession,restoreSession,getAuthSnapshot,installAuthFetch,classifyRefreshResponse,RefreshError,socketAuthentication};`);
+const build = new Function('globalThis', 'window', 'localStorage', 'sessionStorage', 'CustomEvent', 'API_ROOT', 'document', 'Date', `${source}; return {establishSession,refreshSession,restoreSession,getAuthSnapshot,installAuthFetch,classifyRefreshResponse,RefreshError,socketAuthentication,installSessionResume};`);
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
 function locks() {
   let queue = Promise.resolve();
@@ -18,12 +18,14 @@ function locks() {
 const storage = () => { const values = new Map(); return { setItem: (k,v) => values.set(k,v), getItem: k => values.get(k), removeItem: k => values.delete(k) }; };
 const user = { id: 'test-student', role: 'student' };
 const json = (status, body = {}) => new Response(JSON.stringify(body), { status });
-function tab(fetch, coordinator = locks(), sharedStorage = storage()) {
+function tab(fetch, coordinator = locks(), sharedStorage = storage(), clock = Date) {
   const globals = { fetch, navigator: coordinator ? { locks: coordinator } : {} };
-  const window = { location: { origin: 'http://localhost' }, dispatchEvent() {}, addEventListener() {}, removeEventListener() {} };
-  const auth = build(globals, window, sharedStorage, storage(), class { constructor(type, options) { this.type=type;this.detail=options.detail; } }, 'http://localhost/api');
+  const listeners = new Map();
+  const document = { visibilityState: 'visible', addEventListener(type, fn) { listeners.set(type, fn); }, removeEventListener(type) { listeners.delete(type); } };
+  const window = { location: { origin: 'http://localhost' }, dispatchEvent() {}, addEventListener(type, fn) { listeners.set(type, fn); }, removeEventListener(type) { listeners.delete(type); } };
+  const auth = build(globals, window, sharedStorage, storage(), class { constructor(type, options) { this.type=type;this.detail=options.detail; } }, 'http://localhost/api', document, clock);
   auth.installAuthFetch();
-  return { auth, globals, sharedStorage };
+  return { auth, globals, sharedStorage, document, fire: type => listeners.get(type)?.() };
 }
 
 for (const failure of ['network', 500, 503, 429]) {
@@ -164,4 +166,82 @@ test('Socket.IO authentication can recover after a transient refresh failure', a
   t.auth.establishSession(user,token(Date.now()/1000-10));
   await assert.rejects(t.auth.socketAuthentication());assert.ok(t.auth.getAuthSnapshot().user);
   recover=true;assert.ok((await t.auth.socketAuthentication()).token);
+});
+
+const jwtAt = exp => `header.${Buffer.from(JSON.stringify({ exp })).toString('base64url')}.signature`;
+test('return after 16 inactive minutes refreshes once for visibility, focus and concurrent requests', async () => {
+  let now = 100000000, rotations = 0;
+  const clock = { now: () => now }, gate = deferred();
+  const t = tab(async (url, options) => {
+    if (url.endsWith('/refresh')) { rotations++; await gate.promise; return json(200, { user, token: jwtAt(now / 1000 + 900) }); }
+    const token = options.headers.get('Authorization').slice(7);
+    const claims = JSON.parse(Buffer.from(token.split('.')[1], 'base64url'));
+    assert.ok(claims.exp * 1000 > now, 'expired access token must not be sent on resume');
+    return json(200);
+  }, locks(), storage(), clock);
+  t.auth.establishSession(user, jwtAt(now / 1000 + 900));
+  const cleanup = t.auth.installSessionResume();
+  t.document.visibilityState = 'hidden'; now += 16 * 60000;
+  t.fire('visibilitychange'); assert.equal(rotations, 0);
+  t.document.visibilityState = 'visible'; t.fire('visibilitychange'); t.fire('focus');
+  const requests = Array.from({ length: 6 }, () => t.globals.fetch('http://localhost/api/profile'));
+  await new Promise(resolve => setImmediate(resolve)); gate.resolve();
+  assert.ok((await Promise.all(requests)).every(response => response.status === 200));
+  assert.equal(rotations, 1); assert.equal(t.auth.getAuthSnapshot().user.id, user.id);
+  t.fire('focus'); assert.equal(rotations, 1);
+  cleanup();
+});
+for (const status of [429, 503, 500, 401]) {
+  test(`inactive-tab resume handles refresh ${status} without treating temporary failure as logout`, async () => {
+    let now = 100000000;
+    const errors = [];
+    const t = tab(async () => json(status), locks(), storage(), { now: () => now });
+    t.auth.establishSession(user, jwtAt(now / 1000 + 900));
+    const cleanup = t.auth.installSessionResume(error => errors.push(error));
+    now += 16 * 60000; t.fire('focus');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(Boolean(t.auth.getAuthSnapshot().user), status !== 401);
+    assert.equal(errors.length, status === 401 ? 0 : 1);
+    cleanup();
+  });
+}
+test('ordinary API 429 and 5xx never rotate or clear identity', async () => {
+  for (const status of [429, 500, 503]) {
+    let rotations = 0;
+    const t = tab(async url => { if (url.endsWith('/refresh')) rotations++; return json(status); });
+    t.auth.establishSession(user, jwtAt(Date.now() / 1000 + 900));
+    assert.equal((await t.globals.fetch('http://localhost/api/profile')).status, status);
+    assert.equal(rotations, 0); assert.ok(t.auth.getAuthSnapshot().user);
+  }
+});
+
+test('two inactive tabs resume using the latest cookie without rotation reuse', async () => {
+  let now = 100000000, cookie = 0, active = 0, maxActive = 0;
+  const coordinator = locks(), shared = storage();
+  const fetch = async (url) => {
+    if (!url.endsWith('/refresh')) return json(200);
+    const sent = cookie; maxActive = Math.max(maxActive, ++active);
+    await new Promise(resolve => setImmediate(resolve));
+    active--; assert.equal(sent, cookie, 'must not replay another tab\'s consumed cookie'); cookie++;
+    return json(200, { user, token: jwtAt(now / 1000 + 900) });
+  };
+  const tabs = [tab(fetch, coordinator, shared, { now: () => now }), tab(fetch, coordinator, shared, { now: () => now })];
+  const cleanup = tabs.map(t => { t.auth.establishSession(user, jwtAt(now / 1000 + 900)); return t.auth.installSessionResume(); });
+  now += 16 * 60000;
+  for (const t of tabs) { t.fire('focus'); t.fire('visibilitychange'); }
+  await Promise.all(tabs.map(t => t.globals.fetch('http://localhost/api/profile')));
+  assert.equal(maxActive, 1); assert.equal(cookie, 2);
+  assert.ok(tabs.every(t => t.auth.getAuthSnapshot().user)); cleanup.forEach(fn => fn());
+});
+
+test('Profile does not turn an endpoint 401 into a local logout after successful refresh', async () => {
+  const profile = await readFile(new URL('../src/pages/Profile.jsx', import.meta.url), 'utf8');
+  const helper = profile.slice(profile.indexOf('async function authenticatedRequest'), profile.indexOf('function initials'));
+  let cleared = false, redirected = false;
+  const request = new Function('fetch', 'localStorage', 'API_ROOT', 'clearSession', 'window', `${helper}; return authenticatedRequest;`)(
+    async () => json(401, { message: 'Endpoint rejected request' }), { getItem: () => 'managed-in-memory' }, '/api',
+    () => { cleared = true; }, { location: { replace() { redirected = true; } } }
+  );
+  await assert.rejects(request('/profile'));
+  assert.equal(cleared, false); assert.equal(redirected, false);
 });

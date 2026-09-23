@@ -28,7 +28,7 @@ import StudentDashboard from "./pages/StudentDashboard";
 import TutorApplication from "./pages/TutorApplication";
 import TutorDashboard from "./pages/TutorDashboard";
 import UserHome from "./pages/UserHome";
-import { restoreSession } from "./utils/authClient";
+import { installSessionResume, restoreSession } from "./utils/authClient";
 import { useAuth } from "./hooks/useAuth";
 
 function RoleRoute({ user, allowedRoles, children }) {
@@ -57,6 +57,8 @@ function App() {
     });
     return () => { active = false; };
   }, [restoreAttempt]);
+
+  useEffect(() => installSessionResume(), []);
 
   if (sessionError) {
     return <div className="app-session-loading" role="alert"><p>{sessionError}</p><button onClick={() => { setSessionError(""); setLoading(true); setRestoreAttempt(value => value + 1); }}>Retry</button></div>;

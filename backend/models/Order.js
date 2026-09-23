@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 // One order document per purchase session.
 // Stores the courses, server-side prices, payment reference,
 // uploaded slip information, and admin verification status.
-// New course checkout explicitly uses Stripe; Premium and legacy orders retain manual approval.
+// Historical manual payment fields remain for audit; new purchases use Stripe.
 
 const orderSchema = new mongoose.Schema(
   {
@@ -24,6 +24,8 @@ const orderSchema = new mongoose.Schema(
           ref: "Course",
           required: true,
         },
+
+        name: { type: String, default: "" },
 
         // Price copied from the Course document by the backend.
         price: {
@@ -67,8 +69,10 @@ const orderSchema = new mongoose.Schema(
     paymentMethod: {
       type: String,
       enum: ["manual_qr", "free", "stripe", "mock"],
-      default: "manual_qr",
+      default: function () { return this.isNew ? "stripe" : "manual_qr"; },
     },
+
+    stripeFailedSession: { type: String, default: "" },
 
     // Stripe Checkout Session ID, or legacy payment reference.
     paymentReference: {
@@ -152,7 +156,7 @@ orderSchema.pre("validate", function () {
     if (!["monthly", "yearly"].includes(this.billingCycle)) this.invalidate("billingCycle", "Premium requires a billing cycle");
     if (this.totalAmount !== ({ monthly: 99, yearly: 999 })[this.billingCycle]) this.invalidate("totalAmount", "Invalid Premium price");
     if (this.items.length) this.invalidate("items", "Premium payments cannot contain courses");
-    if (this.paymentMethod !== "manual_qr") this.invalidate("paymentMethod", "Premium requires manual payment approval");
+    if (!["stripe", "manual_qr"].includes(this.paymentMethod)) this.invalidate("paymentMethod", "Invalid Premium payment method");
   } else if (this.billingCycle != null) this.invalidate("billingCycle", "Course orders cannot contain a subscription cycle");
 });
 

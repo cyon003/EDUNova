@@ -34,3 +34,9 @@ test("subscription order schema rejects wrong price/cycle and course items", asy
   for (const patch of [{ totalAmount: 1 }, { billingCycle: "weekly" }, { items: [{ course: base.student, price: 99 }] }, { paymentMethod: "free" }]) await assert.rejects(new Order({ ...base, ...patch }).validate());
   await assert.rejects(new Order({ ...base, paymentType: "course", items: [{ price: 99 }], billingCycle: undefined }).validate());
 });
+
+test("new orders default to Stripe while missing historical payment methods stay manual", () => {
+  const raw = { _id: "507f1f77bcf86cd799439011", student: "507f1f77bcf86cd799439012", totalAmount: 99, orderReference: "OLD" };
+  assert.equal(new Order(raw).paymentMethod, "stripe");
+  assert.equal(Order.hydrate(raw).paymentMethod, "manual_qr");
+});

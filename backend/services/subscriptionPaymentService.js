@@ -9,15 +9,15 @@ const PRICES = Object.freeze({ monthly: 99, yearly: 999 });
 async function checkoutSubscription(studentId, billingCycle) {
   if (!Object.hasOwn(PRICES, billingCycle)) throw policyError(400, "Choose monthly or yearly billing");
   return purchaseTransaction(studentId, async (session) => {
-    // The shared purchase lock serializes checkouts and approvals for this student.
-    const existing = await Order.findOne({ student: studentId, paymentType: "subscription", status: { $in: ["pending", "awaiting_verification", "rejected"] } }).session(session).sort({ createdAt: -1 });
+    // The shared purchase lock serializes checkouts and fulfillment for this student.
+    const existing = await Order.findOne({ student: studentId, paymentType: "subscription", paymentMethod: "stripe", status: "pending" }).session(session).sort({ createdAt: -1 });
     if (existing) return { status: 200, body: { order: existing, existing: true, message: "Continue your existing Premium payment before starting another." } };
     const [order] = await Order.create([{
       student: studentId, paymentType: "subscription", billingCycle, items: [],
       totalAmount: PRICES[billingCycle], orderReference: `EDU-PREM-${crypto.randomUUID().toUpperCase()}`,
-      paymentMethod: "manual_qr", status: "pending",
+      paymentMethod: "stripe", status: "pending",
     }], { session });
-    return { status: 201, body: { order, message: "Upload your payment slip for admin approval. Premium is not active yet." } };
+    return { status: 201, body: { order, message: "Continue to Stripe. Premium activates after confirmed payment." } };
   });
 }
 
@@ -30,10 +30,10 @@ function extendedPremium(user, billingCycle, now = new Date()) {
   return subscription;
 }
 
-// Called only inside the existing admin approval transaction, after its order CAS.
+// Called only by verified Stripe fulfillment inside the purchase transaction.
 async function activateSubscription(order, session, now = new Date()) {
   if (order.paymentType !== "subscription" || !Object.hasOwn(PRICES, order.billingCycle)
-      || order.totalAmount !== PRICES[order.billingCycle] || order.items.length || order.paymentMethod !== "manual_qr") {
+      || order.totalAmount !== PRICES[order.billingCycle] || order.items.length || order.paymentMethod !== "stripe" || order.status !== "completed") {
     throw policyError(400, "Invalid Premium payment details");
   }
   const user = await User.findById(order.student).session(session);

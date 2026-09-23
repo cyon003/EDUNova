@@ -123,12 +123,8 @@ async function checkout(studentId, requested, fromCart) {
 
       const existing = await Order.findOne({
         student: studentId,
-        status: {
-          $in: [
-            "pending",
-            "awaiting_verification",
-          ],
-        },
+        paymentMethod: "stripe",
+        status: "pending",
         "items.course": {
           $in: ids,
         },
@@ -140,6 +136,10 @@ async function checkout(studentId, requested, fromCart) {
         );
 
       if (existing) {
+        const existingIds = existing.items.map(item => String(item.course?._id || item.course));
+        if (ids.some(id => !existingIds.includes(id))) {
+          throw policyError(409, "Complete your existing checkout before purchasing additional courses.");
+        }
         return {
           status: 200,
           body: {
@@ -171,6 +171,7 @@ async function checkout(studentId, requested, fromCart) {
       const items = courses.map(
         (course) => ({
           course: course._id,
+          name: course.name,
           price: Number(
             course.price ?? 0
           ),
@@ -195,18 +196,19 @@ async function checkout(studentId, requested, fromCart) {
       const totalAmount =
         items.reduce(
           (sum, item) =>
-            sum + item.price,
+            sum + Math.round(item.price * 100),
           0
-        );
+        ) / 100;
 
       // --------------------------------------------------
       // Free course
       // --------------------------------------------------
 
-      if (totalAmount === 0) {
+      const freeIds = courses.filter(course => Number(course.price ?? 0) === 0).map(course => course._id);
+      if (freeIds.length) {
         await enrollCourses(
           studentId,
-          ids,
+          freeIds,
           session,
           {
             freeOnly: true,
@@ -258,7 +260,7 @@ async function checkout(studentId, requested, fromCart) {
       // Remove free courses from cart
       // --------------------------------------------------
 
-      if (totalAmount === 0) {
+      if (freeIds.length) {
         await Cart.updateOne(
           {
             student: studentId,
@@ -267,7 +269,7 @@ async function checkout(studentId, requested, fromCart) {
             $pull: {
               items: {
                 course: {
-                  $in: ids,
+                  $in: freeIds,
                 },
               },
             },

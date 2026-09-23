@@ -1,4 +1,5 @@
 import test from "node:test";
+import { setImmediate } from "node:timers";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import React from "react";
@@ -56,15 +57,13 @@ test("upgrade disables while processing and reports API failures without activat
   assert.deepEqual(h.navigations, []); assert.deepEqual(h.updates, []);
 });
 
-test("pending and rejected payments resume existing checkout without offering duplicate purchases", async () => {
-  for (const status of ["pending", "awaiting_verification", "rejected"]) {
+test("pending payments resume existing checkout without offering duplicate purchases", async () => {
+  for (const status of ["pending"]) {
     const h = await harness({ ...free, pendingPayment: { _id: "pending-123", status } });
     assert.equal(h.button("Upgrade to Premium").props.disabled, true);
     assert.match(h.html(), /checkout\?orderId=pending-123&amp;from=subscription/);
     assert.match(h.html(), /Current Plan: Free/);
     assert.doesNotMatch(h.html(), /Premium Active/);
-    if (status === "awaiting_verification") assert.match(h.html(), /awaiting admin approval/);
-    if (status === "rejected") assert.match(h.html(), /submit a new slip/);
   }
 });
 
@@ -88,47 +87,74 @@ test("Free and staff status do not imply active Premium", async () => {
   assert.equal(staff.button("Upgrade to Premium"), undefined);
 });
 
-async function checkoutHtml(order) {
+async function checkoutHarness(order, search = "?orderId=123", responses = []) {
   let cursor = 0;
-  const state = [order, null, "", false, false, false, null, "", ""];
+  const state = [order, false, "", 0], effects = [], calls = [], redirects = [];
   const scope = {
-    useState: () => [state[cursor++], () => {}], useEffect() {},
-    useNavigate: () => () => {}, useLocation: () => ({ search: `?orderId=${order._id}` }),
-    StripeCheckout: () => React.createElement("div", null, "Stripe course checkout"),
-    API_ROOT: "/api", apiAssetUrl: value => value,
-    formatCoursePrice: value => `THB ${value.toFixed(2)}`,
+    useState(initial) { const index = cursor++; if (!(index in state)) state[index] = initial; return [state[index], value => { state[index] = typeof value === "function" ? value(state[index]) : value; }]; },
+    useEffect(fn) { effects.push(fn); },
+    useNavigate: () => path => redirects.push(path), useLocation: () => ({ search }),
+    API_ROOT: "/api", formatCoursePrice: value => `THB ${value.toFixed(2)}`,
+    localStorage: { getItem: () => "test-token" }, window: { location: { assign: url => redirects.push(url) } },
+    fetch: async (url, options) => { calls.push([url, options]); const result = responses.shift() || {}; return { ok: result.ok !== false, json: async () => result.data || {} }; },
   };
-  for (const name of ["FaArrowLeft", "FaCheckCircle", "FaCloudUploadAlt", "FaLock", "FaQrcode", "FaShoppingBag", "FaSpinner", "FaTimesCircle"]) scope[name] = () => React.createElement("svg");
-  const Checkout = await compile("../src/pages/CheckoutPage.jsx", "CheckoutPage", scope);
-  return renderToStaticMarkup(React.createElement(Checkout));
+  const Component = await compile("../src/pages/StripeCheckout.jsx", "StripeCheckout", scope);
+  const view = () => { cursor = 0; return Component(); };
+  return { calls, redirects, effects, state, view,
+    button(label) { return nodes(view()).find(node => node.type === "button" && node.props.children === label); },
+    html() { return renderToStaticMarkup(view()); },
+  };
 }
-
-test("shared checkout renders monthly/yearly order and approved/pending subscription states", async () => {
-  for (const [billingCycle, totalAmount, label] of [["monthly", 99, "Monthly"], ["yearly", 999, "Yearly"]]) {
-    const order = { _id: "123", orderReference: "EDU-PREM-123", paymentType: "subscription", billingCycle, totalAmount, items: [], status: "pending" };
-    const pending = await checkoutHtml(order);
-    assert.match(pending, /YOUR ORDER/); assert.match(pending, /EDUNova Premium/);
-    assert.ok(pending.includes(`${label} subscription`));
-    assert.ok(pending.includes(`THB ${totalAmount.toFixed(2)}`));
-    assert.match(pending, /Premium begins after admin approval/);
-    const submitted = await checkoutHtml({ ...order, status: "awaiting_verification" });
-    assert.match(submitted, /Premium payment submitted — awaiting admin approval/);
-    assert.doesNotMatch(submitted, /Your course access is now available|PAYMENT APPROVED/);
-    const approved = await checkoutHtml({ ...order, status: "completed" });
-    assert.match(approved, /Premium time has been activated or extended/);
-    assert.match(approved, /View subscription/);
+const courseOrder = { _id: "123", orderReference: "EDU-123", paymentType: "course", paymentMethod: "stripe", totalAmount: 250, status: "pending", items: [{ price: 250, course: { name: "Algebra" } }] };
+test("paid course and both Premium periods use Stripe with correct summary", async () => {
+  for (const order of [courseOrder, ...["monthly", "yearly"].map(billingCycle => ({ ...courseOrder, paymentType: "subscription", billingCycle, totalAmount: billingCycle === "monthly" ? 99 : 999, items: [] }))]) {
+    const h = await checkoutHarness(order, "?orderId=123", [{ data: { checkoutUrl: "https://checkout.stripe.com/test" } }]);
+    assert.match(h.html(), /EDU-123/); assert.ok(h.html().includes(`THB ${order.totalAmount.toFixed(2)}`));
+    assert.doesNotMatch(h.html(), /bank transfer|slip|admin approval|test mode/i);
+    await h.button("Continue to Stripe").props.onClick();
+    assert.equal(h.calls[0][0], "/api/stripe/create-checkout-session");
+    assert.deepEqual(JSON.parse(h.calls[0][1].body), { orderId: "123" });
+    assert.deepEqual(h.redirects, ["https://checkout.stripe.com/test"]);
   }
 });
-
-test("legacy course checkout keeps its course summary and approval messaging", async () => {
-  const html = await checkoutHtml({ _id: "123", orderReference: "EDU-123", totalAmount: 250, status: "completed", items: [{ course: { _id: "course-123", name: "Algebra" }, price: 250 }] });
-  assert.match(html, /Algebra/); assert.match(html, /THB 250.00/);
-  assert.match(html, /Your course access is now available/);
-  assert.match(html, /Go to my learning/); assert.doesNotMatch(html, /EDUNova Premium/);
+test("cancellation allows explicit retry and does not claim verified payment", async () => {
+  const h = await checkoutHarness(courseOrder, "?orderId=123&payment=cancelled");
+  assert.match(h.html(), /Checkout was canceled/); assert.ok(h.button("Try payment again"));
+  assert.equal(h.calls.length, 0); assert.doesNotMatch(h.html(), /Purchase complete/);
+});
+test("failed checkout displays errors without redirecting or activating access", async () => {
+  const h = await checkoutHarness(courseOrder, "?orderId=123", [{ ok: false, data: { message: "Stripe unavailable" } }]);
+  await h.button("Continue to Stripe").props.onClick();
+  assert.match(h.html(), /Stripe unavailable/); assert.equal(h.redirects.length, 0);
+});
+test("status checks activate UI only when the server confirms completion", async () => {
+  const h = await checkoutHarness({ ...courseOrder, paymentReference: "cs_test" }, "?orderId=123", [
+    { ok: false, data: { message: "Payment pending" } }, { data: { paid: true, order: { ...courseOrder, status: "completed" } } },
+  ]);
+  await h.button("Check payment status").props.onClick(); assert.match(h.html(), /Payment pending/); assert.doesNotMatch(h.html(), /Purchase complete/);
+  await h.button("Check payment status").props.onClick(); assert.match(h.html(), /Purchase complete/); assert.ok(h.button("Go to my learning"));
+});
+test("free completion bypasses payment and historical pending orders remain read-only", async () => {
+  const free = await checkoutHarness({ ...courseOrder, paymentMethod: "free", totalAmount: 0, status: "completed" });
+  assert.equal(free.button("Continue to Stripe"), undefined); assert.match(free.html(), /Free/); assert.equal(free.calls.length, 0);
+  const legacy = await checkoutHarness({ ...courseOrder, paymentMethod: "manual_qr" });
+  assert.match(legacy.html(), /Historical payment record/); assert.equal(legacy.button("Continue to Stripe"), undefined);
+  const premium = await checkoutHarness({ ...courseOrder, paymentType: "subscription", billingCycle: "yearly", status: "completed" });
+  assert.match(premium.html(), /activated or extended/); assert.ok(premium.button("View subscription"));
 });
 
-test("pending course payments use Stripe while Premium keeps manual approval", async () => {
-  const html = await checkoutHtml({ _id: "course-order", paymentType: "course", paymentMethod: "stripe", status: "pending", totalAmount: 250, items: [] });
-  assert.match(html, /Stripe course checkout/);
-  assert.doesNotMatch(html, /Submit payment slip/);
+test("cart checkout creates an order and success return verifies on the server", async () => {
+  const cart = await checkoutHarness(null, "", [{ data: { order: courseOrder } }]);
+  cart.view(); cart.effects[0]();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(cart.calls[0][0], "/api/orders/checkout");
+  assert.deepEqual(cart.redirects, ["/checkout?orderId=123&from=cart"]);
+  const done = { ...courseOrder, status: "completed" };
+  const success = await checkoutHarness(null, "?orderId=123&payment=success&session_id=cs_test", [{ data: { paid: true, order: done } }]);
+  success.view(); success.effects[0](); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(success.calls[0][0], "/api/stripe/verify-session");
+  assert.match(success.html(), /Purchase complete/);
+  const pending = await checkoutHarness(null, "?orderId=123&payment=success&session_id=cs_test", [{ ok: false, data: { message: "Still pending" } }, { data: courseOrder }]);
+  pending.view(); pending.effects[0](); await new Promise(resolve => setImmediate(resolve));
+  assert.match(pending.html(), /Still pending/); assert.doesNotMatch(pending.html(), /Purchase complete/);
 });

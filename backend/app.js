@@ -23,10 +23,6 @@ const favoriteRoutes = require("./routes/favoriteRoutes");
 const cartRoutes = require("./routes/cartRoutes");
 const orderRoutes = require("./routes/orderRoutes");
 const stripeRoutes = require("./routes/stripeRoutes");
-const paymentRoutes = require("./routes/paymentRoutes");
-const paymentPublicRoutes = require("./routes/paymentPublicRoutes");
-const paymentAdminRoutes = require("./routes/paymentAdminRoutes");
-const paymentAdminVerificationRoutes = require("./routes/paymentAdminVerificationRoutes");
 const aiRoutes = require("./routes/aiRoutes");
 const learningSignalRoutes = require("./routes/learningSignalRoutes");
 const weeklyGoalRoutes = require("./routes/weeklyGoalRoutes");
@@ -48,6 +44,7 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Application-Token"],
 }));
+app.post("/api/stripe/webhook", express.raw({ type: "application/json", limit: "1mb" }), require("./routes/stripeWebhook"));
 app.use(express.json({ limit: "1mb" }));
 app.use(quizAnswerGuard);
 app.use("/uploads/course-covers", express.static(uploadDirectory("course-covers")));
@@ -72,13 +69,6 @@ app.use("/api/favorites", favoriteRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/stripe", stripeRoutes);
-app.use("/api/payment", paymentRoutes);
-app.use("/api/payment-settings", paymentPublicRoutes);
-app.use("/api/admin/payment-settings", paymentAdminRoutes);
-app.use(
-  "/api/admin/payment-verification",
-  paymentAdminVerificationRoutes
-);
 app.use("/api/subscription", require("./routes/subscriptionRoutes"));
 app.use("/api/ai", aiRoutes);
 app.use("/api/learning-signals", learningSignalRoutes);

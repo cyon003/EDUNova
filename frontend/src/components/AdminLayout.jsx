@@ -10,7 +10,6 @@ import {
   FaGraduationCap,
   FaHome,
   FaIdCard,
-  FaMoneyCheckAlt,
   FaSignOutAlt,
   FaUsers,
 } from "react-icons/fa";
@@ -56,11 +55,6 @@ const NAV = [
     icon: <FaBookOpen />,
     label: "Courses",
     to: "/admin-dashboard/courses",
-  },
-  {
-    icon: <FaMoneyCheckAlt />,
-    label: "Payment Verification",
-    to: "/admin-dashboard/payment-verification",
   },
   {
     icon: <FaFileAlt />,

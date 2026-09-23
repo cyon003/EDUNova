@@ -6,7 +6,7 @@
 
 ## 1. Executive overview
 
-EDUNova is a web-based learning platform serving students, tutors, and administrators. It combines course discovery, lesson delivery, enrollment, manual payment verification, communication, and learning-progress tracking. The Express backend calls Gemini directly for the General AI Tutor. A Python Random Forest service estimates lesson confusion from learning activity.
+EDUNova is a web-based learning platform serving students, tutors, and administrators. It combines course discovery, lesson delivery, enrollment, Stripe payment verification, communication, and learning-progress tracking. The Express backend calls Gemini directly for the General AI Tutor. A Python Random Forest service estimates lesson confusion from learning activity.
 
 The system is implemented as a React frontend, an Express API backed by MongoDB, and one private Flask confusion service. The application builds successfully and its automated checks pass following targeted policy, session, payment, and messaging fixes. Public production readiness still depends on live deployment validation.
 
@@ -19,7 +19,7 @@ EDUNova addresses these needs through the following objectives:
 - Provide separate student, tutor, and administrator workflows.
 - Support course discovery, enrollment, protected lesson resources, and progress tracking.
 - Manage tutor applications and course moderation.
-- Support QR-based payment instructions, payment-slip submission, and administrator verification.
+- Support Stripe hosted Checkout with verified course and one-time Premium payments.
 - Provide general educational explanations through an AI tutor.
 - Collect behavioural learning signals and optional clarity feedback.
 - Summarize predicted confusion by lesson so tutors can identify material that may need attention.
@@ -34,7 +34,7 @@ EDUNova addresses these needs through the following objectives:
 | Accounts | Registration, login, logout, session restoration, and password-reset flow |
 | Course discovery | Course listing, search, course details, and favorites |
 | Enrollment | Free-course enrollment and purchase-related enrollment workflows |
-| Checkout | Cart, orders, payment information, and payment-slip submission |
+| Checkout | Cart, orders, Stripe Checkout, and verified payment fulfillment |
 | Learning | Lesson navigation, uploaded primary media, supporting resources, and external references |
 | Progress | Lesson completion, video position, study activity, and persisted enrollment progress |
 | Notes | Create, edit, and delete private notes associated with lessons |
@@ -64,7 +64,7 @@ The General AI Tutor does not retrieve EDUNova course documents. Summaries and t
 | Accounts | Student and tutor management, including account-status changes |
 | Tutor applications | Review application details and protected supporting documents |
 | Courses | Review and moderate courses |
-| Payments | Configure payment details and QR image; approve or reject submitted payment slips |
+| Payments | Stripe Checkout and signed webhooks; historical orders retained |
 | Reports | Review submitted reports |
 | Announcements | Create and remove platform announcements |
 | Settings | Edit platform policy values and categories |
@@ -276,4 +276,4 @@ The current assessment is suitable for staging preparation, with public launch p
 
 ## 13. Project status
 
-EDUNova implements a substantial learning-platform foundation with course management, student learning tools, manual payment workflows, communication, general AI assistance, and a trained confusion-prediction pipeline. Its existing automated checks pass. Remaining work concerns specific policy gaps, live integration verification, production operations, and broader evidence for the machine-learning component.
+EDUNova implements a substantial learning-platform foundation with course management, student learning tools, Stripe payment workflows, communication, general AI assistance, and a trained confusion-prediction pipeline. Its existing automated checks pass. Remaining work concerns specific policy gaps, live integration verification, production operations, and broader evidence for the machine-learning component.

@@ -87,11 +87,10 @@ test("confusion heatmap thresholds and insufficient-data copy are present", asyn
   assert.doesNotMatch(dashboard, /window\.location\.reload\(\)/);
 });
 
-test("admin payment settings consume the nested settings response and checkout renders the QR payment panel", async () => {
+test("checkout routes to Stripe and admin settings no longer expose bank payments", async () => {
   const settings = await source("src/pages/AdminSettings.jsx");
-  const checkout = await source("src/pages/CheckoutPage.jsx");
-  assert.match(settings, /paymentData = payment\?\.settings \|\| payment/);
-  assert.match(settings, /paymentData = data\.settings \|\| data/);
-  assert.match(checkout, /payment-settings\/qr/);
-  assert.match(checkout, /Scan this QR code with your banking app to pay/);
+  const app = await source("src/App.jsx");
+  assert.doesNotMatch(settings, /payment-settings|qrPreview|savePaymentSettings/);
+  assert.match(app, /<StripeCheckout \/>/);
+  assert.doesNotMatch(app, /AdminPaymentVerification|CheckoutPage/);
 });

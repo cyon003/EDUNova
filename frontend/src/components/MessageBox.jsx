@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { FaComments, FaPaperPlane, FaSearch, FaTimes, FaTrash } from "react-icons/fa";
 import { io } from "socket.io-client";
 import "../styles/MessageBox.css";
@@ -39,11 +40,40 @@ function messageTime(value) {
   });
 }
 
-function MessageBox() {
+function MessageBox({ drawer = false }) {
+  const triggerRef = useRef(null);
+  const [drawerTop, setDrawerTop] = useState(0);
+
   const user = getUser();
   const userId = user?._id || user?.id;
   const token = localStorage.getItem("token");
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!drawer || !open) return undefined;
+    const updatePosition = () => {
+      const header = triggerRef.current?.closest(".tutor-page-header");
+      const height = window.visualViewport?.height || window.innerHeight;
+      setDrawerTop(Math.max(8, Math.min((header?.getBoundingClientRect().bottom || 0) + 12, height - 240)));
+    };
+    updatePosition();
+    const observer = new ResizeObserver(updatePosition);
+    const header = triggerRef.current?.closest(".tutor-page-header");
+    if (header) observer.observe(header);
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    window.visualViewport?.addEventListener("resize", updatePosition);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      window.visualViewport?.removeEventListener("resize", updatePosition);
+    };
+  }, [drawer, open]);
+
+  const renderPanel = (panel) => drawer
+    ? createPortal(<div className="tutor-analytics-messages" style={{ "--drawer-top": `${drawerTop}px` }}>{panel}</div>, document.body)
+    : panel;
+
   const [contacts, setContacts] = useState([]);
   const [activeContactId, setActiveContactId] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useState("");
@@ -239,11 +269,11 @@ function MessageBox() {
 
   return (
     <div className="message-box-wrap">
-      <button type="button" className="message-trigger" aria-label="Messages" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+      <button type="button" className="message-trigger" ref={triggerRef} aria-label="Messages" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
         <FaComments />
         {unreadCount > 0 && <span className="message-trigger-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
       </button>
-      {open && (
+      {open && renderPanel(
         <section className="message-box" aria-label="Messages">
           <header><div><strong>Messages</strong><small>Student and instructor chat</small></div><button type="button" onClick={() => setOpen(false)} aria-label="Close messages"><FaTimes /></button></header>
           <div className="message-layout">

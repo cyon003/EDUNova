@@ -144,3 +144,67 @@
 .tutor-dashboard fieldset.lesson-edit-controls { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; min-width: 0; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; }
 .tutor-dashboard fieldset.lesson-edit-controls:disabled { opacity: .75; }
 @media(max-width:600px) { .tutor-dashboard fieldset.lesson-edit-controls { grid-template-columns: minmax(0,1fr); } }
+
+/* Keep Analytics actions together, with the legend on its own row. */
+.tutor-analytics-header > div:first-child {
+  flex: 1 1 360px;
+  min-width: 0;
+}
+.tutor-analytics-header .tutor-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-left: auto;
+}
+.tutor-analytics-header .tutor-analytics-refresh { white-space: nowrap; }
+
+/* Portaled drawer: clear the page header and reserve the sidebar width. */
+.tutor-analytics-messages {
+  --drawer-sidebar: 240px;
+  font-family: inherit;
+}
+.tutor-analytics-messages .message-box {
+  position: fixed;
+  z-index: 110;
+  inset: var(--drawer-top) 12px 12px auto;
+  width: min(760px, calc(100% - var(--drawer-sidebar) - 24px));
+  max-height: calc(100dvh - var(--drawer-top) - 12px);
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.tutor-analytics-messages .message-layout {
+  height: auto;
+  min-height: 0;
+  grid-template-columns: clamp(86px, 22vw, 230px) minmax(0, 1fr);
+}
+.tutor-analytics-messages .message-conversation { min-height: 0; }
+.tutor-analytics-messages .message-list { grid-row: 2; }
+.tutor-analytics-messages .message-conversation form { grid-row: 3; }
+.tutor-analytics-messages .message-contact {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 7px;
+}
+.tutor-analytics-messages .message-contact select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.tutor-analytics-messages .message-compose input { box-sizing: border-box; }
+@media (max-width: 950px) {
+  .tutor-analytics-messages { --drawer-sidebar: 200px; }
+  .tutor-analytics-messages .message-layout { grid-template-columns: 86px minmax(0, 1fr); }
+  .tutor-analytics-messages .message-search input,
+  .tutor-analytics-messages .message-layout > aside > button > div,
+  .tutor-analytics-messages .message-contact-badge { display: none; }
+  .tutor-analytics-messages .message-layout > aside > button { display: flex; justify-content: center; }
+}
+@media (max-width: 650px) {
+  .tutor-analytics-header > div:first-child { flex-basis: auto; }
+  .tutor-analytics-header .tutor-header-actions { width: 100%; }
+  .tutor-analytics-messages { --drawer-sidebar: 0px; }
+  .tutor-analytics-messages .message-box { right: 0; bottom: 0; width: 100%; }
+}

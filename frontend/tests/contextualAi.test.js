@@ -106,7 +106,7 @@ test('lesson retry retains identifiers without adding duplicate question; clear 
   assert.ok(retry); retry.props.onClick(); await drain();
   assert.deepEqual(h.requests[1].body, h.requests[2].body);
   assert.equal(nodes(h.view()).filter(node => node.type === 'p' && node.props.children === 'Explain').length, 1);
-  h.find(node => node.props?.['aria-label'] === 'Clear AskAI history').props.onClick(); await drain();
+  h.find(node => node.props?.['aria-label'] === 'Clear AI Tutor history').props.onClick(); await drain();
   assert.equal(h.requests.at(-1).method, 'DELETE');
   assert.match(h.requests.at(-1).url, /mode=lesson&courseId=.*&lessonId=.*&videoTimestampSeconds=625/);
 });

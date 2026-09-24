@@ -25,7 +25,7 @@ export function CourseList({ courseItems, savedCourses, onToggleSaved, from = "/
             </div>
             <p className="available-course-description">{course.description}</p>
             <div className="available-course-meta">
-              <p className="available-course-rating"><FaStar /> {course.rating}</p>
+              <p className="available-course-rating"><FaStar /> {course.reviewCount ? Number(course.rating).toFixed(1) : "No ratings"} · {course.reviewCount || 0} reviews</p>
               <span>{courseDuration(course)}</span>
             </div>
             <Link to={`/courses/${course.slug}`} state={{ from }} className="course-details-link">View course</Link>

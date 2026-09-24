@@ -24,3 +24,13 @@ test("study time accrues only during visible, playing lesson media", async () =>
   assert.match(hook, /onEnded\(\)[^]*session\.playing = false/);
   assert.match(hook, /void flushTarget\(session\)/);
 });
+
+test("dashboard refreshes saved progress and shows distinct earned and locked awards", async () => {
+  const dashboard = await source("src/pages/StudentDashboard.jsx");
+  assert.match(dashboard, /addEventListener\("focus", refresh\)/);
+  assert.match(dashboard, /addEventListener\("visibilitychange", refresh\)/);
+  assert.match(dashboard, /addEventListener\("edunova-learning-updated", refresh\)/);
+  assert.match(dashboard, /setAchievements\(goal\.achievements\)/);
+  assert.match(dashboard, /achievement\.earned \? "Earned" : "Locked"/);
+  assert.match(dashboard, /if \(!weeklyGoalEditing\) setWeeklyGoalInput/);
+});

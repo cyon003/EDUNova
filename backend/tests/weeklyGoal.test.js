@@ -6,6 +6,7 @@ const jwt = require("jsonwebtoken");
 process.env.NODE_ENV = "test";
 process.env.JWT_SECRET = "weekly-goal-test-secret-at-least-32-characters";
 
+const Enrollment = require("../models/Enrollment");
 const User = require("../models/User");
 const LearningSignal = require("../models/LearningSignal");
 const { weekStartUTC, summarizeWeeklyGoal } = require("../services/weeklyGoalService");
@@ -43,6 +44,8 @@ function request(method, pathname, body, authToken) {
 }
 
 test.before(async () => {
+  originals.enrollmentFind = Enrollment.find;
+  Enrollment.find = () => ({ populate: async () => [] });
   originals.userFind = User.findById;
   originals.userUpdate = User.findOneAndUpdate;
   originals.signalFind = LearningSignal.find;
@@ -51,7 +54,8 @@ test.before(async () => {
     lastGoalFilter = filter;
     const user = users.get(String(filter._id));
     if (!user || user.role !== filter.role) return null;
-    user.weeklyGoalMinutes = update.$set.weeklyGoalMinutes;
+    if (update.$set) user.weeklyGoalMinutes = update.$set.weeklyGoalMinutes;
+    if (update.$addToSet) user.earnedAchievementIds = [...new Set([...(user.earnedAchievementIds || []), ...update.$addToSet.earnedAchievementIds.$each])];
     return user;
   };
   LearningSignal.find = (filter) => ({ select: async () => {
@@ -63,6 +67,7 @@ test.before(async () => {
 });
 
 test.after(async () => {
+  Enrollment.find = originals.enrollmentFind;
   User.findById = originals.userFind;
   User.findOneAndUpdate = originals.userUpdate;
   LearningSignal.find = originals.signalFind;

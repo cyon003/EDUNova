@@ -193,3 +193,17 @@
   .course-mission-overlay { padding: 0; }
   .course-mission-modal { max-height: 100vh; border-radius: 0; }
 }
+
+.course-reviews { margin: 28px auto; padding: 24px; max-width: 1100px; background: #171125; border: 1px solid #44325e; border-radius: 16px; color: #eee5ff; }
+.course-reviews article { display: grid; gap: 8px; padding: 18px 0; border-top: 1px solid #44325e; }
+.course-reviews article span { color: #bc99ff; }
+.course-reviews p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.course-review-actions { display: flex; gap: 12px; margin: 14px 0; flex-wrap: wrap; }
+.course-reviews button { background: #6941ab; border: 1px solid #a782ff; color: white; padding: 9px 14px; border-radius: 8px; cursor: pointer; }
+.course-reviews button:disabled { opacity: .6; cursor: wait; }
+.course-reviews fieldset { border: 1px solid #71509e; border-radius: 10px; }
+.course-reviews label { display: grid; gap: 8px; }
+.course-reviews textarea { width: 100%; box-sizing: border-box; color: #eee5ff; background: #100c1d; border: 1px solid #71509e; border-radius: 8px; padding: 10px; font: inherit; }
+.course-review-stars { display: flex; gap: 6px; margin-bottom: 14px; }
+.course-review-stars button { font-size: 24px; padding: 6px 10px; }
+.course-review-stars button[aria-pressed="true"] { outline: 2px solid #d5c1ff; }

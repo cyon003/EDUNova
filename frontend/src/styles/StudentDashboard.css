@@ -1123,3 +1123,10 @@
   .student-panel { padding: 18px; }
   .student-note-editor > div { grid-template-columns: 1fr; }
 }
+
+.student-calendar-navigation { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.student-calendar-navigation button { background: #211633; color: #d9c9ff; border: 1px solid #71509e; border-radius: 8px; padding: 5px 12px; cursor: pointer; }
+.student-calendar-grid > button.today { background: #100c1d; outline: 2px solid #a782ff; outline-offset: -2px; }
+.student-calendar-grid > button.selected { background: #6941ab; color: white; }
+.student-calendar-grid > button.selected i { background: white; }
+.student-achievement-list article.earned { border: 1px solid #71509e; }

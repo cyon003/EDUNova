@@ -56,8 +56,8 @@ function AiChatbotSession({ learningContext, version }) {
         const response = await sessionFetch(`${API_ROOT}/ai/history?${historyQuery}&limit=50`, { headers: requestHeaders(), signal: controller.signal }, version);
         const data = await response.json();
         if (controller.signal.aborted || !isCurrentSession(version)) return;
-        if (!response.ok) throw new Error(data.message || "Unable to load AskAI history");
-        if (data.mode !== mode) throw new Error("AskAI returned an incompatible history.");
+        if (!response.ok) throw new Error(data.message || "Unable to load AI Tutor history");
+        if (data.mode !== mode) throw new Error("AI Tutor returned an incompatible history.");
         setContext(contextDisplayMetadata(data.context));
         setMessages(historyMessages(data.items || [], data.disclaimer || GENERAL_DISCLAIMER));
       } catch (requestError) {
@@ -88,8 +88,8 @@ function AiChatbotSession({ learningContext, version }) {
       if (data.subscription) plan.setSubscription(data.subscription);
       else if (response.ok) plan.refresh();
       if (data.code === "AI_QUOTA_EXCEEDED") { plan.setSubscription(data); setLastRequest(null); }
-      if (!response.ok) throw new Error(data.message || "Unable to ask AskAI");
-      if (data.mode !== mode || data.responseType !== "generated") throw new Error("AskAI returned an incompatible response.");
+      if (!response.ok) throw new Error(data.message || "Unable to ask AI Tutor");
+      if (data.mode !== mode || data.responseType !== "generated") throw new Error("AI Tutor returned an incompatible response.");
       setContext(contextDisplayMetadata(data.context));
       setMessages((current) => [...current, { id: data.conversationId, role: "assistant", text: data.answer, responseType: data.responseType, disclaimer: data.disclaimer || GENERAL_DISCLAIMER }]);
       setLastRequest(null);
@@ -109,8 +109,8 @@ function AiChatbotSession({ learningContext, version }) {
       const response = await sessionFetch(`${API_ROOT}/ai/history?${historyQuery}`, { method: "DELETE", headers: requestHeaders() }, version);
       const data = await response.json().catch(() => ({}));
       if (!live.current || !isCurrentSession(version)) return;
-      if (!response.ok) throw new Error(data.message || "Unable to clear AskAI history");
-      setMessages([]); setLastRequest(null); setStatus("AskAI history cleared.");
+      if (!response.ok) throw new Error(data.message || "Unable to clear AI Tutor history");
+      setMessages([]); setLastRequest(null); setStatus("AI Tutor history cleared.");
     } catch (requestError) {
       if (live.current && isCurrentSession(version)) setError(requestError.message);
     } finally {
@@ -119,23 +119,23 @@ function AiChatbotSession({ learningContext, version }) {
   };
 
   return <main className={`assistant-page ${mode}-mode`}>
-    <header className="assistant-topbar"><Link to="/" aria-label="Return to EDUNova home"><FaArrowLeft /> Back</Link><div><strong>AskAI</strong><small>{mode === "lesson" ? "Lesson help powered by Gemini" : "General educational help powered by Gemini"}</small></div><button type="button" onClick={clearHistory} disabled={!messages.length || sending || clearing} aria-label="Clear AskAI history">{clearing ? "Clearing…" : "Clear history"}</button></header>
+    <header className="assistant-topbar"><Link to="/" aria-label="Return to EDUNova home"><FaArrowLeft /> Back</Link><div><strong>AI Tutor</strong><small>{mode === "lesson" ? "Lesson help powered by Gemini" : "General educational help powered by Gemini"}</small></div><button type="button" onClick={clearHistory} disabled={!messages.length || sending || clearing} aria-label="Clear AI Tutor history">{clearing ? "Clearing…" : "Clear history"}</button></header>
     <div className="assistant-layout">
       <aside className="assistant-context" aria-label="Tutor information">
-        <div className="assistant-intro"><h1>AskAI</h1><p>{mode === "lesson" ? "Ask about your lesson using the attached learning context." : "Ask for explanations, examples, or study help using general knowledge."}</p></div>
+        <div className="assistant-intro"><h1>AI Tutor</h1><p>{mode === "lesson" ? "Ask about your lesson using the attached learning context." : "Ask for explanations, examples, or study help using general knowledge."}</p></div>
         {mode === "lesson" && <AiLearningContext context={context} />}
         <SubscriptionSummary subscription={plan.subscription} error={plan.error} onRetry={plan.refresh} />
         <p className="assistant-general-warning">{mode === "lesson" ? "AI uses available lesson context and may make mistakes. Transcript excerpts are not aligned to the video timestamp. Verify important details with your tutor." : "General AI answers may contain mistakes and are not verified against EDUNova course materials. Verify important information."}</p>
       </aside>
-      <section className="assistant-chat" aria-label="AskAI conversation">
+      <section className="assistant-chat" aria-label="AI Tutor conversation">
         <div className="assistant-messages" aria-live="polite" aria-busy={sending}>
-          {loading && <div className="assistant-state"><span className="assistant-loader" /><p>Loading AskAI history…</p></div>}
+          {loading && <div className="assistant-state"><span className="assistant-loader" /><p>Loading AI Tutor history…</p></div>}
           {!loading && !messages.length && <div className="assistant-state"><h2>What would you like to learn?</h2><p>{mode === "lesson" ? "Your lesson context is attached. Choose what you would like to ask." : "Ask for an explanation, example, or study help on a general educational topic."}</p></div>}
-          {messages.map((message) => <article className={`assistant-turn ${message.role} general`} key={message.id}><div><small>{message.role === "user" ? "You" : "AskAI"}</small><p>{message.text}</p>{message.role === "assistant" && message.responseType === "generated" && <b className="assistant-answer-mode general">{mode === "lesson" ? "AI-generated · Lesson context · Verify important details" : "AI-generated · General knowledge · Not verified against course materials"}</b>}</div></article>)}
-          {sending && <article className="assistant-turn assistant general"><div><small>AskAI</small><p className="assistant-thinking"><i /><i /><i /><span>{mode === "lesson" ? "Generating an answer with lesson context…" : "Generating a general educational answer…"}</span></p></div></article>}<div ref={messageEnd} />
+          {messages.map((message) => <article className={`assistant-turn ${message.role} general`} key={message.id}><div><small>{message.role === "user" ? "You" : "AI Tutor"}</small><p>{message.text}</p>{message.role === "assistant" && message.responseType === "generated" && <b className="assistant-answer-mode general">{mode === "lesson" ? "AI-generated · Lesson context · Verify important details" : "AI-generated · General knowledge · Not verified against course materials"}</b>}</div></article>)}
+          {sending && <article className="assistant-turn assistant general"><div><small>AI Tutor</small><p className="assistant-thinking"><i /><i /><i /><span>{mode === "lesson" ? "Generating an answer with lesson context…" : "Generating a general educational answer…"}</span></p></div></article>}<div ref={messageEnd} />
         </div>
         {status && <div className="assistant-status" role="status">{status}</div>}{error && <div className="assistant-error" role="alert"><span>{error}</span>{lastRequest && <button type="button" onClick={() => send(lastRequest, false)} disabled={loading || sending || clearing || quotaBlocked}><FaRedo /> Retry</button>}</div>}
-        <form className="assistant-form" onSubmit={submit}><label htmlFor="assistant-message">Ask AskAI</label><div><textarea ref={inputRef} id="assistant-message" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }} maxLength="1000" rows="2" placeholder={mode === "lesson" ? "What would you like to understand about this lesson?" : "Ask a general learning question..."} disabled={loading || sending || clearing || quotaBlocked} /><button type="submit" disabled={!draft.trim() || loading || sending || clearing || quotaBlocked} aria-label="Send question"><FaPaperPlane /><span>Send</span></button></div><small>{draft.length}/1000 · Enter to send, Shift+Enter for a new line</small></form>
+        <form className="assistant-form" onSubmit={submit}><label htmlFor="assistant-message">Ask AI Tutor</label><div><textarea ref={inputRef} id="assistant-message" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }} maxLength="1000" rows="2" placeholder={mode === "lesson" ? "What would you like to understand about this lesson?" : "Ask a general learning question..."} disabled={loading || sending || clearing || quotaBlocked} /><button type="submit" disabled={!draft.trim() || loading || sending || clearing || quotaBlocked} aria-label="Send question"><FaPaperPlane /><span>Send</span></button></div><small>{draft.length}/1000 · Enter to send, Shift+Enter for a new line</small></form>
       </section>
     </div>
   </main>;

@@ -26,7 +26,7 @@ function harness({ prediction = { prediction: 'confused', confusionProbability: 
     useEffect(fn, deps) { const i = cursor++; if (!equal(cells[i]?.deps, deps)) effects.push(() => { cells[i]?.cleanup?.(); cells[i] = { deps, cleanup: fn() }; }); },
   };
   const scope = { ...hooks, ...tracking, createExposureTracker: () => createExposureTracker(() => now), API_ROOT: '/api', Date: date, document: doc,
-    window: { setInterval(fn, ms) { timers.set(++nextTimer, { fn, ms, due: now + ms }); return nextTimer; }, clearInterval(id) { timers.delete(id); }, addEventListener() {}, removeEventListener() {} },
+    window: { dispatchEvent() {}, setInterval(fn, ms) { timers.set(++nextTimer, { fn, ms, due: now + ms }); return nextTimer; }, clearInterval(id) { timers.delete(id); }, addEventListener() {}, removeEventListener() {} },
     sessionStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
     useAuth: () => ({ user: { id: 'student-a', role: 'student' }, version: 1 }), isCurrentSession: () => validSession,
     sessionFetch: async (url, options = {}) => {

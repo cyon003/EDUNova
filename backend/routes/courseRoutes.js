@@ -11,6 +11,7 @@ const { withoutQuizzes } = require("../utils/quizAccess");
 const { uploadDirectory } = require("../config/storage");
 
 const router = express.Router();
+router.use("/:slug/reviews", require("./courseReviewRoutes"));
 
 // A course is discoverable only after its first lesson is ready. This prevents
 // students from enrolling in a published shell with no learning content.
@@ -136,7 +137,7 @@ router.get("/:slug", async (req, res) => {
     }
 
     // Not enrolled — return course info and the first preview only.
-    return res.status(200).json(restrictCourseContent(course));
+    return res.status(200).json(restrictCourseContent(typeof course.toJSON === "function" ? course.toJSON() : course));
   } catch (error) {
     console.error("Get course error:", error);
     return res.status(500).json({ message: "Unable to load the course" });

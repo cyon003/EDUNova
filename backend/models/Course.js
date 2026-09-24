@@ -121,6 +121,14 @@ const courseSchema = new mongoose.Schema(
       trim: true,
     },
 
+    reviewCount: { type: Number, default: 0, min: 0 },
+    courseReviews: { type: [{
+      student: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+      name: { type: String, required: true },
+      rating: { type: Number, min: 1, max: 5, required: true },
+      comment: { type: String, default: "", maxlength: 2000 },
+      updatedAt: { type: Date, default: Date.now },
+    }], default: [], select: false },
     rating: {
       type: Number,
       required: true,
@@ -333,6 +341,13 @@ const courseSchema = new mongoose.Schema(
   {
     timestamps: true,
     optimisticConcurrency: true,
+    toJSON: { transform(_doc, value) {
+      // Seeded ratings are not student reviews. Hide private review storage.
+      value.rating = value.reviewCount ? value.rating : 0;
+      value.reviewCount = value.reviewCount || 0;
+      delete value.courseReviews;
+      return value;
+    } },
   }
 );
 

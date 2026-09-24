@@ -64,7 +64,7 @@ test('analytics keeps courses separate and shows stale insights alongside refres
 const topic = (observedStudents=10, confusedStudents=8) => ({topicId:'internal-topic',title:'While Loop',startTimeSeconds:480,endTimeSeconds:720,observedStudents,confusedStudents,sampleSufficient:observedStudents>=5,confusionRate:observedStudents>=5?Math.round(confusedStudents/observedStudents*100):null,latestConfusionAt:null});
 test('topic rows show rate, counts, ranges and behavioral-inference explanation alongside lesson heatmap',()=>{
  const html=render(CourseHeatmapSection,{course:{...course,lessons:[{...lesson(10,50),topics:[topic()]}]}});
- for(const text of ['Topic signals','While Loop','80%','8 of 10 students who sufficiently viewed this topic showed confusion signals','08:00','12:00','High potential confusion','50%','at least 50% unique video coverage','not proof of confusion']) assert.ok(html.includes(text),text);
+ for(const text of ['Topic signals','While Loop','80%','Students with Learning Difficulties: 8 of 10 sufficiently-exposed students (predicted)','08:00','12:00','High potential confusion','50%','at least 50% unique video coverage','not proof of confusion']) assert.ok(html.includes(text),text);
  assert.doesNotMatch(html,/internal-topic/);
 });
 test('insufficient topic samples show collecting and observed count without a severity band',()=>{

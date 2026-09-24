@@ -35,6 +35,8 @@ const userSchema = new mongoose.Schema(
       default: "student",
     },
 
+    earnedAchievementIds: { type: [{ type: String, enum: ["streak", "lessons", "course"] }], default: [] },
+
     weeklyGoalMinutes: {
       type: Number,
       default: null,

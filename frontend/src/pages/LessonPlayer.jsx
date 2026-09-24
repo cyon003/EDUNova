@@ -39,7 +39,7 @@ function LessonNotes({ courseSlug, lessonIndex, lesson, user, courseVersion }) {
       signal: controller.signal,
     })
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load notes")))
-      .then((items) => setNotes(items.filter((item) => item.course?.slug === courseSlug && item.lessonIndex === lessonIndex)))
+      .then((items) => setNotes(items.filter((item) => item.sourceType !== "saved_from_summary" && item.course?.slug === courseSlug && item.lessonIndex === lessonIndex)))
       .catch((error) => {
         if (error.name !== "AbortError") setStatus(error.message);
       });
@@ -86,6 +86,7 @@ function LessonPlayer() {
     onCompleted: (enrollment) => {
       setCompletedLessons(enrollment.completedLessons || []);
       localStorage.setItem(progressKey, JSON.stringify(enrollment.completedLessons || []));
+      window.dispatchEvent(new Event("edunova-learning-updated"));
       setSyncMessage("Lesson completed");
     },
   });
@@ -142,6 +143,7 @@ function LessonPlayer() {
         body: JSON.stringify(body),
       });
       if (!response.ok) { const data = await response.json(); if(response.status===409 || response.status===428) videoRef.current?.pause(); throw new Error(data.message || "Progress is saved on this device only"); }
+      window.dispatchEvent(new Event("edunova-learning-updated"));
       setSyncMessage("Progress saved");
     } catch (error) {
       setSyncMessage(error.message || "Saved on this device");
@@ -205,6 +207,7 @@ function LessonPlayer() {
       if (!response.ok) throw new Error(enrollment.message || "Unable to save lesson completion");
       setCompletedLessons(enrollment.completedLessons);
       localStorage.setItem(progressKey, JSON.stringify(enrollment.completedLessons));
+      window.dispatchEvent(new Event("edunova-learning-updated"));
       setSyncMessage("Lesson completed");
     } catch (error) {
       setSyncMessage(error.message || "Unable to save lesson completion. Please try again.");
@@ -316,9 +319,9 @@ function LessonPlayer() {
           {resources.length>0&&<section className="lesson-materials"><h2>Downloadable Resources</h2>{resources.map(resource=><div className="lesson-resource-row" key={resource._id}><div><strong>{resource.originalName}</strong><small>{fileType(resource)} · {formatFileSize(resource.size)}</small></div><span>{canPreviewResource(resource)&&<button type="button" onClick={()=>openResource(resource,"view")}>View</button>}<button type="button" onClick={()=>openResource(resource,"download")}>Download</button></span></div>)}</section>}
           <div className="lesson-player-status"><span>{lessonWatch.status || syncMessage || (primaryMedia && enrolled && !completedLessons.includes(lessonIndex) ? /^\d+:\d{2}(?::\d{2})?$/.test(String(lesson.duration || "")) ? "Watch 95% of this lesson to complete it automatically" : "Ask your tutor to confirm this video's duration before completion" : "Your position is saved automatically")}</span><span><FaClock /> {lesson.duration}</span></div>
           <nav className="lesson-tool-tabs" aria-label="Lesson tools">{[["content","Lesson"],["summary","Summary"],...(transcriptSupported?[["transcript","Transcript"]]:[]),...(hasQuiz?[["quiz","Quiz"]]:[]),["notes","Personal Notes"]].map(([id,label])=><button type="button" className={activeTool===id?"active":""} aria-pressed={activeTool===id} onClick={()=>setActiveTool(id)} key={id}>{label}</button>)}</nav>
-          {activeTool==="content"&&<section className="lesson-clarity-feedback" aria-labelledby="lesson-clarity-title"><div><h3 id="lesson-clarity-title">Was this lesson clear?</h3><p>Your answer is optional and helps your tutor improve the course.</p></div><div role="group" aria-label="Lesson clarity feedback"><button type="button" className={learningSignal.signal.confusionFeedback==="clear"?"selected":""} aria-pressed={learningSignal.signal.confusionFeedback==="clear"} disabled={learningSignal.feedbackState==="saving"} onClick={()=>learningSignal.saveFeedback("clear")}>Clear</button><button type="button" className={learningSignal.signal.confusionFeedback==="confused"?"selected":""} aria-pressed={learningSignal.signal.confusionFeedback==="confused"} disabled={learningSignal.feedbackState==="saving"} onClick={()=>learningSignal.saveFeedback("confused")}>I’m confused</button></div><small className={learningSignal.feedbackState==="error"?"error":""} role="status" aria-live="polite">{learningSignal.feedbackState==="saving"?"Saving…":learningSignal.feedbackState==="saved"?"Saved":learningSignal.feedbackState==="error"?learningSignal.trackingError:""}</small><small role="status" aria-live="polite">{learningSignal.predictionState==="loading"?"Reviewing your lesson activity…":learningSignal.predictionState==="success"?"Lesson activity reviewed.":learningSignal.predictionState==="error"?"Lesson activity review is unavailable.":""}</small></section>}
+          {activeTool==="content"&&<section className="lesson-clarity-feedback" aria-labelledby="lesson-clarity-title"><div><h3 id="lesson-clarity-title">Was this lesson clear?</h3><p>Your self-reported understanding is optional and separate from the Predicted Confusion Level based on learning activity.</p></div><div role="group" aria-label="Lesson clarity feedback"><button type="button" className={learningSignal.signal.confusionFeedback==="clear"?"selected":""} aria-pressed={learningSignal.signal.confusionFeedback==="clear"} disabled={learningSignal.feedbackState==="saving"} onClick={()=>learningSignal.saveFeedback("clear")}>Understood</button><button type="button" className={learningSignal.signal.confusionFeedback==="confused"?"selected":""} aria-pressed={learningSignal.signal.confusionFeedback==="confused"} disabled={learningSignal.feedbackState==="saving"} onClick={()=>learningSignal.saveFeedback("confused")}>Need Clarification</button></div><small className={learningSignal.feedbackState==="error"?"error":""} role="status" aria-live="polite">{learningSignal.feedbackState==="saving"?"Saving…":learningSignal.feedbackState==="saved"?"Saved":learningSignal.feedbackState==="error"?learningSignal.trackingError:""}</small><small role="status" aria-live="polite">{learningSignal.predictionState==="loading"?"Reviewing your lesson activity…":learningSignal.predictionState==="success"?"Lesson activity reviewed.":learningSignal.predictionState==="error"?"Lesson activity review is unavailable.":""}</small></section>}
           {activeTool==="content"&&hasQuiz&&<section className="lesson-quiz-callout"><div><h3>{lesson.quiz.title||"Lesson Quiz"}</h3><p>{lesson.quiz.questions.length} question{lesson.quiz.questions.length===1?"":"s"} · test what you learned in this lesson</p></div><button type="button" onClick={()=>setActiveTool("quiz")}>Take the quiz</button></section>}
-          {activeTool==="summary"&&<LessonSummaryPanel lesson={lesson}/>}
+          {activeTool==="summary"&&<LessonSummaryPanel key={`${courseSlug}-${lesson._id}`} lesson={lesson} courseSlug={courseSlug} lessonIndex={lessonIndex} courseVersion={course.__v || 0} canSave={enrolled && user?.role === "student"}/>}
           {activeTool==="transcript"&&transcriptSupported&&<VideoTranscriptPanel lesson={lesson}/>}
           {activeTool==="quiz"&&hasQuiz&&<LessonQuiz key={`${courseSlug}-${lessonIndex}-${lesson.quiz._id||""}`} courseSlug={courseSlug} lessonIndex={lessonIndex} courseVersion={course.__v || 0} quiz={lesson.quiz} onBack={()=>setActiveTool("content")}/>}
           {activeTool==="notes"&&<LessonNotes key={JSON.stringify([user?.id, user?.role, courseSlug, lessonIndex, lesson.title])} courseSlug={courseSlug} lessonIndex={lessonIndex} lesson={lesson} user={user} courseVersion={course.__v || 0} />}

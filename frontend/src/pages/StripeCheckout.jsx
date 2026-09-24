@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { purchaseErrorMessage } from "../utils/purchaseCourse";
 import { API_ROOT, formatCoursePrice } from "../utils/courseApi";
 import "../styles/CheckoutPage.css";
 
@@ -88,6 +89,6 @@ async function checkoutRequest(path, body) {
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.message || "Unable to process checkout. Please try again.");
+  if (!response.ok) throw new Error(purchaseErrorMessage(data.message, "Unable to process checkout. Please try again."));
   return data;
 }

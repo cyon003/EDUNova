@@ -5,13 +5,16 @@ const authenticateToken = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
 const { summarizeWeeklyGoal } = require("../services/weeklyGoalService");
 
+const { synchronizeAchievements } = require("../services/achievementService");
+
 const router = express.Router();
 router.use(authenticateToken);
 router.use(requireRole("student"));
 
 async function goalResponse(user, res) {
   const signals = await LearningSignal.find({ student: user._id }).select("activeTimeSecondsByWeek");
-  return res.json(summarizeWeeklyGoal(user.weeklyGoalMinutes, signals));
+  const achievements = await synchronizeAchievements(user._id);
+  return res.json({ ...summarizeWeeklyGoal(user.weeklyGoalMinutes, signals), achievements });
 }
 
 router.get("/me", async (req, res) => {

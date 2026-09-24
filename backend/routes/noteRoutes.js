@@ -5,6 +5,7 @@ const authenticateToken = require("../middleware/authMiddleware");
 const requireRole = require("../middleware/roleMiddleware");
 const Course = require("../models/Course");
 const Note = require("../models/Note");
+const Enrollment = require("../models/Enrollment");
 
 const router = express.Router();
 
@@ -34,16 +35,25 @@ router.get("/", async (req, res) => {
 
 router.post("/", curriculumWrite(async (req, res) => {
   try {
-    const title = req.body.title?.trim();
-    const body = req.body.body?.trim();
-    if (!title || !body) return res.status(400).json({ message: "Title and note content are required" });
+    const sourceType = req.body.sourceType || "personal";
+    if (!["personal", "saved_from_summary"].includes(sourceType)) return res.status(400).json({ message: "Invalid note source" });
     const course = await resolveCourse(req.body.courseSlug);
     if (req.body.courseSlug && !course) return res.status(404).json({ message: "Course not found" });
     const lessonIndex = Number.isInteger(req.body.lessonIndex) && req.body.lessonIndex >= 0 ? req.body.lessonIndex : null;
     const lesson = lessonIndex === null ? null : course?.lessons?.[lessonIndex];
     const lessonTitle = lesson?.title || String(req.body.lessonTitle || "").trim();
+    let title = req.body.title?.trim(), body = req.body.body?.trim();
+    if (sourceType === "saved_from_summary") {
+      if (!lesson?.summary?.trim()) return res.status(400).json({ message: "This lesson has no summary to save" });
+      if (!await Enrollment.exists({ student: req.user._id, course: course._id })) return res.status(403).json({ message: "Enroll in this course before saving its summary" });
+      title = lesson.title.slice(0, 160);
+      body = lesson.summary.trim();
+    }
+    if (!title || !body) return res.status(400).json({ message: "Title and note content are required" });
     if (lessonIndex !== null && !lessonTitle) return res.status(400).json({ message: "Lesson title is required" });
-    const note = await Note.create({ student: req.user._id, course: course?._id || null, lessonIndex, lessonTitle, title, body });
+    // The curriculum transaction serializes saves for this course, including double clicks.
+    let note = sourceType === "saved_from_summary" ? await Note.findOne({ student: req.user._id, course: course._id, lessonIndex, sourceType }) : null;
+    if (!note) note = await Note.create({ student: req.user._id, course: course?._id || null, lessonIndex, lessonTitle, title, body, sourceType });
     await note.populate("course", "name slug");
     return res.status(201).json(note);
   } catch (error) {

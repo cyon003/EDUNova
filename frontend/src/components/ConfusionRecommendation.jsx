@@ -6,7 +6,7 @@ export default function ConfusionRecommendation({ onDismiss, onAskAI }) {
     </div>
     <div className="lesson-confusion-actions">
       <button type="button" onClick={onDismiss}>Dismiss</button>
-      <button type="button" className="lesson-confusion-ask" onClick={onAskAI}>Ask AI</button>
+      <button type="button" className="lesson-confusion-ask" onClick={onAskAI}>Ask AI Tutor</button>
     </div>
   </section>;
 }

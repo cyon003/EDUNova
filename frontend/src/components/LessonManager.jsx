@@ -1,3 +1,4 @@
+import { captureLessonMetadata } from "../utils/lessonMetadata.js";
 import { useEffect, useId, useRef, useState } from "react";
 import { FaBookOpen, FaCloudUploadAlt, FaGraduationCap, FaPlus, FaTimes, FaTrash } from "react-icons/fa";
 import { API_ROOT } from "../utils/courseApi";
@@ -15,6 +16,7 @@ const emptyQuiz = { title: "Lesson Quiz", questions: [] };
 const emptyDraft = { title: "", transcript: "", description: "", summary: "", referenceLinks: "", mainVideo: null, documents: [], durationSeconds: 0, topics: [], quiz: null };
 const editable = (lesson) => ({
   ...emptyDraft,
+  lessonId: lesson?._id || "",
   title: lesson?.title || "",
   transcript: lesson?.transcript || "",
   description: lesson?.description || "",
@@ -248,6 +250,9 @@ export default function LessonManager({ course, form, setForm, add, update, remo
   const toastTimer = useRef(null);
   const primary = getLessonPrimaryMedia(lesson);
   const persistedMedia = usePersistedMedia(course, lesson, selected);
+  const previewIdentity = `${course._id}:${lesson?._id}:${primary?.storedName || ""}`;
+  const activePreview = useRef(null);
+  useEffect(() => { activePreview.current = previewIdentity; return () => { activePreview.current = null; }; }, [previewIdentity]);
   const dirty = Boolean(form.title || form.transcript || form.description || form.summary || form.referenceLinks || form.mainVideo || form.resources.length || form.topics?.length || form.quiz);
 
   useEffect(()=>{if(!modalOpen)return undefined;const previous=document.body.style.overflow;document.body.style.overflow="hidden";const escape=(event)=>{if(event.key==="Escape"&&(!dirty||window.confirm("Discard unsaved lesson changes?")))setModalOpen(false)};window.addEventListener("keydown",escape);return()=>{document.body.style.overflow=previous;window.removeEventListener("keydown",escape)}},[dirty,modalOpen]);
@@ -276,7 +281,7 @@ export default function LessonManager({ course, form, setForm, add, update, remo
   return <div className="lesson-studio"><header><div><FaGraduationCap/><strong>EDUNOVA</strong><span>{course.name}</span></div><button onClick={close}>Close</button></header><div className="lesson-studio-layout"><main>
     {message&&<p className="lesson-manager-message" role="status">{message}</p>}
     {!lesson?<><div className="lesson-editor-heading"><h2>Edit Lesson</h2><button className="primary" type="button" onClick={openModal}><FaPlus/> New Lesson</button></div><div className="lesson-preview empty"><FaBookOpen/><strong>Select a lesson or add the first one</strong></div></>:<>
-      <div className="lesson-preview">{primary&&persistedMedia.url?<video key={persistedMedia.url} src={persistedMedia.url} controls onLoadedMetadata={(event)=>{if(!/^\d+:\d{2}(?::\d{2})?$/.test(String(lesson.duration||"")))setDraft((current)=>current.mainVideo?current:{...current,duration:formatMediaDuration(event.currentTarget.duration)})}} onError={()=>setMessage("This video format is not supported by your browser.")}/>:<div className="lesson-preview empty"><FaBookOpen/><strong>{persistedMedia.error||"No lesson video has been uploaded."}</strong></div>}</div>
+      <div className="lesson-preview">{primary&&persistedMedia.url?<video key={persistedMedia.url} src={persistedMedia.url} controls onLoadedMetadata={event => captureLessonMetadata(event, { lessonId: lesson._id, savedDuration: lesson.duration, isCurrent: () => activePreview.current === previewIdentity, setDraft })} onError={()=>setMessage("This video format is not supported by your browser.")}/>:<div className="lesson-preview empty"><FaBookOpen/><strong>{persistedMedia.error||"No lesson video has been uploaded."}</strong></div>}</div>
       <form className="form-grid lesson-builder lesson-editor" onSubmit={saveLesson}><div className="lesson-editor-heading wide"><h2>Edit Lesson</h2><button className="primary" type="button" onClick={openModal}><FaPlus/> New Lesson</button></div><div className="lesson-upload-grid wide">
         <UploadCard kind="video" title="Replace lesson video" hint="MP4, WebM or Ogg · one file" accept={mediaAccept} files={draft.mainVideo?[draft.mainVideo]:[]} onFiles={(files)=>{const chosen=validateFiles(files,mediaExtensions,true);if(chosen[0])void selectVideo(chosen[0],setDraft)}} onRemove={()=>setDraft({...draft,mainVideo:null,durationSeconds:0})}/>
         <UploadCard kind="documents" title="Add supporting documents" hint="PDF, Office, TXT, images and additional media" accept={resourceAccept} multiple files={draft.documents} onFiles={(files)=>setDraft({...draft,documents:[...draft.documents,...validateFiles(files,resourceExtensions)]})} onRemove={(index)=>setDraft({...draft,documents:draft.documents.filter((_,item)=>item!==index)})}/>

@@ -10,11 +10,11 @@ test("legacy AI chatbot route redirects to the primary General AI Tutor route", 
   assert.match(app, /path="\/ai-chatbot" element={<Navigate to="\/ai-tutor" replace \/>}/);
 });
 
-test("AskAI preserves general access without restoring legacy course controls or source claims", async () => {
+test("AI Tutor preserves general access without restoring legacy course controls or source claims", async () => {
   const page = await source("src/pages/AiChatbot.jsx");
   assert.doesNotMatch(page, /Course Assistant|assistant-mode-selector|assistant-course|assistant-lesson|confidence|assistant-sources/);
   assert.match(page, /learningContext \? "lesson" : "general"/);
-  assert.match(page, /AskAI/);
+  assert.match(page, /AI Tutor/);
 });
 
 test("Course Assistant lesson tab and active navigation are absent", async () => {
@@ -23,7 +23,7 @@ test("Course Assistant lesson tab and active navigation are absent", async () =>
   for (const path of ["src/pages/Home.jsx", "src/pages/UserHome.jsx"]) {
     const page = await source(path);
     assert.doesNotMatch(page, /to="\/ai-chatbot"|AI Chatbot|Course Assistant/, path);
-    assert.match(page, /AskAI/, path);
+    assert.match(page, /AI Tutor/, path);
   }
 });
 

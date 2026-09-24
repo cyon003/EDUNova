@@ -10,7 +10,7 @@ test("student lesson summary and transcript use persisted lesson fields", async 
   assert.match(components, /lesson\?\.summary/);
   assert.match(components, /lesson\?\.transcript/);
   assert.match(components, /Provided by the course tutor\./);
-  assert.doesNotMatch(components, /localStorage|mock|Gemini|TF-IDF|fetch\(/i);
+  assert.doesNotMatch(components, /localStorage|mock|Gemini|TF-IDF/i);
 });
 
 test("transcript tab is limited to supported media and missing transcripts are clear", async () => {

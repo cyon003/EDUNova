@@ -44,6 +44,7 @@ function request(method, pathname, body, token) {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? "" : JSON.stringify(body);
     const headers = payload ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) } : {};
+    headers["X-Course-Version"] = "0";
     if (token) headers.Authorization = `Bearer ${token}`;
     const outgoing = http.request({ hostname: "127.0.0.1", port: server.address().port, path: pathname, method, headers }, (response) => {
       let text = ""; response.setEncoding("utf8"); response.on("data", (chunk) => { text += chunk; }); response.on("end", () => resolve({ status: response.statusCode, body: text ? JSON.parse(text) : null }));
@@ -53,6 +54,9 @@ function request(method, pathname, body, token) {
 }
 
 test.before(async () => {
+  const mongoose = require("mongoose");
+  test.mock.method(mongoose.connection, "transaction", async work => work());
+  test.mock.method(Course, "updateOne", async () => ({ matchedCount: 1 }));
   originals.userFind = User.findById; originals.courseFindById = Course.findById; originals.courseFindOne = Course.findOne;
   originals.enrollmentFindOne = Enrollment.findOne; originals.enrollmentFindOneAndUpdate = Enrollment.findOneAndUpdate; originals.enrollmentExists = Enrollment.exists; originals.enrollmentDelete = Enrollment.deleteMany;
   originals.signalFindOne = LearningSignal.findOne; originals.signalUpdate = LearningSignal.findOneAndUpdate; originals.signalBulk = LearningSignal.bulkWrite; originals.signalDelete = LearningSignal.deleteMany;
@@ -219,11 +223,10 @@ test("lesson completion uses the authenticated endpoint and synchronizes its sig
   assert.equal(bulkOperations[0].updateOne.upsert, true);
 });
 
-test("lesson and course deletion clean signals while resource deletion preserves them", async () => {
+test("course deletion cleans signals while resource deletion preserves them", async () => {
   currentUser = { _id: ids.tutor, role: "tutor", tokenVersion: 0, accountStatus: "approved" };
   const tutorToken = auth(ids.tutor, "tutor");
-  assert.equal((await request("DELETE", `/api/tutor/courses/${ids.course}/lessons/${ids.lesson}`, undefined, tutorToken)).status, 200);
-  assert.deepEqual(deletedFilters.at(-1), { course: ids.course, lessonId: ids.lesson });
+  // Transactional lesson deletion is covered by lessonDeletionMongo.test.js.
   activeCourse = fakeCourse(); deletedFilters = [];
   activeCourse.lessons[0].resources = [{ _id: ids.otherLesson, storedName: "missing.pdf", deleteOne() { activeCourse.lessons[0].resources.length = 0; } }];
   activeCourse.lessons[0].resources.id = (id) => activeCourse.lessons[0].resources.find((item) => String(item._id) === String(id));

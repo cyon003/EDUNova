@@ -23,6 +23,8 @@ import {
   useNavigate,
   useParams,
 } from "react-router-dom";
+import { purchaseCourseId, purchaseErrorMessage } from "../utils/purchaseCourse";
+import CourseReviews from "../components/CourseReviews";
 import mathematicsImage from "../assets/images/mathematic.jpeg";
 import confusionTraining from "../data/confusionTraining";
 import {
@@ -987,6 +989,7 @@ function CourseDetail() {
                         "Content-Type":
                           "application/json",
                         Authorization: `Bearer ${token}`,
+                        "X-Course-Version": String(enrollment.course?.__v || 0),
                       },
                       body: JSON.stringify({
                         completedMissions:
@@ -1113,10 +1116,11 @@ function CourseDetail() {
     setCartMessage("");
 
     try {
+      const courseId = purchaseCourseId(course);
       if (inCart) {
         const res =
           await fetch(
-            `${API_ROOT}/cart/${course._id}`,
+            `${API_ROOT}/cart/${courseId}`,
             {
               method: "DELETE",
               headers: {
@@ -1150,8 +1154,7 @@ function CourseDetail() {
                 Authorization: `Bearer ${token}`,
               },
               body: JSON.stringify({
-                courseId:
-                  course._id,
+                courseId,
               }),
             }
           );
@@ -1173,8 +1176,7 @@ function CourseDetail() {
       }
     } catch (error) {
       setCartMessage(
-        error.message ||
-          "Cart update failed."
+        purchaseErrorMessage(error.message, "Unable to update your cart. Please try again.")
       );
     } finally {
       setCartLoading(false);
@@ -1290,8 +1292,7 @@ function CourseDetail() {
               Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-              courseId:
-                course._id,
+              courseId: purchaseCourseId(course),
             }),
           }
         );
@@ -1328,8 +1329,7 @@ function CourseDetail() {
       );
 
       setEnrollmentMessage(
-        error.message ||
-          "Unable to start the payment."
+        purchaseErrorMessage(error.message, "Unable to start payment. Please try again.")
       );
     } finally {
       setEnrolling(false);
@@ -1351,6 +1351,7 @@ function CourseDetail() {
           "Content-Type":
             "application/json",
           Authorization: `Bearer ${token}`,
+          "X-Course-Version": String(course?.__v || 0),
         },
         body: JSON.stringify({
           completedMissions:
@@ -1376,6 +1377,7 @@ function CourseDetail() {
               method: "POST",
               headers: {
                 Authorization: `Bearer ${token}`,
+          "X-Course-Version": String(course?.__v || 0),
               },
             }
           );
@@ -1414,7 +1416,7 @@ function CourseDetail() {
     try {
       const response = await fetch(
         `${API_ROOT}/enrollments/${course.slug}/lessons/${index}/complete`,
-        { method: "POST", headers: { Authorization: `Bearer ${token}` } }
+        { method: "POST", headers: { Authorization: `Bearer ${token}`, "X-Course-Version": String(course?.__v || 0) } }
       );
       if (!response.ok) throw new Error("Unable to complete lesson");
       const enrollment = await response.json();
@@ -1483,6 +1485,7 @@ function CourseDetail() {
               "Content-Type":
                 "application/json",
               Authorization: `Bearer ${token}`,
+          "X-Course-Version": String(course?.__v || 0),
             },
             body: JSON.stringify({
               ...reportForm,
@@ -1570,9 +1573,9 @@ function CourseDetail() {
               <span>
                 <FaStar />
                 <strong>
-                  {course.rating || 0}
+                  {course.reviewCount ? Number(course.rating).toFixed(1) : "No ratings"}
                 </strong>{" "}
-                rating
+                ({course.reviewCount || 0} reviews)
               </span>
 
               <span>
@@ -1911,6 +1914,7 @@ function CourseDetail() {
           </form>
         </div>
       )}
+      <CourseReviews key={`${course.slug}-${currentUser?.id || "guest"}`} slug={course.slug} user={currentUser} enrolled={enrolled} onRatingChange={values => setCourse(current => ({ ...current, ...values }))} />
     </main>
   );
 }

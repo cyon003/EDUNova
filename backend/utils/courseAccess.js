@@ -1,5 +1,7 @@
 function restrictCourseContent(course) {
-  const restricted = typeof course.toObject === "function" ? course.toObject() : structuredClone(course);
+  // Preserve BSON ObjectId JSON serialization when passed an already-plain course.
+  // structuredClone strips its prototype and exposes a buffer instead of the ID.
+  const restricted = typeof course.toObject === "function" ? course.toObject() : JSON.parse(JSON.stringify(course));
   restricted.lessons = (restricted.lessons || []).map((lesson, index) => {
     const restrictedLesson = { ...lesson, videoUrl: "", resources: [], quiz: undefined };
     // Keep only enough metadata to render the free preview's player. File names

@@ -137,7 +137,7 @@ function UserHome() {
             onClick={() => setActiveTab("chatbot")}
             onFocus={() => setActiveTab("chatbot")}
           >
-            AskAI
+            AI Tutor
           </Link>
           <Link
             to={dashboardPath}

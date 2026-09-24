@@ -45,8 +45,8 @@ function CourseCard({ course, isSaved, onToggleSaved, from }) {
         <div className="course-rating-duration">
           <div className="course-rating">
             <span className="rating-star">★</span>
-            <strong>{course.rating}</strong>
-            <span>({course.reviews || 0} reviews)</span>
+            <strong>{course.reviewCount ? Number(course.rating).toFixed(1) : "No ratings"}</strong>
+            <span>({course.reviewCount || 0} reviews)</span>
           </div>
 
           <div className="course-duration">
@@ -141,7 +141,7 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
               onClick={() => setActiveTab("chatbot")}
               onFocus={() => setActiveTab("chatbot")}
             >
-              AskAI
+              AI Tutor
             </Link>
             <Link
               to="/#popular"
@@ -173,7 +173,7 @@ function Home({ navigation = null, showFooter = true, dashboardPath = "/student-
       {popularCourses.length > 0 && <section className="home-intro" aria-label="Popular course highlights">
         <div className="home-course-carousel" onMouseEnter={() => setCarouselPaused(true)} onMouseLeave={() => setCarouselPaused(false)} onFocus={() => setCarouselPaused(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setCarouselPaused(false); }}>
           <div className="home-carousel-track" style={{ transform: `translateX(-${activeSlide * 100}%)` }}>
-            {popularCourses.map((course, index) => <article className="home-carousel-slide" aria-hidden={activeSlide !== index} key={course.name}><div><span>POPULAR COURSE</span><h1>{course.name}</h1><p>{course.description}</p><div className="home-carousel-meta"><strong>★ {course.rating || 0}</strong><span>{course.reviews || 0} reviews</span><span>{courseDuration(course)}</span><strong>{formatCoursePrice(course.price)}</strong></div><Link to={`/courses/${course.slug}`} state={{ from: homePath }} tabIndex={activeSlide === index ? 0 : -1}>Explore course <span aria-hidden="true">→</span></Link></div><div className="home-carousel-visual" aria-hidden="true"><span>{course.name.slice(0, 2).toUpperCase()}</span><strong>0{index + 1}</strong></div></article>)}
+            {popularCourses.map((course, index) => <article className="home-carousel-slide" aria-hidden={activeSlide !== index} key={course.name}><div><span>POPULAR COURSE</span><h1>{course.name}</h1><p>{course.description}</p><div className="home-carousel-meta"><strong>★ {course.reviewCount ? Number(course.rating).toFixed(1) : "No ratings"}</strong><span>{course.reviewCount || 0} reviews</span><span>{courseDuration(course)}</span><strong>{formatCoursePrice(course.price)}</strong></div><Link to={`/courses/${course.slug}`} state={{ from: homePath }} tabIndex={activeSlide === index ? 0 : -1}>Explore course <span aria-hidden="true">→</span></Link></div><div className="home-carousel-visual" aria-hidden="true"><span>{course.name.slice(0, 2).toUpperCase()}</span><strong>0{index + 1}</strong></div></article>)}
           </div>
           <button className="home-carousel-arrow previous" type="button" aria-label="Previous course" onClick={() => setActiveSlide((current) => (current - 1 + popularCourses.length) % popularCourses.length)}>‹</button>
           <button className="home-carousel-arrow next" type="button" aria-label="Next course" onClick={() => setActiveSlide((current) => (current + 1) % popularCourses.length)}>›</button>

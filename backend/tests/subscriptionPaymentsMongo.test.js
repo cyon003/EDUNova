@@ -183,8 +183,40 @@ test("Premium and course payments on a disposable MongoDB replica set", { skip: 
       session.currency = "usd"; assert.equal((await verify(session)).status, 409); session.currency = "thb";
     });
 
+    await t.test("restricted Algorithm IDs reach buy-now, cart checkout and Stripe test sessions unchanged", async () => {
+      await reset();
+      await Cart.deleteMany({ student: student._id });
+      for (const flow of ["buy-now", "cart"]) {
+        const course = await makeCourse(`algorithm-${flow}`, 125);
+        course.lessons.push({ title: "Introduction" });
+        await course.save();
+        const detail = await request("GET", `/courses/${course.slug}`);
+        assert.equal(detail.status, 200);
+        assert.equal(detail.data._id, course.id);
+        assert.equal(detail.data._restricted, true);
+        assert.equal((await request("POST", "/orders/buy-now", { courseId: { buffer: { 0: 1 } } })).status, 400);
+        let purchase;
+        if (flow === "cart") {
+          const added = await request("POST", "/cart", { courseId: detail.data._id });
+          assert.equal(added.status, 201);
+          const cart = await request("GET", "/cart");
+          assert.equal(cart.data.items[0].course._id, course.id);
+          purchase = await request("POST", "/orders/checkout", {});
+        } else purchase = await request("POST", "/orders/buy-now", { courseId: detail.data._id });
+        assert.equal(purchase.status, 201, JSON.stringify(purchase.data));
+        assert.equal(purchase.data.order.items[0].course._id, course.id);
+        const session = await start(purchase.data.order);
+        assert.match(session.id, /^cs_test_/);
+        assert.equal(session.metadata.orderId, purchase.data.order._id);
+        assert.equal(session.amount_total, 12500);
+        paid(session);
+        assert.equal((await verify(session)).status, 200);
+        assert.equal(await Enrollment.countDocuments({ student: student._id, course: course._id }), 1);
+      }
+    });
+
     await t.test("cart mixed prices, buy-now, free enrollment and paid-access enforcement", async () => {
-      await reset(); const course = await makeCourse("paid-test", 250.25), free = await makeCourse("free-test", 0);
+      await reset(); await Cart.deleteMany({ student: student._id }); const course = await makeCourse("paid-test", 250.25), free = await makeCourse("free-test", 0);
       await Cart.create({ student: student._id, items: [{ course: course._id }, { course: free._id }] });
       assert.equal((await request("POST", `/enrollments/${course.slug}`, {})).status, 402);
       const result = await request("POST", "/orders/checkout", { totalAmount: 1 });

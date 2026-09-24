@@ -63,6 +63,7 @@ export function useLearningSignal({ courseId, lessonId }) {
       try {
         const response = await sessionFetch(`${API_ROOT}/learning-signals/${session.courseId}/${session.lessonId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), keepalive }, session.version);
         if (!response.ok) throw new Error("Learning activity could not be saved.");
+        window.dispatchEvent(new Event("edunova-learning-updated"));
         await response.json();
         if (isActive(session)) setTrackingError("");
         return true;

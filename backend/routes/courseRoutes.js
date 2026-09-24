@@ -1,3 +1,4 @@
+const { assertCourseVersion } = require("../services/curriculumGuard");
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
@@ -10,6 +11,7 @@ const { withoutQuizzes } = require("../utils/quizAccess");
 const { uploadDirectory } = require("../config/storage");
 
 const router = express.Router();
+router.use("/:slug/reviews", require("./courseReviewRoutes"));
 
 // A course is discoverable only after its first lesson is ready. This prevents
 // students from enrolling in a published shell with no learning content.
@@ -48,8 +50,11 @@ function primaryMediaFor(lesson) {
 async function authorizedLesson(req, res) {
   const course = await Course.findOne({ slug: req.params.slug.toLowerCase() });
   if (!course) { res.status(404).json({ message: "Course not found" }); return null; }
+  try { assertCourseVersion(req, course, false); } catch (error) { res.status(error.status).json({ message: error.message }); return null; }
+  if (req.mediaLessonId && !course.lessons.some(lesson => String(lesson._id) === req.mediaLessonId)) { res.status(409).json({ message: "This lesson was removed. Reload the course." }); return null; }
   const lessonIndex = Number.parseInt(req.params.lessonIndex, 10);
   if (!Number.isInteger(lessonIndex) || lessonIndex < 0 || lessonIndex >= course.lessons.length) { res.status(404).json({ message: "Lesson not found" }); return null; }
+  if (req.mediaLessonId && String(course.lessons[lessonIndex]._id) !== req.mediaLessonId) { res.status(409).json({ message: "This course changed. Reload the player." }); return null; }
   if (req.previewAccess && course.moderationStatus === "published" && lessonIndex === 0) return { course, lesson: course.lessons[lessonIndex], publicPreview: true };
   if (!req.user) { res.status(401).json({ message: "Authentication required" }); return null; }
   const ownsCourse = req.user.role === "tutor" && String(course.tutor) === String(req.user._id);
@@ -75,6 +80,8 @@ function mediaTokenAuth(req, res, next) {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     if (decoded.mediaScope !== `${req.params.slug.toLowerCase()}:${req.params.lessonIndex}`) return res.status(403).json({ message: "Invalid media access" });
+    req.mediaLessonId = decoded.lessonId;
+    if (decoded.courseVersion !== undefined) req.headers["x-course-version"] = String(decoded.courseVersion);
     if (decoded.previewAccess === true) { req.previewAccess = true; req.user = { role: "preview" }; return next(); }
     req.headers.authorization = `Bearer ${token}`;
     return authenticateToken(req, res, next);
@@ -130,7 +137,7 @@ router.get("/:slug", async (req, res) => {
     }
 
     // Not enrolled — return course info and the first preview only.
-    return res.status(200).json(restrictCourseContent(course));
+    return res.status(200).json(restrictCourseContent(typeof course.toJSON === "function" ? course.toJSON() : course));
   } catch (error) {
     console.error("Get course error:", error);
     return res.status(500).json({ message: "Unable to load the course" });
@@ -177,9 +184,10 @@ async function createMediaAccess(req, res) {
     const access = await authorizedLesson(req, res);
     if (!access) return;
     if (!primaryMediaFor(access.lesson)) return res.status(404).json({ message: "Lesson media not found" });
+    const { course, lesson } = access;
     const token = jwt.sign(access.publicPreview
-      ? { previewAccess: true, mediaScope: `${req.params.slug.toLowerCase()}:${req.params.lessonIndex}` }
-      : { id: req.user._id, role: req.user.role, tokenVersion: req.user.tokenVersion || 0, mediaScope: `${req.params.slug.toLowerCase()}:${req.params.lessonIndex}` }, process.env.JWT_SECRET, { expiresIn: "10m" });
+      ? { previewAccess: true, lessonId: String(lesson._id), courseVersion: course.__v || 0, mediaScope: `${req.params.slug.toLowerCase()}:${req.params.lessonIndex}` }
+      : { id: req.user._id, role: req.user.role, tokenVersion: req.user.tokenVersion || 0, lessonId: String(lesson._id), courseVersion: course.__v || 0, mediaScope: `${req.params.slug.toLowerCase()}:${req.params.lessonIndex}` }, process.env.JWT_SECRET, { expiresIn: "10m" });
     return res.json({ url: `${req.protocol}://${req.get("host")}/api/courses/${encodeURIComponent(req.params.slug.toLowerCase())}/lessons/${req.params.lessonIndex}/media?token=${encodeURIComponent(token)}` });
   } catch (error) { console.error("Create media access error:", error); return res.status(500).json({ message: "Unable to create media access" }); }
 }

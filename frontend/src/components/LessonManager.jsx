@@ -1,3 +1,6 @@
+import { hasLessonEdits } from "../utils/lessonEditor.js";
+import { captureLessonMetadata } from "../utils/lessonMetadata.js";
+import { formatTopicTime, parseTopicTime } from "../utils/topicTime";
 import { useEffect, useId, useRef, useState } from "react";
 import { FaBookOpen, FaCloudUploadAlt, FaGraduationCap, FaPlus, FaTimes, FaTrash } from "react-icons/fa";
 import { API_ROOT } from "../utils/courseApi";
@@ -11,20 +14,23 @@ const resourceExtensions = ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", 
 const mediaAccept = ".mp4,.webm,.ogv,.mov,.m4v,.mp3,.wav,.m4a,.ogg";
 const resourceAccept = resourceExtensions.map((item) => `.${item}`).join(",");
 const maxFileSize = 2 * 1024 * 1024 * 1024;
+let questionSequence = 0;
 const emptyQuiz = { title: "Lesson Quiz", questions: [] };
 const emptyDraft = { title: "", transcript: "", description: "", summary: "", referenceLinks: "", mainVideo: null, documents: [], durationSeconds: 0, topics: [], quiz: null };
 const editable = (lesson) => ({
   ...emptyDraft,
+  lessonId: lesson?._id || "",
   title: lesson?.title || "",
   transcript: lesson?.transcript || "",
   description: lesson?.description || "",
   summary: lesson?.summary || "",
   referenceLinks: lessonReferences(lesson).map((item) => `${item.label || "Reference"} | ${item.url}`).join("\n"),
-  duration: lesson?.duration || "",
+  ...(lesson?.duration ? { duration: lesson.duration } : {}),
   topics: (lesson?.topics || []).map(({ _id, title, startTimeSeconds, endTimeSeconds }) => ({ _id, title, startTimeSeconds, endTimeSeconds })),
   quiz: lesson?.quiz ? {
     title: lesson.quiz.title || "Lesson Quiz",
     questions: (lesson.quiz.questions || []).map((question) => ({
+      _editorKey: question._id || `draft-question-${++questionSequence}`,
       question: question.question || "",
       type: question.type || "multiple_choice",
       options: (question.options || []).map((option) => option.text || ""),
@@ -36,11 +42,15 @@ const editable = (lesson) => ({
 
 function UploadCard({ kind, title, hint, accept, multiple, files, onFiles, onRemove }) {
   const input = useRef(null);
-  return <section className="lesson-upload-card" onDragOver={(event)=>event.preventDefault()} onDrop={(event)=>{event.preventDefault();onFiles(event.dataTransfer.files)}}>
+  return <section className="lesson-upload-card" onDragOver={(event)=>event.preventDefault()} onDrop={(event)=>{event.preventDefault();if(!event.currentTarget.closest("fieldset")?.disabled)onFiles(event.dataTransfer.files)}}>
     <button type="button" className="lesson-upload-target" onClick={()=>input.current?.click()}><FaCloudUploadAlt/><strong>{title}</strong><span>Drag and drop or browse</span><small>{hint}</small></button>
     <input ref={input} className="lesson-hidden-file" type="file" accept={accept} multiple={multiple} onChange={(event)=>onFiles(event.target.files)}/>
     <div className="lesson-selected-files">{files.map((file,index)=><div key={`${file.name}-${index}`}><span><strong>{file.name}</strong><small>{formatFileSize(file.size)}</small></span><button type="button" onClick={()=>input.current?.click()}>{kind==="video"?"Replace":"Add"}</button><button type="button" onClick={()=>onRemove(index)}>Remove</button></div>)}</div>
   </section>;
+}
+
+function TopicTimeInput({ label, value, onChange }) {
+  return <label>{label}<span className="lesson-topic-time-input"><input type="text" inputMode="decimal" required pattern="[0-9]+:[0-5][0-9]([.][0-9]{1,3})?" placeholder="00:00" aria-label={`${label} (MM:SS)`} value={formatTopicTime(value)} onChange={event => onChange(event.target.value)} onBlur={event => { if(typeof value === "number")return; const seconds = parseTopicTime(event.target.value); if (seconds !== null) onChange(seconds); }} /><small>MM:SS</small></span></label>;
 }
 
 function LessonFields({ value, setValue }) {
@@ -50,14 +60,16 @@ function LessonFields({ value, setValue }) {
     <label><span>Description (Optional)</span><textarea rows="4" value={value.description} onChange={(event)=>setValue({...value,description:event.target.value})}/></label>
     <label><span>Summary (Optional)</span><textarea rows="5" maxLength="5000" value={value.summary} onChange={(event)=>setValue({...value,summary:event.target.value})}/><small>{value.summary.length}/5000</small></label>
     <label><span>References (Optional)</span><textarea rows="4" placeholder="One per line: Label | https://example.com" value={value.referenceLinks} onChange={(event)=>setValue({...value,referenceLinks:event.target.value})}/></label>
-    <fieldset className="wide"><legend>Lesson topics (optional)</legend><small>Enter ordered, non-overlapping start and end times in seconds.</small>
-      {(value.topics || []).map((topic, index) => <div key={topic._id || index}>
-        <label>Topic title<input required maxLength="200" value={topic.title} onChange={event => setValue({...value, topics: value.topics.map((item, i) => i === index ? {...item, title: event.target.value} : item)})}/></label>
-        {["startTimeSeconds", "endTimeSeconds"].map(field => <label key={field}>{field === "startTimeSeconds" ? "Start (seconds)" : "End (seconds)"}<input type="number" required min="0" step="any" value={topic[field]} onChange={event => setValue({...value, topics: value.topics.map((item, i) => i === index ? {...item, [field]: event.target.value === "" ? "" : Number(event.target.value)} : item)})}/></label>)}
-        <button type="button" onClick={() => setValue({...value, topics: value.topics.filter((_, i) => i !== index)})}>Remove topic</button>
-      </div>)}
-      <button type="button" disabled={(value.topics || []).length >= 200} onClick={() => setValue({...value, topics: [...(value.topics || []), {title: "", startTimeSeconds: value.topics?.at(-1)?.endTimeSeconds || 0, endTimeSeconds: ""}]})}>Add topic</button>
-    </fieldset>
+    <section className="lesson-topics wide" aria-label="Lesson topics">
+      <header><div><h3>Lesson topics <small>Optional</small></h3><p>Break the lesson into clear sections. Use MM:SS; topics must be ordered and must not overlap.</p></div><span>{(value.topics || []).length} / 200</span></header>
+      <div className="lesson-topic-list">{(value.topics || []).map((topic, index) => <article className="lesson-topic-card" key={topic._id || `new-${index}`}>
+        <header><strong>Topic {index + 1}</strong><button type="button" className="lesson-topic-remove" aria-label={`Remove topic ${index + 1}`} onClick={() => setValue({...value, topics: value.topics.filter((_, i) => i !== index)})}><FaTrash/> Remove</button></header>
+        <label className="lesson-topic-title">Topic title<input required maxLength="200" placeholder="e.g. Understanding variables" value={topic.title} onChange={event => setValue({...value, topics: value.topics.map((item, i) => i === index ? {...item, title: event.target.value} : item)})}/></label>
+        <div className="lesson-topic-times">{["startTimeSeconds", "endTimeSeconds"].map(field => <TopicTimeInput key={`${field}:${topic._id || index}`} label={field === "startTimeSeconds" ? "Start time" : "End time"} value={topic[field]} onChange={time => setValue({...value, topics: value.topics.map((item, i) => i === index ? {...item, [field]: time} : item)})}/>)}</div>
+      </article>)}</div>
+      {!value.topics?.length && <p className="lesson-topics-empty">No topics yet. Add a topic to help students navigate this lesson.</p>}
+      <button className="lesson-topic-add" type="button" disabled={(value.topics || []).length >= 200} onClick={() => setValue({...value, topics: [...(value.topics || []), {title: "", startTimeSeconds: value.topics?.at(-1)?.endTimeSeconds || 0, endTimeSeconds: ""}]})}><FaPlus/> Add topic</button>
+    </section>
     {Object.hasOwn(value,"duration")&&<label><span>Video duration</span><input value={value.duration} readOnly/><small>Detected from the saved video. Save this lesson to enable automatic completion for older videos.</small></label>}
   </div>;
 }
@@ -68,11 +80,14 @@ function QuizEditor({ courseId, quiz, setQuiz }) {
   // An upload finishes after the tutor may have kept typing, so its result is
   // merged into the latest quiz rather than the one from when it started.
   const latestQuiz = useRef(quiz);
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { latestQuiz.current = quiz; });
 
-  const setMedia = (index, media) => {
+  const setMedia = (questionKey, media) => {
+    if (!mounted.current) return;
     const latest = latestQuiz.current || emptyQuiz;
-    setQuiz({ ...latest, questions: latest.questions.map((item, itemIndex) => (itemIndex === index ? { ...item, media } : item)) });
+    setQuiz({ ...latest, questions: latest.questions.map((item) => (item._editorKey === questionKey ? { ...item, media } : item)) });
   };
 
   const mapQuestions = (transform) => setQuiz({ ...current, questions: current.questions.map(transform) });
@@ -80,7 +95,7 @@ function QuizEditor({ courseId, quiz, setQuiz }) {
   const addQuestion = () => {
     setQuiz({
       ...current,
-      questions: [...(current.questions || []), { question: "", type: "multiple_choice", options: ["", ""], correctOption: 0 }],
+      questions: [...(current.questions || []), { _editorKey: `draft-question-${++questionSequence}`, question: "", type: "multiple_choice", options: ["", ""], correctOption: 0 }],
     });
   };
 
@@ -152,7 +167,7 @@ function QuizEditor({ courseId, quiz, setQuiz }) {
       {quiz.questions.length === 0 && <p className="lesson-quiz-empty">No questions yet. Add your first question below.</p>}
 
       {quiz.questions.map((item, index) => (
-        <article className="lesson-quiz-question" key={`quiz-question-${index}`}>
+        <article className="lesson-quiz-question" key={item._editorKey || `quiz-question-${index}`}>
           <header>
             <span className="lesson-quiz-badge">Question {index + 1}</span>
             <button type="button" className="lesson-quiz-ghost danger" onClick={() => removeQuestion(index)}>
@@ -165,7 +180,7 @@ function QuizEditor({ courseId, quiz, setQuiz }) {
             <textarea rows="3" maxLength="1000" placeholder="Type your question here" value={item.question} onChange={(event) => updateQuestion(index, { question: event.target.value })} />
           </label>
 
-          <QuizAttachment courseId={courseId} media={item.media || null} onChange={(media) => setMedia(index, media)} />
+          <QuizAttachment courseId={courseId} media={item.media || null} onChange={(media) => setMedia(item._editorKey, media)} />
 
           <label className="lesson-quiz-field lesson-quiz-type">
             <span>Question type</span>
@@ -222,24 +237,28 @@ function QuizEditor({ courseId, quiz, setQuiz }) {
 }
 
 function usePersistedMedia(course, lesson, index) {
-  const mediaKey = getLessonPrimaryMedia(lesson)?.storedName || "";
+  const mediaKey = `${lesson?._id}:${course.__v || 0}:${getLessonPrimaryMedia(lesson)?.storedName || ""}`;
   const [state, setState] = useState({ key: "", url: "", error: "" });
   useEffect(() => {
     if (!getLessonPrimaryMedia(lesson)) return undefined;
     const controller = new AbortController();
-    fetch(`${API_ROOT}/courses/${encodeURIComponent(course.slug)}/lessons/${index}/media-access`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, signal: controller.signal })
+    fetch(`${API_ROOT}/courses/${encodeURIComponent(course.slug)}/lessons/${index}/media-access`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "X-Course-Version": String(course.__v || 0) }, signal: controller.signal })
       .then((response)=>{if(!response.ok)throw new Error("The saved video is unavailable.");return response.json()})
-      .then(({url})=>setState({key:mediaKey,url,error:""}))
+      .then(({url})=>{if(!controller.signal.aborted)setState({key:mediaKey,url,error:""})})
       .catch((error)=>{if(error.name!=="AbortError")setState({key:mediaKey,url:"",error:error.message})});
     return ()=>controller.abort();
-  }, [course.slug, index, lesson, mediaKey]);
+  }, [course.slug, course.__v, index, lesson, mediaKey]);
   return state.key===mediaKey?state:{key:mediaKey,url:"",error:""};
 }
 
-export default function LessonManager({ course, form, setForm, add, update, remove, removeMain, selectMain, removeResource, close }) {
-  const [selected, setSelected] = useState(0);
+export default function LessonManager({ course, form, setForm, add, update, remove, removeMain, selectMain, removeResource, reload, close }) {
+  const [selectedId, setSelectedId] = useState(() => course.lessons[0]?._id || "");
+  const selected = course.lessons.findIndex(item => String(item._id) === String(selectedId));
   const lesson = course.lessons[selected];
-  const [draft, setDraft] = useState(()=>editable(lesson));
+  const [draft, setDraft] = useState(()=>({...editable(lesson), courseVersion: course.__v || 0}));
+  const [baseline, setBaseline] = useState(() => draft);
+  const busy = useRef(false);
+  const mediaSelection = useRef(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -248,9 +267,12 @@ export default function LessonManager({ course, form, setForm, add, update, remo
   const toastTimer = useRef(null);
   const primary = getLessonPrimaryMedia(lesson);
   const persistedMedia = usePersistedMedia(course, lesson, selected);
+  const previewIdentity = `${course._id}:${lesson?._id}:${primary?.storedName || ""}`;
+  const activePreview = useRef(null);
+  useEffect(() => { activePreview.current = previewIdentity; return () => { activePreview.current = null; }; }, [previewIdentity]);
   const dirty = Boolean(form.title || form.transcript || form.description || form.summary || form.referenceLinks || form.mainVideo || form.resources.length || form.topics?.length || form.quiz);
 
-  useEffect(()=>{if(!modalOpen)return undefined;const previous=document.body.style.overflow;document.body.style.overflow="hidden";const escape=(event)=>{if(event.key==="Escape"&&(!dirty||window.confirm("Discard unsaved lesson changes?")))setModalOpen(false)};window.addEventListener("keydown",escape);return()=>{document.body.style.overflow=previous;window.removeEventListener("keydown",escape)}},[dirty,modalOpen]);
+  useEffect(()=>{if(!modalOpen)return undefined;const previous=document.body.style.overflow;document.body.style.overflow="hidden";const escape=(event)=>{if(event.key==="Escape"&&!busy.current&&(!dirty||window.confirm("Discard unsaved lesson changes?"))){mediaSelection.current++;setModalOpen(false);setSaveError("");setForm({...emptyDraft,resources:[]})}};window.addEventListener("keydown",escape);return()=>{document.body.style.overflow=previous;window.removeEventListener("keydown",escape)}},[dirty,modalOpen,setForm]);
   useEffect(()=>()=>window.clearTimeout(toastTimer.current),[]);
 
   const validateFiles = (files, allowed, one=false) => {
@@ -260,33 +282,64 @@ export default function LessonManager({ course, form, setForm, add, update, remo
     setMessage(""); return one ? chosen.slice(0,1) : chosen;
   };
   const selectVideo = async (file, update) => {
+    const sequence = ++mediaSelection.current;
+    const identity = previewIdentity;
     try {
       const durationSeconds = await readMediaDuration(file);
+      if (sequence !== mediaSelection.current || (update === setDraft && activePreview.current !== identity)) return;
       update((current) => ({ ...current, mainVideo: file, durationSeconds, ...(Object.hasOwn(current,"duration") ? { duration: formatMediaDuration(durationSeconds) } : {}) }));
       setMessage("");
-    } catch (error) { setMessage(error.message); }
+    } catch (error) { if (sequence === mediaSelection.current) setMessage(error.message); }
   };
-  const openModal = () => { setSaveError(""); setModalOpen(true); };
-  const closeModal = () => { if (!dirty || window.confirm("Discard unsaved lesson changes?")) { setModalOpen(false); setSaveError(""); setForm({...form,...emptyDraft,resources:[]}); } };
-  const createLesson = async (event) => { event.preventDefault(); setSaving(true); try { const saved=await add(); setSelected(Math.max(saved.lessons.length-1,0)); setDraft(editable(saved.lessons.at(-1))); setModalOpen(false); setMessage(""); setSaveError(""); } catch (error) { setSaveError(error.message); } finally { setSaving(false); } };
+  const resetDraft = (item, savedCourse = course) => {
+    mediaSelection.current++;
+    const next = { ...editable(item), courseVersion: savedCourse.__v || 0 };
+    setDraft(next); setBaseline(next); setSelectedId(item?._id || ""); setMessage(""); setSaveError("");
+  };
+  const mayDiscard = () => !hasLessonEdits(draft, baseline) || window.confirm("Discard unsaved changes to this lesson?");
+  const selectLesson = item => { if (busy.current || String(item._id) === String(selectedId)) return; if (mayDiscard()) resetDraft(item); };
+  const closeEditor = () => { if (!busy.current && mayDiscard()) close(); };
+  const openModal = () => { if (busy.current || !mayDiscard()) return; resetDraft(lesson); setModalOpen(true); };
+  const closeModal = () => { if (busy.current) return; if (!dirty || window.confirm("Discard unsaved lesson changes?")) { mediaSelection.current++; setModalOpen(false); setSaveError(""); setForm({...emptyDraft,resources:[]}); } };
+  const createLesson = async event => {
+    event.preventDefault(); if (busy.current) return; busy.current = true; setSaving(true);
+    try { const saved = await add(); resetDraft(saved.lessons.at(-1), saved); setModalOpen(false); }
+    catch (error) { setSaveError(error.message); } finally { busy.current = false; setSaving(false); }
+  };
   const showToast = (text) => { window.clearTimeout(toastTimer.current); setToast(text); toastTimer.current=window.setTimeout(()=>setToast(""),3000); };
-  const saveLesson = async (event) => { event.preventDefault(); setSaving(true); try { const saved=await update(lesson._id,draft); const savedLesson=saved.lessons.find((item)=>String(item._id)===String(lesson._id));setDraft(editable(savedLesson));setMessage("");setSaveError("");showToast("Lesson saved"); } catch (error) { setSaveError(error.message); } finally { setSaving(false); } };
-  const accessResource = async (resource, action) => { const response=await fetch(`${API_ROOT}/courses/${encodeURIComponent(course.slug)}/lessons/${selected}/resources/${resource._id}/${action}`,{headers:{Authorization:`Bearer ${localStorage.getItem("token")}`}});if(!response.ok){setMessage("This resource is unavailable.");return}const url=URL.createObjectURL(await response.blob());if(action==="view")window.open(url,"_blank","noopener,noreferrer");else{const link=document.createElement("a");link.href=url;link.download=resource.originalName;link.click()}window.setTimeout(()=>URL.revokeObjectURL(url),60000)};
+  const saveLesson = async event => {
+    event.preventDefault(); if (busy.current) return; busy.current = true; setSaving(true);
+    try {
+      if (!lesson || String(draft.lessonId) !== String(lesson._id)) throw new Error("Select the lesson again before saving.");
+      const saved = await update(lesson._id, draft);
+      const savedLesson = saved.lessons.find(item => String(item._id) === String(draft.lessonId));
+      if (!savedLesson) throw new Error("The lesson is no longer available. Your draft has been kept.");
+      resetDraft(savedLesson, saved); showToast("Lesson saved");
+    } catch (error) { setSaveError(error.message); } finally { busy.current = false; setSaving(false); }
+  };
+  const changeMedia = async operation => {
+    if (busy.current || !mayDiscard()) return;
+    busy.current = true; setSaving(true); mediaSelection.current++;
+    try { const saved = await operation(); resetDraft(saved.lessons.find(item => String(item._id) === String(selectedId)) || saved.lessons[0], saved); }
+    catch (error) { setSaveError(error.message); } finally { busy.current = false; setSaving(false); }
+  };
+  const reloadEditor = () => changeMedia(reload);
+  const accessResource = async (resource, action) => { const response=await fetch(`${API_ROOT}/courses/${encodeURIComponent(course.slug)}/lessons/${selected}/resources/${resource._id}/${action}`,{headers:{Authorization:`Bearer ${localStorage.getItem("token")}`,"X-Course-Version":String(course.__v||0)}});if(!response.ok){setMessage("This resource is unavailable.");return}const url=URL.createObjectURL(await response.blob());if(action==="view")window.open(url,"_blank","noopener,noreferrer");else{const link=document.createElement("a");link.href=url;link.download=resource.originalName;link.click()}window.setTimeout(()=>URL.revokeObjectURL(url),60000)};
 
-  return <div className="lesson-studio"><header><div><FaGraduationCap/><strong>EDUNOVA</strong><span>{course.name}</span></div><button onClick={close}>Close</button></header><div className="lesson-studio-layout"><main>
+  return <div className="lesson-studio"><header><div><FaGraduationCap/><strong>EDUNOVA</strong><span>{course.name}</span></div><button disabled={saving} onClick={closeEditor}>Close</button></header><div className="lesson-studio-layout"><main>
     {message&&<p className="lesson-manager-message" role="status">{message}</p>}
     {!lesson?<><div className="lesson-editor-heading"><h2>Edit Lesson</h2><button className="primary" type="button" onClick={openModal}><FaPlus/> New Lesson</button></div><div className="lesson-preview empty"><FaBookOpen/><strong>Select a lesson or add the first one</strong></div></>:<>
-      <div className="lesson-preview">{primary&&persistedMedia.url?<video key={persistedMedia.url} src={persistedMedia.url} controls onLoadedMetadata={(event)=>{if(!/^\d+:\d{2}(?::\d{2})?$/.test(String(lesson.duration||"")))setDraft((current)=>current.mainVideo?current:{...current,duration:formatMediaDuration(event.currentTarget.duration)})}} onError={()=>setMessage("This video format is not supported by your browser.")}/>:<div className="lesson-preview empty"><FaBookOpen/><strong>{persistedMedia.error||"No lesson video has been uploaded."}</strong></div>}</div>
-      <form className="form-grid lesson-builder lesson-editor" onSubmit={saveLesson}><div className="lesson-editor-heading wide"><h2>Edit Lesson</h2><button className="primary" type="button" onClick={openModal}><FaPlus/> New Lesson</button></div><div className="lesson-upload-grid wide">
-        <UploadCard kind="video" title="Replace lesson video" hint="MP4, WebM or Ogg · one file" accept={mediaAccept} files={draft.mainVideo?[draft.mainVideo]:[]} onFiles={(files)=>{const chosen=validateFiles(files,mediaExtensions,true);if(chosen[0])void selectVideo(chosen[0],setDraft)}} onRemove={()=>setDraft({...draft,mainVideo:null,durationSeconds:0})}/>
+      <div className="lesson-preview">{primary&&persistedMedia.url?<video key={persistedMedia.url} src={persistedMedia.url} controls onLoadedMetadata={event => captureLessonMetadata(event, { lessonId: lesson._id, savedDuration: lesson.duration, isCurrent: () => activePreview.current === previewIdentity, setDraft })} onError={()=>setMessage("This video format is not supported by your browser.")}/>:<div className="lesson-preview empty"><FaBookOpen/><strong>{persistedMedia.error||"No lesson video has been uploaded."}</strong></div>}</div>
+      <form className="form-grid lesson-builder lesson-editor" onSubmit={saveLesson}><fieldset className="lesson-edit-controls wide" disabled={saving}><div className="lesson-editor-heading wide"><h2>Edit Lesson</h2><button className="primary" type="button" onClick={openModal}><FaPlus/> New Lesson</button></div><div className="lesson-upload-grid wide">
+        <UploadCard kind="video" title="Replace lesson video" hint="MP4, WebM or Ogg · one file" accept={mediaAccept} files={draft.mainVideo?[draft.mainVideo]:[]} onFiles={(files)=>{const chosen=validateFiles(files,mediaExtensions,true);if(chosen[0])void selectVideo(chosen[0],setDraft)}} onRemove={()=>{mediaSelection.current++;setDraft({...draft,mainVideo:null,durationSeconds:0,duration:lesson?.duration||""})}}/>
         <UploadCard kind="documents" title="Add supporting documents" hint="PDF, Office, TXT, images and additional media" accept={resourceAccept} multiple files={draft.documents} onFiles={(files)=>setDraft({...draft,documents:[...draft.documents,...validateFiles(files,resourceExtensions)]})} onRemove={(index)=>setDraft({...draft,documents:draft.documents.filter((_,item)=>item!==index)})}/>
-      </div><div className="wide lesson-current-media"><strong>Existing main video</strong><span>{primary?.originalName||"None"}</span>{primary&&<button type="button" onClick={()=>removeMain(lesson._id)}>Remove Video</button>}</div><LessonFields value={draft} setValue={setDraft}/><QuizEditor courseId={course._id} quiz={draft.quiz} setQuiz={(quiz) => setDraft((current)=>({...current, quiz}))}/>{saveError&&<p className="lesson-form-error wide" role="alert">{saveError}</p>}<footer className="lesson-editor-actions wide">{toast&&<span className="lesson-save-toast" role="status" aria-live="polite">{toast}</span>}<button type="button" onClick={()=>{setDraft(editable(lesson));setMessage("");setSaveError("")}}>Cancel</button><button className="primary" disabled={saving}>{saving?"Saving...":"Save"}</button></footer></form>
-      {lesson.resources?.length>0&&<section className="lesson-resource-status-list" aria-label="Existing supporting resources">{lesson.resources.filter((resource)=>String(primary?.resourceId)!==String(resource._id)).map((resource)=><div key={resource._id}><div><strong>{resource.originalName}</strong><small>{fileType(resource)} · {formatFileSize(resource.size)} · {isMediaResource(resource)?"Supporting video":"Supporting resource"}</small></div><span>{canPreviewResource(resource)&&<button type="button" onClick={()=>accessResource(resource,"view")}>View</button>}<button type="button" onClick={()=>accessResource(resource,"download")}>Download</button>{isMediaResource(resource)&&<button type="button" onClick={()=>selectMain(lesson._id,resource._id)}>Set as main</button>}<button type="button" onClick={()=>removeResource(lesson._id,resource._id)}>Delete</button></span></div>)}</section>}
+      </div><div className="wide lesson-current-media"><strong>Existing main video</strong><span>{primary?.originalName||"None"}</span>{primary&&<button type="button" disabled={saving} onClick={()=>changeMedia(()=>removeMain(lesson._id))}>Remove Video</button>}</div><LessonFields key={draft.lessonId} value={draft} setValue={setDraft}/><QuizEditor key={draft.lessonId} courseId={course._id} quiz={draft.quiz} setQuiz={(quiz) => setDraft((current)=>({...current, quiz}))}/>{saveError&&<div className="lesson-form-error wide" role="alert"><p>{saveError}</p><button type="button" disabled={saving} onClick={reloadEditor}>Reload saved lesson</button><small>Reload asks before discarding your draft.</small></div>}<footer className="lesson-editor-actions wide">{toast&&<span className="lesson-save-toast" role="status" aria-live="polite">{toast}</span>}<button type="button" disabled={saving} onClick={()=>resetDraft(lesson)}>Cancel</button><button className="primary" disabled={saving}>{saving?"Saving...":"Save"}</button></footer></fieldset></form>
+      {lesson.resources?.length>0&&<section className="lesson-resource-status-list" aria-label="Existing supporting resources">{lesson.resources.filter((resource)=>String(primary?.resourceId)!==String(resource._id)).map((resource)=><div key={resource._id}><div><strong>{resource.originalName}</strong><small>{fileType(resource)} · {formatFileSize(resource.size)} · {isMediaResource(resource)?"Supporting video":"Supporting resource"}</small></div><span>{canPreviewResource(resource)&&<button type="button" onClick={()=>accessResource(resource,"view")}>View</button>}<button type="button" onClick={()=>accessResource(resource,"download")}>Download</button>{isMediaResource(resource)&&<button type="button" disabled={saving} onClick={()=>changeMedia(()=>selectMain(lesson._id,resource._id))}>Set as main</button>}<button type="button" disabled={saving} onClick={()=>changeMedia(()=>removeResource(lesson._id,resource._id))}>Delete</button></span></div>)}</section>}
     </>}
-  </main><aside><header><h2>Course content</h2><span>{course.lessons.length} lessons</span></header>{course.lessons.map((item,index)=><button className={selected===index?"active":""} onClick={()=>{setSelected(index);setDraft(editable(item));setMessage("");setSaveError("")}} key={item._id}><span>{String(index+1).padStart(2,"0")}</span><div><strong>{item.title}</strong><small>{getLessonPrimaryMedia(item)?"Main video":"No video"} · {item.resources?.length||0} resources</small></div><i onClick={(event)=>{event.stopPropagation();remove(item._id)}}>Delete</i></button>)}</aside></div>
-  {modalOpen&&<div className="lesson-modal-overlay" role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)closeModal()}}><section className="lesson-modal" role="dialog" aria-modal="true" aria-labelledby="add-lesson-title"><header><div><small>COURSE CONTENT</small><h2 id="add-lesson-title">Add Lesson</h2></div><button type="button" aria-label="Close Add Lesson" onClick={closeModal}><FaTimes/></button></header><form onSubmit={createLesson}><div className="lesson-upload-grid">
-    <UploadCard kind="video" title="Upload lesson video" hint="MP4, WebM or Ogg · one file" accept={mediaAccept} files={form.mainVideo?[form.mainVideo]:[]} onFiles={(files)=>{const chosen=validateFiles(files,mediaExtensions,true);if(chosen[0])void selectVideo(chosen[0],setForm)}} onRemove={()=>setForm({...form,mainVideo:null,durationSeconds:0})}/>
+  </main><aside><header><h2>Course content</h2><span>{course.lessons.length} lessons</span></header>{course.lessons.map((item,index)=><button disabled={saving} className={selected===index?"active":""} onClick={()=>selectLesson(item)} key={item._id}><span>{String(index+1).padStart(2,"0")}</span><div><strong>{item.title}</strong><small>{getLessonPrimaryMedia(item)?"Main video":"No video"} · {item.resources?.length||0} resources</small></div><i onClick={(event)=>{event.stopPropagation();if(!saving && window.confirm(`Delete ${item.title}?`))void changeMedia(()=>remove(item._id))}}>Delete</i></button>)}</aside></div>
+  {modalOpen&&<div className="lesson-modal-overlay" role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)closeModal()}}><section className="lesson-modal" role="dialog" aria-modal="true" aria-labelledby="add-lesson-title"><header><div><small>COURSE CONTENT</small><h2 id="add-lesson-title">Add Lesson</h2></div><button type="button" aria-label="Close Add Lesson" onClick={closeModal}><FaTimes/></button></header><form onSubmit={createLesson}><fieldset className="lesson-edit-controls" disabled={saving}><div className="lesson-upload-grid">
+    <UploadCard kind="video" title="Upload lesson video" hint="MP4, WebM or Ogg · one file" accept={mediaAccept} files={form.mainVideo?[form.mainVideo]:[]} onFiles={(files)=>{const chosen=validateFiles(files,mediaExtensions,true);if(chosen[0])void selectVideo(chosen[0],setForm)}} onRemove={()=>{mediaSelection.current++;setForm({...form,mainVideo:null,durationSeconds:0})}}/>
     <UploadCard kind="documents" title="Upload documents" hint="PDF, Office, TXT, images and additional media" accept={resourceAccept} multiple files={form.resources} onFiles={(files)=>setForm({...form,resources:[...form.resources,...validateFiles(files,resourceExtensions)]})} onRemove={(index)=>setForm({...form,resources:form.resources.filter((_,item)=>item!==index)})}/>
-  </div><LessonFields value={form} setValue={setForm}/><QuizEditor courseId={course._id} quiz={form.quiz} setQuiz={(quiz) => setForm((current)=>({...current, quiz}))}/>{saveError&&<p className="lesson-form-error" role="alert">{saveError}</p>}<footer><button type="button" onClick={closeModal}>Cancel</button><button className="primary" disabled={saving}>{saving?"Saving lesson...":"Save Lesson"}</button></footer></form></section></div>}
+  </div><LessonFields value={form} setValue={setForm}/><QuizEditor courseId={course._id} quiz={form.quiz} setQuiz={(quiz) => setForm((current)=>({...current, quiz}))}/>{saveError&&<p className="lesson-form-error" role="alert">{saveError}</p>}<footer><button type="button" onClick={closeModal}>Cancel</button><button className="primary" disabled={saving}>{saving?"Saving lesson...":"Save Lesson"}</button></footer></fieldset></form></section></div>}
   </div>;
 }

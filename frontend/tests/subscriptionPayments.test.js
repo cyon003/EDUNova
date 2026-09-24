@@ -1,3 +1,4 @@
+import { purchaseErrorMessage } from "../src/utils/purchaseCourse.js";
 import test from "node:test";
 import { setImmediate } from "node:timers";
 import assert from "node:assert/strict";
@@ -11,7 +12,7 @@ async function compile(file, name, scope) {
   const source = await readFile(new URL(file, import.meta.url), "utf8");
   const clean = source.replace(/^import[\s\S]*?;\n/gm, "").replace("export default ", "");
   const result = await transformWithOxc(clean, `${name}.jsx`, { jsx: { runtime: "classic" } });
-  return new Function("React", ...Object.keys(scope), `${result.code}; return ${name};`)(React, ...Object.values(scope));
+  return new Function("React", "purchaseErrorMessage", ...Object.keys(scope), `${result.code}; return ${name};`)(React, purchaseErrorMessage, ...Object.values(scope));
 }
 const Link = ({ to, children, ...props }) => React.createElement("a", { href: to, ...props }, children);
 const Summary = await compile("../src/components/SubscriptionSummary.jsx", "SubscriptionSummary", { Link });

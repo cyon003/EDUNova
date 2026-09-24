@@ -32,6 +32,7 @@ import DashboardSearch from "../components/DashboardSearch";
 import NotificationBell from "../components/NotificationBell";
 import { API_ROOT, courseDuration } from "../utils/courseApi";
 import { nextIncompleteLessonIndex } from "../utils/lessonProgress";
+import { localDateKey, monthDays, shiftMonth, scheduledLessonDates } from "../utils/studyPlanner";
 import { logout } from "../utils/authClient";
 
 const dailyPlan = [
@@ -73,6 +74,21 @@ function formatNoteTimestamp(value) {
 function StudentDashboard() {
   const navigate = useNavigate();
   const user = getStoredUser();
+  const [today, setToday] = useState(() => new Date());
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [selectedDate, setSelectedDate] = useState(() => localDateKey(new Date()));
+  const [progressReload, setProgressReload] = useState(0);
+  const [achievements, setAchievements] = useState(null);
+  const [progressError, setProgressError] = useState("");
+  const calendar = monthDays(calendarMonth);
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === "hidden") return; setToday(new Date()); setProgressReload(value => value + 1); };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("edunova-learning-updated", refresh);
+    const timer = window.setInterval(refresh, 60000);
+    return () => { window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); window.removeEventListener("edunova-learning-updated", refresh); window.clearInterval(timer); };
+  }, []);
   const [activeSection, setActiveSection] = useState("dashboard");
   const notesStorageKey = `edunova-notes-${user?.id || "student"}`;
   const [notes, setNotes] = useState(() => {
@@ -108,7 +124,7 @@ function StudentDashboard() {
   const lessonNotes = notes.filter((note) => note.sourceType === "saved_from_summary");
   const personalNotes = notes.filter((note) => note.sourceType !== "saved_from_summary");
   const activeNotes = noteType === "summaries" ? lessonNotes : personalNotes;
-  const visibleNotes = activeNotes.filter((note) => (noteFolder === "All Notes" || note.course === noteFolder) && `${note.course} ${note.title} ${note.body}`.toLowerCase().includes(noteSearch.trim().toLowerCase()));
+  const visibleNotes = activeNotes.filter((note) => (noteFolder === "All Notes" || note.course === noteFolder) && `${note.course} ${note.lessonTitle} ${note.title} ${note.body}`.toLowerCase().includes(noteSearch.trim().toLowerCase()));
   const selectedSummary = activeNotes.find((note) => note.id === selectedSummaryId) || activeNotes[0] || null;
   const selectedManualNote = notes.find((note) => note.id === noteId);
 
@@ -204,14 +220,15 @@ function StudentDashboard() {
         const response = await fetch(`${API_ROOT}/enrollments/me`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
         if (!response.ok) throw new Error("Unable to load progress");
         buildStats(await response.json());
+        setProgressError("");
       } catch (error) {
         if (error.name === "AbortError") return;
-        buildStats([]);
+        setProgressError("Unable to refresh learning progress. Please try again.");
       }
     };
     loadStats();
     return () => controller.abort();
-  }, []);
+  }, [progressReload, activeSection]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -227,7 +244,8 @@ function StudentDashboard() {
         if (!response.ok) throw new Error("Unable to load your weekly goal.");
         const goal = await response.json();
         setWeeklyGoal(goal);
-        setWeeklyGoalInput(goal.weeklyGoalMinutes ? String(goal.weeklyGoalMinutes) : "");
+        setAchievements(goal.achievements);
+        if (!weeklyGoalEditing) setWeeklyGoalInput(goal.weeklyGoalMinutes ? String(goal.weeklyGoalMinutes) : "");
         setWeeklyGoalError("");
       } catch (error) {
         if (error.name !== "AbortError") setWeeklyGoalError(error.message);
@@ -237,7 +255,7 @@ function StudentDashboard() {
     };
     loadWeeklyGoal();
     return () => controller.abort();
-  }, [weeklyGoalReload, activeSection]);
+  }, [weeklyGoalReload, activeSection, progressReload, weeklyGoalEditing]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -258,7 +276,7 @@ function StudentDashboard() {
     };
     loadNotes();
     return () => controller.abort();
-  }, [notesStorageKey]);
+  }, [notesStorageKey, notesOpen, progressReload]);
 
   const handleLogout = async () => {
     await logout();
@@ -489,7 +507,7 @@ function StudentDashboard() {
           <div>
             <span>KEEP LEARNING</span>
             <h2>You’re making great progress</h2>
-            <p>Complete today’s lesson to keep your seven-day learning streak alive.</p>
+            <p>Continue learning today to build your learning streak.</p>
             <Link to={continueDestination} state={{ from: "/student-dashboard" }}>Continue learning <FaChevronRight /></Link>
           </div>
           <div className="student-streak"><FaFire /><strong>{learningStats.streak}</strong><span>day streak</span></div>
@@ -584,27 +602,23 @@ function StudentDashboard() {
           <section className="student-panel student-achievements-panel" id="student-achievements">
             <header><div><span>YOUR PROGRESS</span><h2>Achievements</h2></div><FaTrophy /></header>
             <div className="student-achievement-list">
-              <article><span><FaFire /></span><div><strong>7-Day Streak</strong><small>Learned every day this week</small></div></article>
-              <article><span><FaBookOpen /></span><div><strong>Lesson Explorer</strong><small>Completed 24 lessons</small></div></article>
-              <article className="locked"><span><FaTrophy /></span><div><strong>Course Finisher</strong><small>Complete your first full course</small></div></article>
+              {achievements?.map(achievement => <article className={achievement.earned ? "earned" : "locked"} key={achievement.id}><span>{achievement.id === "streak" ? <FaFire /> : achievement.id === "lessons" ? <FaBookOpen /> : <FaTrophy />}</span><div><strong>{achievement.title}</strong><small>{achievement.detail}</small><small>{achievement.earned ? "Earned" : "Locked"}</small></div></article>)}
+              {!achievements && <p>{weeklyGoalError || "Loading achievements…"}</p>}
+              {progressError && <p role="alert">{progressError}<button type="button" onClick={() => setProgressReload(value => value + 1)}>Retry</button></p>}
             </div>
           </section>
 
           <section className="student-panel student-calendar-panel" id="student-calendar">
-            <header><div><span>STUDY PLANNER</span><h2>August 2026</h2></div><FaCalendarAlt /></header>
+            <header><div><span>STUDY PLANNER</span><h2>{calendarMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</h2></div><FaCalendarAlt /></header>
+            <nav className="student-calendar-navigation" aria-label="Calendar navigation"><button type="button" aria-label="Previous month" onClick={() => setCalendarMonth(month => shiftMonth(month, -1))}>‹</button><button type="button" onClick={() => { const now = new Date(); setToday(now); setCalendarMonth(new Date(now.getFullYear(), now.getMonth(), 1)); setSelectedDate(localDateKey(now)); }}>Today</button><button type="button" aria-label="Next month" onClick={() => setCalendarMonth(month => shiftMonth(month, 1))}>›</button></nav>
             <div className="student-calendar-weekdays">
-              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span key={day}>{day}</span>)}
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => <span key={day}>{day}</span>)}
             </div>
             <div className="student-calendar-grid">
-              {Array.from({ length: 6 }, (_, index) => <span className="outside" key={`blank-${index}`} />)}
-              {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => (
-                <button type="button" className={day === 15 ? "today" : undefined} key={day} aria-label={`August ${day}`}>
-                  <span>{day}</span>
-                  {[17, 21, 24, 28].includes(day) && <i />}
-                </button>
-              ))}
+              {Array.from({ length: calendar.offset }, (_, index) => <span className="outside" key={`blank-${index}`} />)}
+              {calendar.days.map(date => { const key = localDateKey(date), isToday = key === localDateKey(today), scheduled = scheduledLessonDates.has(key); return <button type="button" className={[isToday ? "today" : "", key === selectedDate ? "selected" : ""].filter(Boolean).join(" ")} key={key} aria-current={isToday ? "date" : undefined} aria-pressed={key === selectedDate} aria-label={`${date.toLocaleDateString(undefined, { dateStyle: "full" })}${scheduled ? ", Lesson scheduled" : ""}`} onClick={() => setSelectedDate(key)}><span>{date.getDate()}</span>{scheduled && <i />}</button>; })}
             </div>
-            <div className="student-calendar-legend"><span><i /> Lesson</span></div>
+            <div className="student-calendar-legend"><span><i /> Lesson</span><span>Outline: today · Filled: selected</span></div>
           </section>
 
           {notesOpen && <div className="student-notes-overlay">
@@ -629,7 +643,7 @@ function StudentDashboard() {
                   {noteType === "summaries" && <div className="student-note-course-filters">{noteFolders.map((folder) => <button type="button" className={noteFolder === folder ? "active" : undefined} onClick={() => setNoteFolder(folder)} key={folder}>{folder}</button>)}</div>}
                   <div className="student-note-browser-heading"><strong>{noteType === "summaries" ? noteFolder : "All Notes"}</strong><small>{visibleNotes.length} {visibleNotes.length === 1 ? "note" : "notes"}</small></div>
                   <div className="student-saved-notes">
-                    {visibleNotes.length === 0 ? <div className="student-notes-empty"><FaStickyNote /><p>{noteType === "summaries" ? "Your lesson summaries will appear here." : "Create your first personal note."}</p></div> : visibleNotes.map((note) => (
+                    {visibleNotes.length === 0 ? <div className="student-notes-empty"><FaStickyNote /><p>{noteType === "summaries" ? "Open a lesson, choose Summary, then select “Save to Lesson Notes”. Your saved summary will appear here with its course and lesson title." : "Create your first personal note."}</p></div> : visibleNotes.map((note) => (
                       <article key={note.id}><button type="button" onClick={() => noteType === "summaries" ? viewSummary(note) : viewManualNote(note)}><span>{note.course}{note.lessonTitle ? ` · ${note.lessonTitle}` : ""}</span><strong>{note.title}</strong><p>{note.body}</p><small>{noteType === "summaries" ? "Read summary" : `Updated ${formatNoteTimestamp(note.updatedAt)}`}</small></button></article>
                     ))}
                   </div>

@@ -4,6 +4,7 @@ const noteSchema = new mongoose.Schema(
   {
     student: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     course: { type: mongoose.Schema.Types.ObjectId, ref: "Course", default: null },
+    sourceType: { type: String, enum: ["personal", "saved_from_summary"], default: "personal" },
     lessonIndex: { type: Number, default: null, min: 0 },
     lessonTitle: { type: String, default: "", trim: true },
     title: { type: String, required: true, trim: true, maxlength: 160 },

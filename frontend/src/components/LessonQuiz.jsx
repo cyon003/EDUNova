@@ -11,7 +11,7 @@ const formatDate = (value) => (value ? new Intl.DateTimeFormat("en", { dateStyle
 // The quiz prop comes from the lesson and never contains the answer key.
 // Grading and storing results happen on the server; this component only sends
 // the option numbers the student picked.
-export default function LessonQuiz({ courseSlug, lessonIndex, quiz, onBack }) {
+export default function LessonQuiz({ courseSlug, lessonIndex, courseVersion, quiz, onBack }) {
   const questions = quiz?.questions || [];
   const [answers, setAnswers] = useState(() => questions.map(() => null));
   const [result, setResult] = useState(null);
@@ -43,7 +43,7 @@ export default function LessonQuiz({ courseSlug, lessonIndex, quiz, onBack }) {
     setSubmitting(true);
     setError("");
     try {
-      const response = await fetch(attemptsUrl, { method: "POST", headers: authHeaders(), body: JSON.stringify({ answers }) });
+      const response = await fetch(attemptsUrl, { method: "POST", headers: { ...authHeaders(), "X-Course-Version": String(courseVersion) }, body: JSON.stringify({ answers }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.message || "Unable to submit the quiz");
       setResult(data.attempt);

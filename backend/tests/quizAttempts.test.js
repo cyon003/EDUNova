@@ -57,7 +57,7 @@ function makeCourse({ withQuiz = true } = {}) {
 let course;
 
 async function call(method, path, body, authorization = token) {
-  const headers = { "Content-Type": "application/json" };
+  const headers = { "Content-Type": "application/json", "X-Course-Version": "0" };
   if (authorization) headers.Authorization = `Bearer ${authorization}`;
   const response = await fetch(`http://127.0.0.1:${server.address().port}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   const text = await response.text();
@@ -65,6 +65,9 @@ async function call(method, path, body, authorization = token) {
 }
 
 test.before(async () => {
+  const mongoose = require("mongoose");
+  test.mock.method(mongoose.connection, "transaction", async work => work());
+  test.mock.method(Course, "updateOne", async () => ({ matchedCount: 1 }));
   Object.assign(original, {
     findById: User.findById, findOne: Course.findOne, find: Course.find, exists: Enrollment.exists,
     create: QuizAttempt.create, countDocuments: QuizAttempt.countDocuments, attemptFind: QuizAttempt.find,

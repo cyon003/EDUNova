@@ -219,11 +219,10 @@ test("lesson completion uses the authenticated endpoint and synchronizes its sig
   assert.equal(bulkOperations[0].updateOne.upsert, true);
 });
 
-test("lesson and course deletion clean signals while resource deletion preserves them", async () => {
+test("course deletion cleans signals while resource deletion preserves them", async () => {
   currentUser = { _id: ids.tutor, role: "tutor", tokenVersion: 0, accountStatus: "approved" };
   const tutorToken = auth(ids.tutor, "tutor");
-  assert.equal((await request("DELETE", `/api/tutor/courses/${ids.course}/lessons/${ids.lesson}`, undefined, tutorToken)).status, 200);
-  assert.deepEqual(deletedFilters.at(-1), { course: ids.course, lessonId: ids.lesson });
+  // Transactional lesson deletion is covered by lessonDeletionMongo.test.js.
   activeCourse = fakeCourse(); deletedFilters = [];
   activeCourse.lessons[0].resources = [{ _id: ids.otherLesson, storedName: "missing.pdf", deleteOne() { activeCourse.lessons[0].resources.length = 0; } }];
   activeCourse.lessons[0].resources.id = (id) => activeCourse.lessons[0].resources.find((item) => String(item._id) === String(id));

@@ -26,6 +26,10 @@ const { statedDurationSeconds } = require("../services/lessonWatchService");
 const { sendQuizMediaFile, QUIZ_MEDIA_TYPES, MAX_IMAGE_BYTES, MAX_AUDIO_BYTES, newStoredName, describeQuizMedia, quizMediaNames, deleteQuizMediaFiles, quizMediaDirectory } = require("../utils/quizMedia");
 
 const { topicFields } = require("../utils/lessonTopics");
+const { deleteLesson } = require("../services/lessonDeletionService");
+const { mediaFile, lessonMediaFiles, prepareMediaRecovery, finishMediaRecovery } = require("../services/mediaRecoveryService");
+const recoveryMetadata = (course, lesson, operation) => ({ operation, courseId: String(course._id), lessonId: String(lesson._id), lesson: lesson.toObject ? lesson.toObject() : lesson });
+const mainMediaFiles = lesson => lessonMediaFiles(lesson).filter(file => ["course-videos", "lesson-posters"].includes(file.directory));
 const router = express.Router();
 const LESSON_SUMMARY_MAX_LENGTH = 5000;
 const LESSON_TRANSCRIPT_MAX_LENGTH = 50000;
@@ -35,12 +39,6 @@ const videoDirectory = uploadDirectory("course-videos");
 const posterDirectory = uploadDirectory("lesson-posters");
 const execFileAsync = promisify(execFile);
 const lessonResourceDirectory = uploadDirectory("lesson-resources");
-function safeResourcePath(storedName) {
-  if (typeof storedName !== "string" || !storedName || path.basename(storedName) !== storedName) throw new Error("unsafe_path");
-  const resolved = path.resolve(lessonResourceDirectory, storedName);
-  if (!resolved.startsWith(`${path.resolve(lessonResourceDirectory)}${path.sep}`)) throw new Error("unsafe_path");
-  return resolved;
-}
 const coverDirectory = uploadDirectory("course-covers");
 const uploadCover = multer({
   storage: multer.diskStorage({
@@ -468,12 +466,13 @@ router.patch("/courses/:courseId/lessons/:lessonId", async (req, res) => {
     Object.assign(lesson, lessonContent.values, topicContent.values);
     if (referenceContent.references) lesson.references = referenceContent.references;
     const previousQuizMedia = quizContent.values ? quizMediaNames(lesson.quiz) : [];
+    const keptQuizMedia = new Set(quizMediaNames(quizContent.values?.quiz));
+    const removedQuizMedia = previousQuizMedia.filter(name => !keptQuizMedia.has(name));
+    const recovery = removedQuizMedia.length ? await prepareMediaRecovery(removedQuizMedia.map(name => mediaFile("quiz-media", name)), recoveryMetadata(course, lesson, "edit-quiz")) : null;
     if (quizContent.values) lesson.quiz = quizContent.values.quiz;
     if ((contentChanged || quizContent.values) && course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
     await course.save();
-    // Attachments that are no longer part of the quiz are removed from disk.
-    const keptQuizMedia = new Set(quizMediaNames(lesson.quiz));
-    deleteQuizMediaFiles(previousQuizMedia.filter((storedName) => !keptQuizMedia.has(storedName)));
+    await finishMediaRecovery(recovery, course.lessons);
     return res.json(course);
   } catch (error) { return res.status(500).json({ message: "Unable to update lesson", error: error.message }); }
 });
@@ -484,18 +483,19 @@ router.post("/courses/:courseId/lessons/:lessonId/main-media", uploadLessonFiles
     const course = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id });
     const lesson = course?.lessons.id(req.params.lessonId);
     if (!lesson) { fs.unlink(req.file.path, () => {}); return res.status(404).json({ message: "Lesson not found" }); }
-    const previous = lesson.primaryMedia?.storedName && lesson.primaryMedia.storage === "course-videos" ? lesson.primaryMedia.storedName : null;
     const durationSeconds = Number(req.body.durationSeconds);
     if (req.body.durationSeconds !== undefined && (!Number.isSafeInteger(durationSeconds) || durationSeconds <= 0 || durationSeconds > 86400)) {
       fs.unlink(req.file.path, () => {});
       return res.status(400).json({ message: "A valid video duration is required" });
     }
+    const recovery = await prepareMediaRecovery(mainMediaFiles(lesson), recoveryMetadata(course, lesson, "replace-main-media"));
     lesson.primaryMedia = mediaDescriptor(req.file);
+    lesson.videoUrl = "";
     lesson.duration = req.body.durationSeconds === undefined ? "Provider managed" : `${Math.floor(durationSeconds / 60)}:${String(durationSeconds % 60).padStart(2, "0")}`;
     lesson.posterUrl = await createLessonPoster(req.file);
     lesson.primaryMediaRemoved = false;
     await course.save();
-    if (previous) fs.unlink(path.join(videoDirectory, path.basename(previous)), () => {});
+    await finishMediaRecovery(recovery, course.lessons);
     return res.json(course);
   } catch (error) { if (req.file) fs.unlink(req.file.path, () => {}); return res.status(500).json({ message: "Unable to replace main lesson media" }); }
 });
@@ -506,11 +506,13 @@ router.patch("/courses/:courseId/lessons/:lessonId/main-media", async (req, res)
     const lesson = course?.lessons.id(req.params.lessonId);
     const resource = lesson?.resources.id(req.body.resourceId);
     if (!resource || !(/^(video|audio)\//.test(resource.mimeType || "") || mediaExtensions.has(path.extname(resource.originalName).toLowerCase()))) return res.status(400).json({ message: "Choose an uploaded video or audio resource" });
-    const previous = lesson.primaryMedia?.storage === "course-videos" ? lesson.primaryMedia.storedName : "";
+    const recovery = await prepareMediaRecovery(mainMediaFiles(lesson), recoveryMetadata(course, lesson, "select-main-resource"));
     lesson.primaryMedia = { ...resource.toObject(), storage: "lesson-resources", resourceId: resource._id };
+    lesson.videoUrl = "";
+    lesson.posterUrl = "";
     lesson.primaryMediaRemoved = false;
     await course.save();
-    if (previous) fs.unlink(path.join(videoDirectory, path.basename(previous)), () => {});
+    await finishMediaRecovery(recovery, course.lessons);
     return res.json(course);
   } catch { return res.status(500).json({ message: "Unable to select main lesson media" }); }
 });
@@ -520,12 +522,13 @@ router.delete("/courses/:courseId/lessons/:lessonId/main-media", async (req, res
     const course = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id });
     const lesson = course?.lessons.id(req.params.lessonId);
     if (!lesson) return res.status(404).json({ message: "Lesson not found" });
-    const storedName = lesson.primaryMedia?.storage === "course-videos" ? lesson.primaryMedia.storedName : "";
+    const recovery = await prepareMediaRecovery(mainMediaFiles(lesson), recoveryMetadata(course, lesson, "delete-main-media"));
     lesson.primaryMedia = undefined;
     lesson.primaryMediaRemoved = true;
     lesson.videoUrl = "";
+    lesson.posterUrl = "";
     await course.save();
-    if (storedName) fs.unlink(path.join(videoDirectory, path.basename(storedName)), () => {});
+    await finishMediaRecovery(recovery, course.lessons);
     return res.json(course);
   } catch { return res.status(500).json({ message: "Unable to remove main lesson media" }); }
 });
@@ -547,19 +550,10 @@ router.post("/courses/:courseId/lessons/:lessonId/resources", uploadLessonFiles.
 
 router.delete("/courses/:courseId/lessons/:lessonId", async (req, res) => {
   try {
-    const course = await Course.findOne({ _id: req.params.courseId, tutor: req.user._id });
-    const lesson = course?.lessons.id(req.params.lessonId);
-    if (!lesson) return res.status(404).json({ message: "Lesson not found" });
-    if (lesson.primaryMedia?.storage === "course-videos" && lesson.primaryMedia.storedName) fs.unlink(path.join(videoDirectory, path.basename(lesson.primaryMedia.storedName)), () => {});
-    else if (lesson.videoUrl?.includes("/uploads/course-videos/")) fs.unlink(path.join(videoDirectory, path.basename(lesson.videoUrl)), () => {});
-    lesson.resources.forEach((resource) => { try { fs.unlink(safeResourcePath(resource.storedName), () => {}); } catch { /* Invalid legacy paths are never followed. */ } });
-    deleteQuizMediaFiles(quizMediaNames(lesson.quiz));
-    lesson.deleteOne();
-    if (course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
-    await course.save();
-    await LearningSignal.deleteMany({ course: course._id, lessonId: req.params.lessonId });
-    return res.json(course);
-  } catch (error) { return res.status(500).json({ message: "Unable to delete lesson", error: error.message }); }
+    return res.json(await deleteLesson(req.params.courseId, req.params.lessonId, req.user._id));
+  } catch (error) {
+    return res.status(error.status || 500).json({ message: error.status === 404 ? "Lesson not found" : "Unable to delete lesson" });
+  }
 });
 
 router.delete("/courses/:courseId/lessons/:lessonId/resources/:resourceId", async (req, res) => {
@@ -568,11 +562,15 @@ router.delete("/courses/:courseId/lessons/:lessonId/resources/:resourceId", asyn
     const lesson = course?.lessons.id(req.params.lessonId);
     const resource = lesson?.resources.id(req.params.resourceId);
     if (!resource) return res.status(404).json({ message: "Lesson resource not found" });
-    if (String(lesson.primaryMedia?.resourceId || "") === String(resource._id)) lesson.primaryMedia = undefined;
-    try { await fs.promises.unlink(safeResourcePath(resource.storedName)); } catch (error) { if (error.code !== "ENOENT" && error.message !== "unsafe_path") console.error("Delete lesson resource file error:", error); }
+    const recovery = await prepareMediaRecovery([mediaFile("lesson-resources", resource.storedName)], recoveryMetadata(course, lesson, "delete-resource"));
+    if (String(lesson.primaryMedia?.resourceId || "") === String(resource._id)) {
+      lesson.primaryMedia = undefined;
+      lesson.primaryMediaRemoved = true;
+    }
     resource.deleteOne();
     if (course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
     await course.save();
+    await finishMediaRecovery(recovery, course.lessons);
     return res.json(course);
   } catch (error) { return res.status(500).json({ message: "Unable to delete lesson resource" }); }
 });

@@ -32,6 +32,7 @@ function request(method, path, body, auth) {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? "" : JSON.stringify(body);
     const headers = payload ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) } : {};
+    headers["X-Course-Version"] = "0";
     if (auth) headers.Authorization = `Bearer ${auth}`;
     const call = http.request({ hostname: "127.0.0.1", port: server.address().port, method, path, headers }, (response) => {
       let data = "";
@@ -45,6 +46,9 @@ function request(method, path, body, auth) {
 }
 
 test.before(async () => {
+  const mongoose = require("mongoose");
+  test.mock.method(mongoose.connection, "transaction", async work => work());
+  test.mock.method(Course, "updateOne", async () => ({ matchedCount: 1 }));
   originals.userFind = User.findById;
   originals.courseFind = Course.findOne;
   originals.enrollmentExists = Enrollment.exists;

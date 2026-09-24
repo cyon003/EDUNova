@@ -14,5 +14,5 @@ test("tutor media duration rounds up and is carried with uploaded video", async 
   assert.match(manager, /readMediaDuration\(file\)/);
   assert.match(manager, /onLoadedMetadata=/);
   assert.match(dashboard, /body\.append\("durationSeconds",String\(lessonForm\.durationSeconds\)\)/);
-  assert.match(dashboard, /body\.append\("durationSeconds",String\(durationSeconds\)\)/);
+  assert.match(await source("src/utils/lessonEditor.js"), /body\.append\("durationSeconds", String\(durationSeconds\)\)/);
 });

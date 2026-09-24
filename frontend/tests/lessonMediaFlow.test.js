@@ -90,7 +90,7 @@ test("Add Lesson uses an accessible modal and matching hidden-input upload cards
   assert.match(manager, /Upload documents/);
   assert.match(manager, /lesson-hidden-file/);
   assert.match(manager, /Discard unsaved lesson changes/);
-  assert.match(manager, /setSelected\(Math\.max\(saved\.lessons\.length-1,0\)\)/);
+  assert.match(manager, /resetDraft\(saved\.lessons\.at\(-1\), saved\)/);
   assert.doesNotMatch(manager, /<form className="form-grid lesson-builder" onSubmit=\{add\}/);
   assert.match(styles, /lesson-upload-grid\{display:grid;grid-template-columns:repeat\(2/);
   assert.match(styles, /@media\(max-width:700px\)\{\.lesson-upload-grid\{grid-template-columns:1fr\}/);
@@ -125,7 +125,7 @@ test("Edit Lesson preserves resources while replacing media and adding documents
   const dashboard = await source("src/pages/TutorDashboard.jsx");
   const manager = await source("src/components/LessonManager.jsx");
   assert.match(dashboard, /main-media/);
-  assert.match(dashboard, /lessonId\}\/resources/);
+  assert.match(dashboard, /lessonSaveRequest\(lessonId,values,parseReferences\)/);
   assert.match(manager, /Replace lesson video/);
   assert.match(manager, /Add supporting documents/);
   assert.match(manager, /Existing supporting resources/);

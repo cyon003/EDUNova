@@ -88,6 +88,88 @@ test("lesson deletion integrity on a disposable replica set", { skip: process.en
       return values.filter(value => value.courseId === course.id);
     }
 
+    const edit = async (course, index, body, version = course.__v || 0) => {
+      const response = await fetch(`http://127.0.0.1:${server.address().port}/api/tutor/courses/${course.id}/lessons/${course.lessons[index].id}`, {
+        method: "PATCH", headers: { Authorization: `Bearer ${jwt.sign({ id: tutor.id }, process.env.JWT_SECRET)}`, "Content-Type": "application/json", "X-Course-Version": String(version) }, body: JSON.stringify(body),
+      });
+      return { status: response.status, body: await response.json() };
+    };
+    for (const status of ["unpublished", "published"]) for (const index of [0, 1, 3]) {
+      await t.test(`editing ${status} lesson ${index} preserves topics, media and other lessons`, async () => {
+        const { course } = await fixture();
+        course.moderationStatus = status;
+        course.lessons[index].duration = index === 0 ? "" : index === 1 ? "Provider managed" : "1:00";
+        course.lessons[index].quiz = {title:"Keep quiz",questions:[{question:"True?",type:"true_false",options:[{text:"True"},{text:"False"}],correctOption:0}]};
+        course.lessons[index].topics = [{ title: "Intro", startTimeSeconds: 0, endTimeSeconds: 30 }];
+        await course.save();
+        const before = course.toObject();
+        const result = await edit(course, index, { title: "Edited", topics: before.lessons[index].topics, duration: before.lessons[index].duration, quiz: {title:course.lessons[index].quiz.title,questions:course.lessons[index].quiz.questions.map(q=>({question:q.question,type:q.type,options:q.options.map(o=>o.text),correctOption:q.correctOption}))} });
+        assert.equal(result.status, 200, JSON.stringify(result.body));
+        const saved = await Course.findById(course.id).lean();
+        assert.equal(saved.lessons[index].title, "Edited");
+        for (const key of ["topics", "primaryMedia", "resources", "quiz"]) assert.deepEqual(saved.lessons[index][key], before.lessons[index][key]);
+        assert.deepEqual(saved.lessons.filter((_, i) => i !== index), before.lessons.filter((_, i) => i !== index));
+      });
+    }
+    await t.test("stale editor writes are rejected after deletion", async () => {
+      const { course } = await fixture();
+      assert.equal((await request(course, 0)).status, 200);
+      assert.equal((await edit(course,1,{title:"Wrong draft"})).status,409);
+    });
+    await t.test("stale player writes reject shifted indexes and current revisions succeed", async () => {
+      const {course,enrollment} = await fixture();
+      assert.equal((await request(course,0)).status,200);
+      const before = await readEnrollment(enrollment.id);
+      const send = async (suffix, method, body, version) => fetch(`http://127.0.0.1:${server.address().port}/api/enrollments/${course.slug}/${suffix}`, {method,headers:{Authorization:`Bearer ${jwt.sign({id:student.id},process.env.JWT_SECRET)}`,"Content-Type":"application/json",...(version===null?{}:{"X-Course-Version":String(version)})},body:JSON.stringify(body)});
+      for (const [suffix,method,body] of [["progress","PATCH",{currentLessonIndex:1}],["lessons/1/watch","PATCH",{event:"play",position:0,duration:60}],["lessons/1/complete","POST",{}]]) {
+        assert.equal((await send(suffix,method,body,course.__v)).status,409);
+        assert.equal((await send(suffix,method,body,null)).status,428);
+      }
+      assert.deepEqual(await readEnrollment(enrollment.id),before);
+      const current = await Course.findById(course.id);
+      const response = await send("progress","PATCH",{currentLessonIndex:1},current.__v);
+      assert.equal(response.status,200,await response.text());
+      assert.equal((await readEnrollment(enrollment.id)).currentLessonIndex,1);
+    });
+    await t.test("a player write racing deletion is committed before remapping or rejected", async () => {
+      const {course,enrollment} = await fixture();
+      const [progress,deletion] = await Promise.all([
+        fetch(`http://127.0.0.1:${server.address().port}/api/enrollments/${course.slug}/progress`,{method:"PATCH",headers:{Authorization:`Bearer ${jwt.sign({id:student.id},process.env.JWT_SECRET)}`,"Content-Type":"application/json","X-Course-Version":String(course.__v)},body:JSON.stringify({currentLessonIndex:1,activity:{activityType:"lesson_opened",lessonIndex:1}})}),
+        request(course,0),
+      ]);
+      assert.equal(deletion.status,200,JSON.stringify(deletion.body));
+      assert.ok([200,409].includes(progress.status),await progress.text());
+      const saved=await readEnrollment(enrollment.id);
+      assert.equal(saved.currentLessonIndex,progress.status===200?0:1);
+      assert.ok(saved.recentActivity.every(activity=>activity.lessonTitle===course.lessons[activity.lessonIndex+1].title));
+    });
+    await t.test("concurrent editors cannot overwrite each other", async () => {
+      const {course} = await fixture();
+      const results = await Promise.all(["First edit","Second edit"].map(title=>edit(course,1,{title})));
+      assert.deepEqual(results.map(r=>r.status).sort(),[200,409]);
+    });
+    await t.test("multipart content and resources commit together and database failure keeps original references", async () => {
+      const {course} = await fixture();
+      const send = async title => {
+        const body = new FormData();body.append("title",title);body.append("resources",new Blob(["test document"],{type:"text/plain"}),"notes.txt");
+        return fetch(`http://127.0.0.1:${server.address().port}/api/tutor/courses/${course.id}/lessons/${course.lessons[1].id}`,{method:"PATCH",headers:{Authorization:`Bearer ${jwt.sign({id:tutor.id},process.env.JWT_SECRET)}`,"X-Course-Version":String(course.__v)},body});
+      };
+      const original=Course.prototype.save;
+      Course.prototype.save=async function(...args){if(String(this._id)===course.id)throw new Error("Injected failure");return original.apply(this,args)};
+      try{assert.equal((await send("Failed upload edit")).status,500)}finally{Course.prototype.save=original}
+      const failed=await Course.findById(course.id);assert.equal(failed.lessons[1].title,"B");assert.equal(failed.lessons[1].resources.length,1);
+      const response=await send("Saved with document");assert.equal(response.status,200,await response.text());
+      const saved=await Course.findById(course.id);assert.equal(saved.lessons[1].title,"Saved with document");assert.equal(saved.lessons[1].resources.length,2);assert.equal(saved.lessons[1].primaryMedia.storedName,course.lessons[1].primaryMedia.storedName);
+    });
+    await t.test("invalid ranges and failed database saves preserve content and media", async () => {
+      const {course} = await fixture(); const before = await Course.findById(course.id).lean();
+      assert.equal((await edit(course,1,{title:"Invalid",topics:[{title:"Too long",startTimeSeconds:0,endTimeSeconds:61}]})).status,400);
+      const original = Course.prototype.save;
+      Course.prototype.save = async function(...args) { if(String(this._id)===course.id) throw new Error("Injected database failure"); return original.apply(this,args); };
+      try { assert.equal((await edit(course,1,{title:"Must not persist"})).status,500); } finally { Course.prototype.save = original; }
+      assert.deepEqual(await Course.findById(course.id).lean(),before); assert.equal(await fs.readFile(file(course,1,"video"),"utf8"),"video B");
+    });
+
     for (const removed of [0, 1]) {
       await t.test(`deleting ${removed === 0 ? "first" : "middle"} lesson keeps progress and playback attached to surviving lessons`, async () => {
         const { course, enrollment, notes, watches } = await fixture();

@@ -1,3 +1,4 @@
+const { curriculumWrite } = require("../services/curriculumGuard");
 const express = require("express");
 const mongoose = require("mongoose");
 const authenticateToken = require("../middleware/authMiddleware");
@@ -26,11 +27,12 @@ router.get("/", async (req, res) => {
     const notes = await Note.find(filter).populate("course", "name slug").sort({ updatedAt: -1 });
     return res.json(notes);
   } catch (error) {
+    if (error.response || error.hasErrorLabel?.("TransientTransactionError")) throw error;
     return res.status(500).json({ message: "Unable to load notes", error: error.message });
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", curriculumWrite(async (req, res) => {
   try {
     const title = req.body.title?.trim();
     const body = req.body.body?.trim();
@@ -45,11 +47,12 @@ router.post("/", async (req, res) => {
     await note.populate("course", "name slug");
     return res.status(201).json(note);
   } catch (error) {
+    if (error.response || error.hasErrorLabel?.("TransientTransactionError")) throw error;
     return res.status(500).json({ message: "Unable to create note", error: error.message });
   }
-});
+}, req => req.body.courseSlug));
 
-router.patch("/:noteId", async (req, res) => {
+router.patch("/:noteId", curriculumWrite(async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.noteId)) return res.status(400).json({ message: "Invalid note" });
     const note = await Note.findOne({ _id: req.params.noteId, student: req.user._id });
@@ -72,9 +75,10 @@ router.patch("/:noteId", async (req, res) => {
     await note.populate("course", "name slug");
     return res.json(note);
   } catch (error) {
+    if (error.response || error.hasErrorLabel?.("TransientTransactionError")) throw error;
     return res.status(500).json({ message: "Unable to update note", error: error.message });
   }
-});
+}, req => req.body.courseSlug));
 
 router.delete("/:noteId", async (req, res) => {
   try {
@@ -83,6 +87,7 @@ router.delete("/:noteId", async (req, res) => {
     if (!note) return res.status(404).json({ message: "Note not found" });
     return res.json({ message: "Note deleted" });
   } catch (error) {
+    if (error.response || error.hasErrorLabel?.("TransientTransactionError")) throw error;
     return res.status(500).json({ message: "Unable to delete note", error: error.message });
   }
 });

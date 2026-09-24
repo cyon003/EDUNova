@@ -44,6 +44,7 @@ function request(method, pathname, body, token) {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? "" : JSON.stringify(body);
     const headers = payload ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) } : {};
+    headers["X-Course-Version"] = "0";
     if (token) headers.Authorization = `Bearer ${token}`;
     const outgoing = http.request({ hostname: "127.0.0.1", port: server.address().port, path: pathname, method, headers }, (response) => {
       let text = ""; response.setEncoding("utf8"); response.on("data", (chunk) => { text += chunk; }); response.on("end", () => resolve({ status: response.statusCode, body: text ? JSON.parse(text) : null }));
@@ -53,6 +54,9 @@ function request(method, pathname, body, token) {
 }
 
 test.before(async () => {
+  const mongoose = require("mongoose");
+  test.mock.method(mongoose.connection, "transaction", async work => work());
+  test.mock.method(Course, "updateOne", async () => ({ matchedCount: 1 }));
   originals.userFind = User.findById; originals.courseFindById = Course.findById; originals.courseFindOne = Course.findOne;
   originals.enrollmentFindOne = Enrollment.findOne; originals.enrollmentFindOneAndUpdate = Enrollment.findOneAndUpdate; originals.enrollmentExists = Enrollment.exists; originals.enrollmentDelete = Enrollment.deleteMany;
   originals.signalFindOne = LearningSignal.findOne; originals.signalUpdate = LearningSignal.findOneAndUpdate; originals.signalBulk = LearningSignal.bulkWrite; originals.signalDelete = LearningSignal.deleteMany;

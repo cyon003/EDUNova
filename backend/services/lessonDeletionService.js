@@ -1,3 +1,4 @@
+const { assertCourseVersion } = require("./curriculumGuard");
 const mongoose = require("mongoose");
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
@@ -23,11 +24,12 @@ function remapEnrollment(enrollment, removedIndex, oldCount) {
   };
 }
 
-async function deleteLesson(courseId, lessonId, tutorId) {
+async function deleteLesson(courseId, lessonId, tutorId, request) {
   let recovery;
   const course = await mongoose.connection.transaction(async session => {
     // Reload on every transaction retry; never remap already-remapped indexes.
     const current = await Course.findOne({ _id: courseId, tutor: tutorId }, null, { session });
+    if (current && request) assertCourseVersion(request, current, false);
     const lesson = current?.lessons.id(lessonId);
     if (!lesson) throw Object.assign(new Error("Lesson not found"), { status: 404 });
     const index = current.lessons.indexOf(lesson);

@@ -987,6 +987,7 @@ function CourseDetail() {
                         "Content-Type":
                           "application/json",
                         Authorization: `Bearer ${token}`,
+                        "X-Course-Version": String(enrollment.course?.__v || 0),
                       },
                       body: JSON.stringify({
                         completedMissions:
@@ -1351,6 +1352,7 @@ function CourseDetail() {
           "Content-Type":
             "application/json",
           Authorization: `Bearer ${token}`,
+          "X-Course-Version": String(course?.__v || 0),
         },
         body: JSON.stringify({
           completedMissions:
@@ -1376,6 +1378,7 @@ function CourseDetail() {
               method: "POST",
               headers: {
                 Authorization: `Bearer ${token}`,
+          "X-Course-Version": String(course?.__v || 0),
               },
             }
           );
@@ -1414,7 +1417,7 @@ function CourseDetail() {
     try {
       const response = await fetch(
         `${API_ROOT}/enrollments/${course.slug}/lessons/${index}/complete`,
-        { method: "POST", headers: { Authorization: `Bearer ${token}` } }
+        { method: "POST", headers: { Authorization: `Bearer ${token}`, "X-Course-Version": String(course?.__v || 0) } }
       );
       if (!response.ok) throw new Error("Unable to complete lesson");
       const enrollment = await response.json();
@@ -1483,6 +1486,7 @@ function CourseDetail() {
               "Content-Type":
                 "application/json",
               Authorization: `Bearer ${token}`,
+          "X-Course-Version": String(course?.__v || 0),
             },
             body: JSON.stringify({
               ...reportForm,

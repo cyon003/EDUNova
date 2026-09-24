@@ -29,7 +29,7 @@ function readObject(key) {
   }
 }
 
-function LessonNotes({ courseSlug, lessonIndex, lesson, user }) {
+function LessonNotes({ courseSlug, lessonIndex, lesson, user, courseVersion }) {
   const [notes, setNotes] = useState([]); const [title, setTitle] = useState(`${lesson.title} notes`); const [body, setBody] = useState(""); const [editingId, setEditingId] = useState(""); const [status, setStatus] = useState(""); const token = localStorage.getItem("token");
   useEffect(() => {
     if (!token || user?.role !== "student") return undefined;
@@ -46,7 +46,7 @@ function LessonNotes({ courseSlug, lessonIndex, lesson, user }) {
     return () => controller.abort();
   }, [courseSlug, lessonIndex, token, user?.role]);
   if (!token || user?.role !== "student") return <div className="lesson-tool-placeholder"><h3>Personal Notes</h3><p>Sign in as a student to save notes for this lesson.</p></div>;
-  const saveNote = async (event) => { event.preventDefault(); setStatus(""); const response = await fetch(`${API_ROOT}/notes${editingId ? `/${editingId}` : ""}`, { method: editingId ? "PATCH" : "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ title, body, courseSlug, lessonIndex, lessonTitle: lesson.title }) }); const data = await response.json(); if (!response.ok) { setStatus(data.message || "Unable to save note"); return; } setNotes((current) => editingId ? current.map((item) => item._id === data._id ? data : item) : [data, ...current]); setEditingId(""); setTitle(`${lesson.title} notes`); setBody(""); setStatus("Note saved"); };
+  const saveNote = async (event) => { event.preventDefault(); setStatus(""); const response = await fetch(`${API_ROOT}/notes${editingId ? `/${editingId}` : ""}`, { method: editingId ? "PATCH" : "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "X-Course-Version": String(courseVersion) }, body: JSON.stringify({ title, body, courseSlug, lessonIndex, lessonTitle: lesson.title }) }); const data = await response.json(); if (!response.ok) { setStatus(data.message || "Unable to save note"); return; } setNotes((current) => editingId ? current.map((item) => item._id === data._id ? data : item) : [data, ...current]); setEditingId(""); setTitle(`${lesson.title} notes`); setBody(""); setStatus("Note saved"); };
   const deleteNote = async (noteId) => { const response = await fetch(`${API_ROOT}/notes/${noteId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }); if (!response.ok) { setStatus("Unable to delete note"); return; } setNotes((current) => current.filter((item) => item._id !== noteId)); };
   return <section className="lesson-notes"><header><h3>Personal Notes</h3><p>Private to you and saved to this lesson.</p></header><form onSubmit={saveNote}><input value={title} onChange={(event) => setTitle(event.target.value)} maxLength="120" required aria-label="Note title" /><textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength="5000" required rows="5" placeholder="Write your notes…" aria-label="Note" /><footer><button type="submit"><FaSave /> {editingId ? "Update note" : "Save note"}</button>{editingId && <button type="button" onClick={() => { setEditingId(""); setTitle(`${lesson.title} notes`); setBody(""); }}>Cancel</button>}</footer></form>{status && <p className="lesson-notes-status" role="status">{status}</p>}<div className="lesson-notes-list">{notes.map((note) => <article key={note._id}><div><strong>{note.title}</strong><p>{note.body}</p></div><span><button type="button" onClick={() => { setEditingId(note._id); setTitle(note.title); setBody(note.body); }}>Edit</button><button type="button" onClick={() => deleteNote(note._id)} aria-label={`Delete ${note.title}`}><FaTrash /></button></span></article>)}{!notes.length && <p className="lesson-notes-empty">No notes for this lesson yet.</p>}</div></section>;
 }
@@ -82,7 +82,7 @@ function LessonPlayer() {
   const [mediaError, setMediaError] = useState("");
   const learningSignal = useLearningSignal({ courseId: course?._id, lessonId: lesson?._id });
   const lessonWatch = useLessonWatch({
-    courseSlug, lessonIndex, enabled: Boolean(enrolled && getLessonPrimaryMedia(lesson)),
+    courseSlug, lessonIndex, lessonId: lesson?._id, courseVersion: course?.__v || 0, enabled: Boolean(enrolled && getLessonPrimaryMedia(lesson)),
     onCompleted: (enrollment) => {
       setCompletedLessons(enrollment.completedLessons || []);
       localStorage.setItem(progressKey, JSON.stringify(enrollment.completedLessons || []));
@@ -95,12 +95,12 @@ function LessonPlayer() {
     if (!primary) return undefined;
     const controller = new AbortController();
     const token = localStorage.getItem("token");
-    fetch(`${API_ROOT}/courses/${encodeURIComponent(courseSlug)}/lessons/${lessonIndex}/media-access`, { headers: token ? { Authorization: `Bearer ${token}` } : undefined, signal: controller.signal })
+    fetch(`${API_ROOT}/courses/${encodeURIComponent(courseSlug)}/lessons/${lessonIndex}/media-access`, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), "X-Course-Version": String(course?.__v || 0) }, signal: controller.signal })
       .then((response) => { if (!response.ok) throw new Error("Lesson video is unavailable."); return response.json(); })
       .then(({ url }) => { setMediaError(""); setMediaLessonIndex(lessonIndex); setMediaUrl(url); })
       .catch((error) => { if (error.name !== "AbortError") setMediaError(error.message); });
     return () => controller.abort();
-  }, [courseSlug, lesson, lessonIndex]);
+  }, [courseSlug, lesson, lessonIndex, course?.__v]);
 
   const openResource = async (resource, action) => {
     const response = await fetch(`${API_ROOT}/courses/${encodeURIComponent(courseSlug)}/lessons/${lessonIndex}/resources/${resource._id}/${action}`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
@@ -138,13 +138,13 @@ function LessonPlayer() {
       if (activity) body.activity = activity;
       const response = await fetch(`${API_ROOT}/enrollments/${courseSlug}/progress`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "X-Course-Version": String(course?.__v || 0) },
         body: JSON.stringify(body),
       });
-      if (!response.ok) throw new Error("Progress is saved on this device only");
+      if (!response.ok) { const data = await response.json(); if(response.status===409 || response.status===428) videoRef.current?.pause(); throw new Error(data.message || "Progress is saved on this device only"); }
       setSyncMessage("Progress saved");
-    } catch {
-      setSyncMessage("Saved on this device");
+    } catch (error) {
+      setSyncMessage(error.message || "Saved on this device");
     }
   };
 
@@ -179,9 +179,9 @@ function LessonPlayer() {
         setEnrolled(true);
         setCompletedLessons(enrollment.completedLessons || []);
         const positions = enrollment.videoPositions || {};
-        setVideoPositions((current) => ({ ...current, ...positions }));
+        setVideoPositions(positions);
         localStorage.setItem(progressKey, JSON.stringify(enrollment.completedLessons || []));
-        localStorage.setItem(positionsKey, JSON.stringify({ ...readObject(positionsKey), ...positions }));
+        localStorage.setItem(positionsKey, JSON.stringify(positions));
       } catch (error) {
         if (error.name !== "AbortError") setSyncMessage("Using saved progress from this device");
       } finally { if (!controller.signal.aborted) setCourseLoading(false); }
@@ -199,7 +199,7 @@ function LessonPlayer() {
     try {
       const response = await fetch(`${API_ROOT}/enrollments/${courseSlug}/lessons/${lessonIndex}/complete`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, "X-Course-Version": String(course?.__v || 0) },
       });
       const enrollment = await response.json();
       if (!response.ok) throw new Error(enrollment.message || "Unable to save lesson completion");
@@ -320,8 +320,8 @@ function LessonPlayer() {
           {activeTool==="content"&&hasQuiz&&<section className="lesson-quiz-callout"><div><h3>{lesson.quiz.title||"Lesson Quiz"}</h3><p>{lesson.quiz.questions.length} question{lesson.quiz.questions.length===1?"":"s"} · test what you learned in this lesson</p></div><button type="button" onClick={()=>setActiveTool("quiz")}>Take the quiz</button></section>}
           {activeTool==="summary"&&<LessonSummaryPanel lesson={lesson}/>}
           {activeTool==="transcript"&&transcriptSupported&&<VideoTranscriptPanel lesson={lesson}/>}
-          {activeTool==="quiz"&&hasQuiz&&<LessonQuiz key={`${courseSlug}-${lessonIndex}-${lesson.quiz._id||""}`} courseSlug={courseSlug} lessonIndex={lessonIndex} quiz={lesson.quiz} onBack={()=>setActiveTool("content")}/>}
-          {activeTool==="notes"&&<LessonNotes key={JSON.stringify([user?.id, user?.role, courseSlug, lessonIndex, lesson.title])} courseSlug={courseSlug} lessonIndex={lessonIndex} lesson={lesson} user={user} />}
+          {activeTool==="quiz"&&hasQuiz&&<LessonQuiz key={`${courseSlug}-${lessonIndex}-${lesson.quiz._id||""}`} courseSlug={courseSlug} lessonIndex={lessonIndex} courseVersion={course.__v || 0} quiz={lesson.quiz} onBack={()=>setActiveTool("content")}/>}
+          {activeTool==="notes"&&<LessonNotes key={JSON.stringify([user?.id, user?.role, courseSlug, lessonIndex, lesson.title])} courseSlug={courseSlug} lessonIndex={lessonIndex} lesson={lesson} user={user} courseVersion={course.__v || 0} />}
           <footer>
             <button type="button" onClick={() => openLesson(lessonIndex - 1)} disabled={lessonIndex === 0}><FaChevronLeft /> Previous lesson</button>
             <Link to={`/courses/${courseSlug}`}>Course overview</Link>

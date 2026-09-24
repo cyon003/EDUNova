@@ -1,3 +1,4 @@
+const { curriculumWrite, assertCourseVersion } = require("../services/curriculumGuard");
 const { enrollCourses, purchaseTransaction } = require("../services/enrollmentPolicy");
 const express = require("express");
 const Course = require("../models/Course");
@@ -41,6 +42,7 @@ router.get("/me", async (req, res) => {
       .sort({ lastAccessedAt: -1, createdAt: -1 });
     return res.status(200).json(enrollments.filter((item) => item.course).map(summarizeEnrollment));
   } catch (error) {
+    if (error.response || error.hasErrorLabel?.("TransientTransactionError")) throw error;
     console.error("Get enrollments error:", error);
     return res.status(500).json({ message: "Unable to load enrolled courses" });
   }
@@ -60,12 +62,13 @@ router.post("/:slug", async (req, res) => {
     });
     return res.status(200).json(summarizeEnrollment(enrollment));
   } catch (error) {
+    if (error.response || error.hasErrorLabel?.("TransientTransactionError")) throw error;
     console.error("Enroll course error:", error);
     return res.status(error.status || 500).json({ message: error.status ? error.message : "Unable to enroll in this course" });
   }
 });
 
-router.patch("/:slug/progress", async (req, res) => {
+router.patch("/:slug/progress", curriculumWrite(async (req, res) => {
   try {
     const course = await Course.findOne({ slug: req.params.slug.toLowerCase() });
     if (!course) return res.status(404).json({ message: "Course not found" });
@@ -105,15 +108,17 @@ router.patch("/:slug/progress", async (req, res) => {
     if (!enrollment) return res.status(404).json({ message: "Enroll in this course first" });
     return res.status(200).json(summarizeEnrollment(enrollment));
   } catch (error) {
+    if (error.response || error.hasErrorLabel?.("TransientTransactionError")) throw error;
     console.error("Update course progress error:", error);
     return res.status(500).json({ message: "Unable to update course progress" });
   }
-});
+}));
 
 router.get("/:slug/lessons/:lessonIndex/watch", async (req, res) => {
   try {
     const course = await Course.findOne({ slug: req.params.slug.toLowerCase() });
     if (!course) return res.status(404).json({ message: "Course not found" });
+    assertCourseVersion(req, course, false);
     const index = Number(req.params.lessonIndex);
     if (!/^(0|[1-9]\d*)$/.test(req.params.lessonIndex) || !course.lessons[index]) return res.status(404).json({ message: "Lesson not found" });
     const mediaKey = lessonMediaKey(course.lessons[index]);
@@ -124,12 +129,13 @@ router.get("/:slug/lessons/:lessonIndex/watch", async (req, res) => {
     const record = await LessonWatch.findOne(identity);
     return res.json(watchState(record, mediaKey));
   } catch (error) {
+    if (error.response || error.hasErrorLabel?.("TransientTransactionError")) throw error;
     console.error("Load watch progress error:", error);
-    return res.status(500).json({ message: "Unable to load watch progress" });
+    return res.status(error.status || 500).json({ message: error.status ? error.message : "Unable to load watch progress" });
   }
 });
 
-router.patch("/:slug/lessons/:lessonIndex/watch", async (req, res) => {
+router.patch("/:slug/lessons/:lessonIndex/watch", curriculumWrite(async (req, res) => {
   try {
     const course = await Course.findOne({ slug: req.params.slug.toLowerCase() });
     if (!course) return res.status(404).json({ message: "Course not found" });
@@ -168,17 +174,19 @@ router.patch("/:slug/lessons/:lessonIndex/watch", async (req, res) => {
           return res.json({ ...data, ...(completedEnrollment ? { enrollment: summarizeEnrollment(completedEnrollment) } : {}) });
         }
       } catch (error) {
+    if (error.response || error.hasErrorLabel?.("TransientTransactionError")) throw error;
         if (error.code !== 11000) throw error;
       }
     }
     return res.status(409).json({ message: "Watch progress changed; retry the update" });
   } catch (error) {
+    if (error.response || error.hasErrorLabel?.("TransientTransactionError")) throw error;
     console.error("Update watch progress error:", error);
     return res.status(500).json({ message: "Unable to save watch progress" });
   }
-});
+}));
 
-router.post("/:slug/lessons/:lessonIndex/complete", async (req, res) => {
+router.post("/:slug/lessons/:lessonIndex/complete", curriculumWrite(async (req, res) => {
   try {
     if (Object.keys(req.body || {}).length) return res.status(400).json({ message: "Completion does not accept client-supplied progress or identity" });
     const course = await Course.findOne({ slug: req.params.slug.toLowerCase() });
@@ -202,9 +210,10 @@ router.post("/:slug/lessons/:lessonIndex/complete", async (req, res) => {
     if (!enrollment) return res.status(404).json({ message: "Enroll in this course first" });
     return res.status(200).json(summarizeEnrollment(enrollment));
   } catch (error) {
+    if (error.response || error.hasErrorLabel?.("TransientTransactionError")) throw error;
     console.error("Complete lesson error:", error);
     return res.status(500).json({ message: "Unable to complete lesson" });
   }
-});
+}));
 
 module.exports = router;

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { API_ROOT } from "../utils/courseApi.js";
 
-export function useLessonWatch({ courseSlug, lessonIndex, enabled, onCompleted }) {
+export function useLessonWatch({ courseSlug, lessonIndex, lessonId, courseVersion, enabled, onCompleted }) {
   const [loadedKey, setLoadedKey] = useState("");
   const [notice, setNotice] = useState({ key: "", message: "" });
-  const key = `${courseSlug}:${lessonIndex}:${enabled}`;
+  const key = `${courseSlug}:${lessonIndex}:${lessonId}:${courseVersion}:${enabled}`;
   const ready = !enabled || loadedKey === key;
   const status = notice.key === key ? notice.message : "";
   const setStatus = (message) => setNotice({ key: target.current, message });
@@ -28,9 +28,9 @@ export function useLessonWatch({ courseSlug, lessonIndex, enabled, onCompleted }
     const controller = new AbortController();
     const token = localStorage.getItem("token");
     fetch(`${API_ROOT}/enrollments/${encodeURIComponent(courseSlug)}/lessons/${lessonIndex}/watch`, {
-      headers: { Authorization: `Bearer ${token}` }, signal: controller.signal,
+      headers: { Authorization: `Bearer ${token}`, "X-Course-Version": String(courseVersion) }, signal: controller.signal,
     })
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Watch progress is unavailable")))
+      .then((response) => response.ok ? response.json() : response.json().then(data => Promise.reject(new Error(data.message || "Watch progress is unavailable"))))
       .then((saved) => {
         if (target.current !== key) return;
         progress.current = saved;
@@ -41,7 +41,7 @@ export function useLessonWatch({ courseSlug, lessonIndex, enabled, onCompleted }
       })
       .catch((error) => { if (error.name !== "AbortError" && target.current === key) setStatus(error.message); });
     return () => controller.abort();
-  }, [courseSlug, lessonIndex, enabled, key]);
+  }, [courseSlug, lessonIndex, courseVersion, enabled, key]);
 
   const report = (event, player, positionOverride) => {
     if (!enabled) return Promise.resolve(true);
@@ -50,9 +50,10 @@ export function useLessonWatch({ courseSlug, lessonIndex, enabled, onCompleted }
     const position = positionOverride ?? player.currentTime;
     const duration = player.duration;
     const task = requestQueue.current.catch(() => {}).then(async () => {
+      if (target.current !== key) return false;
       const response = await fetch(`${API_ROOT}/enrollments/${encodeURIComponent(courseSlug)}/lessons/${lessonIndex}/watch`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}`, "X-Course-Version": String(courseVersion) },
         body: JSON.stringify({ event, position, duration }),
       });
       const saved = await response.json();

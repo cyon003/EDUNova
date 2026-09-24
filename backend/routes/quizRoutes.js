@@ -1,3 +1,4 @@
+const { curriculumWrite } = require("../services/curriculumGuard");
 const express = require("express");
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
@@ -65,13 +66,14 @@ router.get("/:slug/lessons/:lessonIndex/questions/:questionId/media", async (req
     if (!media?.storedName) return res.status(404).json({ message: "Attachment not found" });
     return sendQuizMediaFile(res, media.storedName, media.mimeType);
   } catch (error) {
+    if (error.response || error.hasErrorLabel?.("TransientTransactionError")) throw error;
     console.error("Load quiz media error:", error);
     return res.status(500).json({ message: "Unable to load the attachment" });
   }
 });
 
 // POST /api/quizzes/:slug/lessons/:lessonIndex/attempts   body: { answers: [0, 2, 1] }
-router.post("/:slug/lessons/:lessonIndex/attempts", async (req, res) => {
+router.post("/:slug/lessons/:lessonIndex/attempts", curriculumWrite(async (req, res) => {
   try {
     const found = await findQuizForStudent(req, res);
     if (!found) return;
@@ -100,10 +102,11 @@ router.post("/:slug/lessons/:lessonIndex/attempts", async (req, res) => {
     // right answer was, so retrying cannot be solved by reading the response.
     return res.status(201).json({ attempt: { ...attemptView(attempt), questionResults: graded.questionResults } });
   } catch (error) {
+    if (error.response || error.hasErrorLabel?.("TransientTransactionError")) throw error;
     console.error("Submit quiz error:", error);
     return res.status(500).json({ message: "Unable to submit the quiz" });
   }
-});
+}));
 
 // GET /api/quizzes/:slug/lessons/:lessonIndex/attempts  -> the signed-in student's own history
 router.get("/:slug/lessons/:lessonIndex/attempts", async (req, res) => {
@@ -119,6 +122,7 @@ router.get("/:slug/lessons/:lessonIndex/attempts", async (req, res) => {
 
     return res.status(200).json({ attempts, ...summarize(attempts) });
   } catch (error) {
+    if (error.response || error.hasErrorLabel?.("TransientTransactionError")) throw error;
     console.error("Load quiz attempts error:", error);
     return res.status(500).json({ message: "Unable to load quiz results" });
   }

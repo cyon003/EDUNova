@@ -108,3 +108,39 @@
 .tutor-dashboard .lesson-quiz-editor .lesson-quiz-correct{grid-column:2}
 .tutor-dashboard .lesson-quiz-editor .lesson-quiz-icon{grid-column:2;justify-self:end}
 }
+
+/* Topic cards share the studio palette, including inside the Add Lesson dialog. */
+.tutor-dashboard .lesson-topics { padding: 20px; border: 1px solid #493461; border-radius: 14px; background: #171023; color: #eee5fa; min-width: 0; }
+.lesson-topics > header, .lesson-topic-card > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.lesson-topics h3 { margin: 0; font-size: 17px; }
+.lesson-topics h3 small { color: #b7a5cd; font-size: 11px; font-weight: 400; margin-left: 8px; }
+.lesson-topics p { color: #b7a5cd; font-size: 12px; line-height: 1.6; }
+.lesson-topics > header > span { flex: none; color: #c8b2e6; font-size: 12px; }
+.lesson-topic-list { display: grid; gap: 14px; margin: 18px 0; }
+.lesson-topic-card { display: grid; gap: 16px; padding: 18px; background: #21172f; border: 1px solid #493461; border-radius: 12px; min-width: 0; }
+.lesson-topic-card > header strong { color: #d6baff; font-size: 12px; letter-spacing: .04em; }
+.lesson-topic-times { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.tutor-dashboard .lesson-topic-card label { display: grid; gap: 8px; font-size: 12px; color: #ddd0ed; }
+.tutor-dashboard .lesson-topic-card input { width: 100%; box-sizing: border-box; min-width: 0; padding: 12px; color: #f8f2ff; background: #100b1b; border: 1px solid #5a4077; border-radius: 8px; }
+.tutor-dashboard .lesson-topic-card input:focus-visible { outline: 2px solid #b08aef; outline-offset: 2px; }
+.lesson-topic-time-input { position: relative; display: block; }
+.tutor-dashboard .lesson-topic-time-input input { padding-right: 65px; font-variant-numeric: tabular-nums; }
+.lesson-topic-time-input small { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #9f89ba; pointer-events: none; font-size: 10px; }
+.tutor-dashboard .lesson-topic-add, .tutor-dashboard .lesson-topic-remove { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+.tutor-dashboard .lesson-topic-add { color: #f7edff; background: #654296; border: 1px solid #a377de; }
+.tutor-dashboard .lesson-topic-remove { color: #f4b7c3; background: #311c30; border: 1px solid #694055; }
+.tutor-dashboard .lesson-topic-add:hover { background: #7952ad; }
+.tutor-dashboard .lesson-topic-remove:hover { background: #46223c; }
+.tutor-dashboard .lesson-topics button:focus-visible { outline: 2px solid #ccb0ff; outline-offset: 3px; }
+.tutor-dashboard .lesson-topics button:disabled { opacity: .5; cursor: not-allowed; }
+.lesson-topics-empty { padding: 18px; text-align: center; border: 1px dashed #593c79; border-radius: 10px; }
+@media (max-width: 600px) {
+  .tutor-dashboard .lesson-topics { padding: 14px; }
+  .lesson-topic-card { padding: 14px; }
+  .lesson-topics > header { align-items: flex-start; }
+  .lesson-topic-times { grid-template-columns: 1fr; gap: 14px; }
+  .tutor-dashboard .lesson-topic-add { width: 100%; }
+}
+.tutor-dashboard fieldset.lesson-edit-controls { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; min-width: 0; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; }
+.tutor-dashboard fieldset.lesson-edit-controls:disabled { opacity: .75; }
+@media(max-width:600px) { .tutor-dashboard fieldset.lesson-edit-controls { grid-template-columns: minmax(0,1fr); } }

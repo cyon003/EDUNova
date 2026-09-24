@@ -18,7 +18,7 @@ function lessonMediaKey(lesson) {
 
 function statedDurationSeconds(value) {
   const match = /^(\d+):(\d{2})(?::(\d{2}))?$/.exec(String(value || "").trim());
-  if (!match) return 0;
+  if (!match || Number(match[2]) >= 60 || (match[3] && Number(match[3]) >= 60)) return 0;
   return match[3] ? Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]) : Number(match[1]) * 60 + Number(match[2]);
 }
 

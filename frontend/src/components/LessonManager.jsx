@@ -1,3 +1,4 @@
+import "../styles/LessonEditor.css";
 import { hasLessonEdits } from "../utils/lessonEditor.js";
 import { captureLessonMetadata } from "../utils/lessonMetadata.js";
 import { formatTopicTime, parseTopicTime } from "../utils/topicTime";
@@ -43,7 +44,7 @@ const editable = (lesson) => ({
 function UploadCard({ kind, title, hint, accept, multiple, files, onFiles, onRemove }) {
   const input = useRef(null);
   return <section className="lesson-upload-card" onDragOver={(event)=>event.preventDefault()} onDrop={(event)=>{event.preventDefault();if(!event.currentTarget.closest("fieldset")?.disabled)onFiles(event.dataTransfer.files)}}>
-    <button type="button" className="lesson-upload-target" onClick={()=>input.current?.click()}><FaCloudUploadAlt/><strong>{title}</strong><span>Drag and drop or browse</span><small>{hint}</small></button>
+    <button type="button" className="lesson-upload-target" onClick={()=>input.current?.click()}><FaCloudUploadAlt/><strong>{title}</strong><span>Drop your files here or <b>browse files</b></span><small>{hint}</small></button>
     <input ref={input} className="lesson-hidden-file" type="file" accept={accept} multiple={multiple} onChange={(event)=>onFiles(event.target.files)}/>
     <div className="lesson-selected-files">{files.map((file,index)=><div key={`${file.name}-${index}`}><span><strong>{file.name}</strong><small>{formatFileSize(file.size)}</small></span><button type="button" onClick={()=>input.current?.click()}>{kind==="video"?"Replace":"Add"}</button><button type="button" onClick={()=>onRemove(index)}>Remove</button></div>)}</div>
   </section>;
@@ -55,13 +56,19 @@ function TopicTimeInput({ label, value, onChange }) {
 
 function LessonFields({ value, setValue }) {
   return <div className="lesson-modal-fields wide">
-    <label><span>Title</span><input required maxLength="200" value={value.title} onChange={(event)=>setValue({...value,title:event.target.value})}/></label>
-    <label><span>Transcript (Optional)</span><textarea rows="7" maxLength="50000" value={value.transcript} onChange={(event)=>setValue({...value,transcript:event.target.value})}/><small>{value.transcript.length}/50000</small></label>
-    <label><span>Description (Optional)</span><textarea rows="4" value={value.description} onChange={(event)=>setValue({...value,description:event.target.value})}/></label>
-    <label><span>Summary (Optional)</span><textarea rows="5" maxLength="5000" value={value.summary} onChange={(event)=>setValue({...value,summary:event.target.value})}/><small>{value.summary.length}/5000</small></label>
-    <label><span>References (Optional)</span><textarea rows="4" placeholder="One per line: Label | https://example.com" value={value.referenceLinks} onChange={(event)=>setValue({...value,referenceLinks:event.target.value})}/></label>
+    <div className="lesson-section-heading"><span>LESSON DETAILS</span><p>Give your lesson a clear title and a helpful introduction.</p></div>
+    <label className="lesson-title-field"><span>Lesson title <em>Required</em></span><input placeholder="e.g. An introduction to design thinking" required maxLength="200" value={value.title} onChange={(event)=>setValue({...value,title:event.target.value})}/></label>
+    <label><span>Description <em>Optional</em></span><textarea rows="3" placeholder="What will students learn in this lesson?" value={value.description} onChange={(event)=>setValue({...value,description:event.target.value})}/></label>
+    <label><span>Summary <em>Optional</em></span><textarea rows="3" placeholder="Highlight the key takeaways" maxLength="5000" value={value.summary} onChange={(event)=>setValue({...value,summary:event.target.value})}/><small>{value.summary.length.toLocaleString()} / 5,000</small></label>
+    <details className="lesson-supporting-content">
+      <summary>Transcript & references <span>Optional supporting content</span></summary>
+      <div>
+        <label><span>Transcript</span><textarea rows="5" placeholder="Paste the lesson transcript here…" maxLength="50000" value={value.transcript} onChange={(event)=>setValue({...value,transcript:event.target.value})}/><small>{value.transcript.length.toLocaleString()} / 50,000</small></label>
+        <label><span>References</span><textarea rows="3" placeholder="One per line: Label | https://example.com" value={value.referenceLinks} onChange={(event)=>setValue({...value,referenceLinks:event.target.value})}/></label>
+      </div>
+    </details>
     <section className="lesson-topics wide" aria-label="Lesson topics">
-      <header><div><h3>Lesson topics <small>Optional</small></h3><p>Break the lesson into clear sections. Use MM:SS; topics must be ordered and must not overlap.</p></div><span>{(value.topics || []).length} / 200</span></header>
+      <header><div><h3>Lesson topics <small>Optional</small></h3><p>Help students jump to key moments. Use MM:SS with ordered, non-overlapping times.</p></div><span>{(value.topics || []).length} / 200</span></header>
       <div className="lesson-topic-list">{(value.topics || []).map((topic, index) => <article className="lesson-topic-card" key={topic._id || `new-${index}`}>
         <header><strong>Topic {index + 1}</strong><button type="button" className="lesson-topic-remove" aria-label={`Remove topic ${index + 1}`} onClick={() => setValue({...value, topics: value.topics.filter((_, i) => i !== index)})}><FaTrash/> Remove</button></header>
         <label className="lesson-topic-title">Topic title<input required maxLength="200" placeholder="e.g. Understanding variables" value={topic.title} onChange={event => setValue({...value, topics: value.topics.map((item, i) => i === index ? {...item, title: event.target.value} : item)})}/></label>
@@ -337,9 +344,9 @@ export default function LessonManager({ course, form, setForm, add, update, remo
       {lesson.resources?.length>0&&<section className="lesson-resource-status-list" aria-label="Existing supporting resources">{lesson.resources.filter((resource)=>String(primary?.resourceId)!==String(resource._id)).map((resource)=><div key={resource._id}><div><strong>{resource.originalName}</strong><small>{fileType(resource)} · {formatFileSize(resource.size)} · {isMediaResource(resource)?"Supporting video":"Supporting resource"}</small></div><span>{canPreviewResource(resource)&&<button type="button" onClick={()=>accessResource(resource,"view")}>View</button>}<button type="button" onClick={()=>accessResource(resource,"download")}>Download</button>{isMediaResource(resource)&&<button type="button" disabled={saving} onClick={()=>changeMedia(()=>selectMain(lesson._id,resource._id))}>Set as main</button>}<button type="button" disabled={saving} onClick={()=>changeMedia(()=>removeResource(lesson._id,resource._id))}>Delete</button></span></div>)}</section>}
     </>}
   </main><aside><header><h2>Course content</h2><span>{course.lessons.length} lessons</span></header>{course.lessons.map((item,index)=><button disabled={saving} className={selected===index?"active":""} onClick={()=>selectLesson(item)} key={item._id}><span>{String(index+1).padStart(2,"0")}</span><div><strong>{item.title}</strong><small>{getLessonPrimaryMedia(item)?"Main video":"No video"} · {item.resources?.length||0} resources</small></div><i onClick={(event)=>{event.stopPropagation();if(!saving && window.confirm(`Delete ${item.title}?`))void changeMedia(()=>remove(item._id))}}>Delete</i></button>)}</aside></div>
-  {modalOpen&&<div className="lesson-modal-overlay" role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)closeModal()}}><section className="lesson-modal" role="dialog" aria-modal="true" aria-labelledby="add-lesson-title"><header><div><small>COURSE CONTENT</small><h2 id="add-lesson-title">Add Lesson</h2></div><button type="button" aria-label="Close Add Lesson" onClick={closeModal}><FaTimes/></button></header><form onSubmit={createLesson}><fieldset className="lesson-edit-controls" disabled={saving}><div className="lesson-upload-grid">
+  {modalOpen&&<div className="lesson-modal-overlay" role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)closeModal()}}><section className="lesson-modal" role="dialog" aria-modal="true" aria-labelledby="add-lesson-title"><header><div><small>COURSE CONTENT</small><h2 id="add-lesson-title">Create a lesson</h2><p>Turn your knowledge into something worth learning.</p></div><button type="button" aria-label="Close Add Lesson" onClick={closeModal}><FaTimes/></button></header><form onSubmit={createLesson}><fieldset className="lesson-edit-controls" disabled={saving}><div className="lesson-upload-grid">
     <UploadCard kind="video" title="Upload lesson video" hint="MP4, WebM or Ogg · one file" accept={mediaAccept} files={form.mainVideo?[form.mainVideo]:[]} onFiles={(files)=>{const chosen=validateFiles(files,mediaExtensions,true);if(chosen[0])void selectVideo(chosen[0],setForm)}} onRemove={()=>{mediaSelection.current++;setForm({...form,mainVideo:null,durationSeconds:0})}}/>
     <UploadCard kind="documents" title="Upload documents" hint="PDF, Office, TXT, images and additional media" accept={resourceAccept} multiple files={form.resources} onFiles={(files)=>setForm({...form,resources:[...form.resources,...validateFiles(files,resourceExtensions)]})} onRemove={(index)=>setForm({...form,resources:form.resources.filter((_,item)=>item!==index)})}/>
-  </div><LessonFields value={form} setValue={setForm}/><QuizEditor courseId={course._id} quiz={form.quiz} setQuiz={(quiz) => setForm((current)=>({...current, quiz}))}/>{saveError&&<p className="lesson-form-error" role="alert">{saveError}</p>}<footer><button type="button" onClick={closeModal}>Cancel</button><button className="primary" disabled={saving}>{saving?"Saving lesson...":"Save Lesson"}</button></footer></fieldset></form></section></div>}
+  </div><LessonFields value={form} setValue={setForm}/><QuizEditor courseId={course._id} quiz={form.quiz} setQuiz={(quiz) => setForm((current)=>({...current, quiz}))}/>{saveError&&<p className="lesson-form-error" role="alert">{saveError}</p>}<footer className="lesson-modal-actions"><span>You can edit your lesson anytime.</span><button type="button" onClick={closeModal}>Cancel</button><button className="primary" disabled={saving}>{saving?"Saving lesson...":"Save Lesson"}</button></footer></fieldset></form></section></div>}
   </div>;
 }

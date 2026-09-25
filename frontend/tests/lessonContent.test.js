@@ -31,8 +31,8 @@ test("tutor create and edit forms submit summary and transcript with limits", as
   const manager = await source("src/components/LessonManager.jsx");
   assert.match(dashboard, /body\.append\("summary",lessonForm\.summary\)/);
   assert.match(dashboard, /body\.append\("transcript",lessonForm\.transcript\)/);
-  assert.match(manager, /Summary \(Optional\)/);
-  assert.match(manager, /Transcript \(Optional\)/);
+  assert.match(manager, /Summary <em>Optional<\/em>/);
+  assert.match(manager, /<span>Transcript<\/span>/);
   assert.match(manager, /maxLength="5000"/);
   assert.match(manager, /maxLength="50000"/);
   assert.match(dashboard, /method:"PATCH"/);

@@ -100,10 +100,10 @@ test("Edit Lesson header and bottom-right actions follow the requested layout", 
   const manager = await source("src/components/LessonManager.jsx");
   const styles = await source("src/styles/TutorDashboard.css");
   assert.match(manager, /lesson-editor-heading wide[^]*<h2>Edit Lesson<\/h2>[^]*<FaPlus\/> New Lesson/);
-  assert.match(manager, /References \(Optional\)[^]*lesson-editor-actions wide[^]*Cancel[^]*Save/);
+  assert.match(manager, /<span>References<\/span>[^]*lesson-editor-actions wide[^]*Cancel[^]*Save/);
   assert.match(styles, /lesson-editor-heading\{display:flex;align-items:center;justify-content:space-between/);
   assert.match(styles, /lesson-editor-actions\{display:flex;justify-content:flex-end/);
-  assert.match(manager, /<span>Title<\/span>/);
+  assert.match(manager, /<span>Lesson title <em>Required<\/em><\/span>/);
   assert.doesNotMatch(manager, /Lesson Title/);
   assert.match(manager, /setTimeout\(\(\)=>setToast\(""\),3000\)/);
 });

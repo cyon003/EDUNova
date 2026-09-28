@@ -90,3 +90,30 @@
   .lesson-modal-actions > span { display: none; }
   .lesson-supporting-content summary > span { display: block; float: none; margin-top: 6px; }
 }
+
+/* Quiz creation: a clear heading, focused AI action, then a manual alternative. */
+.tutor-dashboard .lesson-quiz-editor.is-empty{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:stretch;border-style:solid;border-color:#3d2c55;background:#120c1d}
+.tutor-dashboard .lesson-quiz-editor .lesson-quiz-header{align-items:center;min-width:0}
+.tutor-dashboard .lesson-quiz-editor .lesson-quiz-intro strong{font-size:20px;letter-spacing:-.02em}
+.tutor-dashboard .lesson-quiz-editor .lesson-quiz-intro p{font-size:13px;line-height:1.6;margin-top:6px}
+.lesson-quiz-optional{color:#b8aec5;font-size:11px;border:1px solid #493461;border-radius:20px;padding:5px 10px}
+.lesson-quiz-generation{display:grid;gap:18px;min-width:0;padding:22px;background:linear-gradient(120deg,#241934,#1b1429);border:1px solid #493461;border-radius:12px}
+.lesson-quiz-generation-heading{display:flex;align-items:flex-start;gap:12px;min-width:0}
+.lesson-quiz-ai-mark{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:10px;background:#382451;color:#d8b9ff;font-size:23px}
+.lesson-quiz-generation-heading>div{flex:1;min-width:0}
+.lesson-quiz-generation-heading strong{color:#f5edff;font-size:15px}
+.lesson-quiz-generation-heading p{margin:5px 0 0!important;color:#b8aec5;font-size:12px;line-height:1.6}
+.lesson-quiz-draft-badge{flex:none;padding:5px 8px;border:1px solid #57406f;border-radius:5px;color:#cfb5ee;font-size:9px;font-weight:700;letter-spacing:.08em}
+.lesson-quiz-generation-controls{display:grid;grid-template-columns:140px max-content;align-items:end;gap:7px 14px}
+.lesson-quiz-generation-controls label{display:grid;grid-column:1;grid-row:1;gap:8px;color:#e5d9f3;font-size:12px;font-weight:600}
+.lesson-quiz-generation-controls .primary{grid-column:2;grid-row:1;min-height:43px;white-space:nowrap}
+.lesson-quiz-count-hint{grid-column:1;color:#ab9bbb;font-size:10px}
+.lesson-quiz-generation input{width:100%;height:43px;padding:10px 12px;color:#f7f4fc;background:#100b19;border:1px solid #604485;border-radius:8px;font:inherit;color-scheme:dark}
+.lesson-quiz-generation input:focus-visible{outline:2px solid #c6a3fa;outline-offset:2px}
+.tutor-dashboard .lesson-quiz-editor .lesson-quiz-generation-note{padding-top:14px;margin:0;color:#aaa0b8;font-size:11px;line-height:1.6;border-top:1px solid #3c2d4d}
+.tutor-dashboard .lesson-quiz-editor .lesson-quiz-generation-message{margin:0;padding:11px 13px;border-left:3px solid #a77ada;border-radius:5px;background:#30213f;color:#e0d1ef;font-size:12px;line-height:1.6}
+.lesson-quiz-manual{display:flex;align-items:center;justify-content:space-between;gap:20px;padding-top:2px}
+.lesson-quiz-manual strong{color:#dfd3ed;font-size:13px}
+.lesson-quiz-manual p{color:#a99bb8;font-size:12px;margin:5px 0 0;line-height:1.5}
+.tutor-dashboard .lesson-quiz-editor .lesson-quiz-manual button{flex:none;white-space:nowrap;padding:10px 14px}
+@media(max-width:600px){.lesson-quiz-generation{padding:16px;gap:16px}.lesson-quiz-generation-heading{display:grid;grid-template-columns:36px minmax(0,1fr)}.lesson-quiz-draft-badge{grid-column:2;justify-self:start}.lesson-quiz-generation-controls{grid-template-columns:minmax(0,1fr)}.lesson-quiz-generation-controls .primary{grid-row:3;grid-column:1;width:100%}.lesson-quiz-manual{align-items:flex-start;flex-direction:column;gap:12px}.tutor-dashboard .lesson-quiz-editor .lesson-quiz-header{flex-direction:row}.lesson-quiz-optional{align-self:flex-start}}

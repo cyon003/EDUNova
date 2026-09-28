@@ -7,10 +7,10 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { transformWithOxc } from "vite";
 const source = await readFile(new URL("../src/components/LessonManager.jsx", import.meta.url), "utf8");
-const clean = source.replace(/^import[\s\S]*?;\n/gm, "").replace("export default ", "");
+const clean = source.replace(/^import[\s\S]*?;\n/gm, "").replace("export default ", "").replace("export function QuizEditor", "function QuizEditor");
 const result = await transformWithOxc(clean, "LessonManager.jsx", { jsx: { runtime: "classic" } });
 const icon = () => React.createElement("span");
-const { LessonFields, QuizEditor, editable } = new Function("TopicTimeInput", "React", "useId", "useRef", "useEffect", "FaTrash", "FaPlus", "QuizAttachment", "lessonReferences", "formatTopicTime", "parseTopicTime", `${result.code};return {LessonFields, QuizEditor, editable};`)(TopicTimeInput, React, () => "quiz", value => ({ current: value }), () => {}, icon, icon, icon, lesson => lesson.references || [], formatTopicTime, parseTopicTime);
+const { LessonFields, QuizEditor, editable } = new Function("useState", "TopicTimeInput", "React", "useId", "useRef", "useEffect", "FaTrash", "FaPlus", "QuizAttachment", "lessonReferences", "formatTopicTime", "parseTopicTime", `${result.code};return {LessonFields, QuizEditor, editable};`)((value) => [value, () => {}], TopicTimeInput, React, () => "quiz", value => ({ current: value }), () => {}, icon, icon, icon, lesson => lesson.references || [], formatTopicTime, parseTopicTime);
 const nodes = tree => !tree || typeof tree !== "object" ? [] : Array.isArray(tree) ? tree.flatMap(nodes) : [tree, ...nodes(tree.props?.children)];
 const lesson = { title: "Lesson", duration: "1:00", topics: [{ _id: "topic-1", title: "Intro", startTimeSeconds: 0, endTimeSeconds: 30 }], quiz: { title: "Quiz", questions: [{question: "True?", type: "true_false", options: [{text: "True"}, {text: "False"}], correctOption: 1, media: {storedName: "audio", originalName: "audio.mp3", mimeType: "audio/mpeg", size: 10, kind: "audio"} }] } };
 test("lesson editor retains topic IDs, duration, quiz answers and media", () => {

@@ -5,7 +5,7 @@ import React from 'react';
 import {transformWithOxc} from 'vite';
 import {hasLessonEdits} from '../src/utils/lessonEditor.js';
 const source=await readFile(new URL('../src/components/LessonManager.jsx',import.meta.url),'utf8');
-const compiled=await transformWithOxc(source.replace(/^import[\s\S]*?;\n/gm,'').replace('export default ',''),'LessonManager.jsx',{jsx:{runtime:'classic'}});
+const compiled=await transformWithOxc(source.replace(/^import[\s\S]*?;\n/gm,'').replace('export default ','').replace('export function QuizEditor','function QuizEditor'),'LessonManager.jsx',{jsx:{runtime:'classic'}});
 const nodes=tree=>!tree||typeof tree!=='object'?[]:Array.isArray(tree)?tree.flatMap(nodes):[tree,...nodes(tree.props?.children)];
 function harness(update){
  const values=[],refs=[];let cursor=0,ref=0;const scope={React,hasLessonEdits,TopicSuggestions:()=>null,TopicTimeInput:()=>null,useState(initial){const i=cursor++;if(!(i in values))values[i]=typeof initial==='function'?initial():initial;return [values[i],next=>{values[i]=typeof next==='function'?next(values[i]):next}]},useRef(initial){const i=ref++;return refs[i]||=( {current:initial})},useEffect(){},useId:()=>'',getLessonPrimaryMedia:()=>null,lessonReferences:()=>[]};

@@ -1,3 +1,4 @@
+import { getAuthSnapshot, sessionFetch } from "../utils/authClient";
 import "../styles/LessonEditor.css";
 import { hasLessonEdits } from "../utils/lessonEditor.js";
 import { captureLessonMetadata } from "../utils/lessonMetadata.js";
@@ -78,7 +79,14 @@ function LessonFields({ value, setValue }) {
   </div>;
 }
 
-function QuizEditor({ courseId, quiz, setQuiz }) {
+export function QuizEditor({ courseId, lessonId, courseVersion, materialDirty = false, contextKey = "", quiz, setQuiz }) {
+  const [questionCount, setQuestionCount] = useState(5);
+  const [generating, setGenerating] = useState(false);
+  const [generationMessage, setGenerationMessage] = useState("");
+  const generation = useRef(null);
+  const latestContext = useRef(contextKey);
+  useEffect(() => { latestContext.current = contextKey; }, [contextKey]);
+  useEffect(() => () => generation.current?.abort(), []);
   const groupId = useId();
   const current = quiz || emptyQuiz;
   // An upload finishes after the tutor may have kept typing, so its result is
@@ -87,6 +95,34 @@ function QuizEditor({ courseId, quiz, setQuiz }) {
   const mounted = useRef(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { latestQuiz.current = quiz; });
+
+  const generate = async () => {
+    if (generation.current || !lessonId || materialDirty || !Number.isInteger(questionCount) || questionCount < 2 || questionCount > 20) return;
+    if (quiz?.questions?.length && !window.confirm("Replace the current quiz questions with an AI draft? Your saved quiz will not change until you save the lesson.")) return;
+    const controller = new AbortController();
+    generation.current = controller;
+    const originalQuiz = JSON.stringify(latestQuiz.current);
+    const originalContext = latestContext.current;
+    setGenerating(true); setGenerationMessage("");
+    try {
+      const response = await sessionFetch(`${API_ROOT}/tutor/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}/generate-quiz`, { method: "POST", signal: controller.signal, headers: { "Content-Type": "application/json", "X-Course-Version": String(courseVersion || 0) }, body: JSON.stringify({ questionCount }) }, getAuthSnapshot().version);
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || "Unable to generate a quiz.");
+      if (!mounted.current || controller.signal.aborted) return;
+      if (originalQuiz !== JSON.stringify(latestQuiz.current) || originalContext !== latestContext.current) throw new Error("The lesson or quiz changed while generating. Your edits were kept. Save lesson changes and try again.");
+      setQuiz({ ...result.quiz, questions: result.quiz.questions.map(item => ({ ...item, media: null, _editorKey: `draft-question-${++questionSequence}` })) });
+      setGenerationMessage("AI draft ready. Review every question and answer, then save the lesson to keep it.");
+    } catch (error) { if (mounted.current && !controller.signal.aborted) setGenerationMessage(error.message || "Unable to generate a quiz."); }
+    finally { generation.current = null; if (mounted.current) setGenerating(false); }
+  };
+  const generationControls = <div className="lesson-quiz-generation" aria-busy={generating}>
+    <div className="lesson-quiz-generation-heading"><span className="lesson-quiz-ai-mark" aria-hidden="true">✦</span><div><strong>Start with an AI draft</strong><p>Turn saved lesson content into questions you can review and refine.</p></div><span className="lesson-quiz-draft-badge">DRAFT ONLY</span></div>
+    <div className="lesson-quiz-generation-controls"><label>Number of questions<input type="number" min="2" max="20" step="1" value={questionCount} disabled={generating} onChange={event => setQuestionCount(Number(event.target.value))}/></label><small className="lesson-quiz-count-hint">2–20 questions</small>
+    <button type="button" className="primary" disabled={generating || !lessonId || materialDirty || !Number.isInteger(questionCount) || questionCount < 2 || questionCount > 20} onClick={() => void generate()}>{generating ? "Generating..." : "Generate with AI"}</button></div>
+    <p className="lesson-quiz-generation-note">Saved lesson material is sent to Gemini. Nothing is saved until you save the lesson.</p>
+    {(!lessonId || materialDirty) && <p className="lesson-quiz-generation-message">Save the lesson changes before generating a quiz.</p>}
+    {generationMessage && <p className="lesson-quiz-generation-message" role="status">{generationMessage}</p>}
+  </div>;
 
   const setMedia = (questionKey, media) => {
     if (!mounted.current) return;
@@ -140,13 +176,9 @@ function QuizEditor({ courseId, quiz, setQuiz }) {
   if (!quiz) {
     return (
       <section className="lesson-quiz-editor is-empty wide">
-        <div className="lesson-quiz-intro">
-          <strong>Lesson quiz</strong>
-          <p>Add a quiz to this lesson. You can edit it later.</p>
-        </div>
-        <button type="button" className="primary" onClick={() => setQuiz({ ...emptyQuiz, questions: [] })}>
-          <FaPlus /> Create Quiz
-        </button>
+        <div className="lesson-quiz-header"><div className="lesson-quiz-intro"><strong>Lesson quiz</strong><p>Build a quick knowledge check for your students.</p></div><span className="lesson-quiz-optional">Optional</span></div>
+        {generationControls}
+        <div className="lesson-quiz-manual"><div><strong>Prefer to write your own?</strong><p>Add questions and answers from scratch.</p></div><button type="button" className="lesson-quiz-ghost" onClick={() => setQuiz({ ...emptyQuiz, questions: [] })}><FaPlus /> Create Quiz</button></div>
       </section>
     );
   }
@@ -163,6 +195,7 @@ function QuizEditor({ courseId, quiz, setQuiz }) {
         </button>
       </div>
 
+      {generationControls}
       <label className="lesson-quiz-field">
         <span>Quiz title</span>
         <input type="text" maxLength="200" value={quiz.title} onChange={(event) => setQuiz({ ...quiz, title: event.target.value })} />
@@ -367,7 +400,7 @@ export default function LessonManager({ course, form, setForm, add, update, remo
       <form className="form-grid lesson-builder lesson-editor" onSubmit={saveLesson}><fieldset className="lesson-edit-controls wide" disabled={saving}><div className="lesson-editor-heading wide"><h2>Edit Lesson</h2><button className="primary" type="button" onClick={openModal}><FaPlus/> New Lesson</button></div><div className="lesson-upload-grid wide">
         <UploadCard kind="video" title="Replace lesson video" hint="MP4, WebM or Ogg · one file" accept={mediaAccept} files={draft.mainVideo?[draft.mainVideo]:[]} onFiles={(files)=>{const chosen=validateFiles(files,mediaExtensions,true);if(chosen[0])void selectVideo(chosen[0],setDraft)}} onRemove={()=>{mediaSelection.current++;setDraft({...draft,mainVideo:null,durationSeconds:0,duration:lesson?.duration||""})}}/>
         <UploadCard kind="documents" title="Add supporting documents" hint="PDF, Office, TXT, images and additional media" accept={resourceAccept} multiple files={draft.documents} onFiles={(files)=>setDraft({...draft,documents:[...draft.documents,...validateFiles(files,resourceExtensions)]})} onRemove={(index)=>setDraft({...draft,documents:draft.documents.filter((_,item)=>item!==index)})}/>
-      </div><div className="wide lesson-current-media"><strong>Existing main video</strong><span>{primary?.originalName||"None"}</span>{primary&&<button type="button" disabled={saving} onClick={()=>changeMedia(()=>removeMain(lesson._id))}>Remove Video</button>}</div><LessonFields key={`fields:${draft.lessonId}`} value={draft} setValue={setDraft}/><QuizEditor key={`quiz:${draft.lessonId}`} courseId={course._id} quiz={draft.quiz} setQuiz={(quiz) => setDraft((current)=>({...current, quiz}))}/>{saveError&&<div className="lesson-form-error wide" role="alert"><p>{saveError}</p><button type="button" disabled={saving} onClick={reloadEditor}>Reload saved lesson</button><small>Reload asks before discarding your draft.</small></div>}<footer className="lesson-editor-actions wide">{toast&&<span className="lesson-save-toast" role="status" aria-live="polite">{toast}</span>}<button type="button" disabled={saving} onClick={()=>{if(mayDiscard())resetDraft(lesson)}}>Cancel</button><button className="primary" disabled={saving}>{saving?"Saving...":"Save"}</button></footer></fieldset></form>
+      </div><div className="wide lesson-current-media"><strong>Existing main video</strong><span>{primary?.originalName||"None"}</span>{primary&&<button type="button" disabled={saving} onClick={()=>changeMedia(()=>removeMain(lesson._id))}>Remove Video</button>}</div><LessonFields key={`fields:${draft.lessonId}`} value={draft} setValue={setDraft}/><QuizEditor key={`quiz:${draft.lessonId}`} courseId={course._id} lessonId={draft.lessonId} courseVersion={course.__v || 0} materialDirty={hasLessonEdits({...draft, quiz: baseline.quiz}, baseline)} contextKey={JSON.stringify({...draft, quiz: null, courseVersion: course.__v || 0})} quiz={draft.quiz} setQuiz={(quiz) => setDraft((current)=>({...current, quiz}))}/>{saveError&&<div className="lesson-form-error wide" role="alert"><p>{saveError}</p><button type="button" disabled={saving} onClick={reloadEditor}>Reload saved lesson</button><small>Reload asks before discarding your draft.</small></div>}<footer className="lesson-editor-actions wide">{toast&&<span className="lesson-save-toast" role="status" aria-live="polite">{toast}</span>}<button type="button" disabled={saving} onClick={()=>{if(mayDiscard())resetDraft(lesson)}}>Cancel</button><button className="primary" disabled={saving}>{saving?"Saving...":"Save"}</button></footer></fieldset></form>
       {lesson.resources?.length>0&&<section className="lesson-resource-status-list" aria-label="Existing supporting resources">{lesson.resources.filter((resource)=>String(primary?.resourceId)!==String(resource._id)).map((resource)=><div key={resource._id}><div><strong>{resource.originalName}</strong><small>{fileType(resource)} · {formatFileSize(resource.size)} · {isMediaResource(resource)?"Supporting video":"Supporting resource"}</small></div><span>{canPreviewResource(resource)&&<button type="button" onClick={()=>accessResource(resource,"view")}>View</button>}<button type="button" onClick={()=>accessResource(resource,"download")}>Download</button>{isMediaResource(resource)&&<button type="button" disabled={saving} onClick={()=>changeMedia(()=>selectMain(lesson._id,resource._id))}>Set as main</button>}<button type="button" disabled={saving} onClick={()=>changeMedia(()=>removeResource(lesson._id,resource._id))}>Delete</button></span></div>)}</section>}
     </>}
   </main><aside><header><h2>Course content</h2><span>{course.lessons.length} lessons</span></header>{course.lessons.map((item,index)=><button disabled={saving} className={selected===index?"active":""} onClick={()=>selectLesson(item)} key={item._id}><span>{String(index+1).padStart(2,"0")}</span><div><strong>{item.title}</strong><small>{getLessonPrimaryMedia(item)?"Main video":"No video"} · {item.resources?.length||0} resources</small></div><i onClick={(event)=>{event.stopPropagation();if(!saving && window.confirm(`Delete ${item.title}?`))void changeMedia(()=>remove(item._id))}}>Delete</i></button>)}</aside></div>

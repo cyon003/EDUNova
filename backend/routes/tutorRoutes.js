@@ -335,6 +335,21 @@ router.delete("/courses/:courseId", async (req, res) => {
   } catch (error) { return res.status(500).json({ message: "Unable to delete course", error: error.message }); }
 });
 
+// Generation returns a draft only; the existing lesson save remains authoritative.
+router.post("/courses/:courseId/lessons/:lessonId/generate-quiz", ownedCourse, async (req, res) => {
+  try {
+    const lesson = req.ownedCourse.lessons.id(req.params.lessonId);
+    if (!lesson) return res.status(404).json({ message: "Lesson not found" });
+    if (!req.body || Array.isArray(req.body) || Object.keys(req.body).some(key => key !== "questionCount") || !Number.isInteger(req.body.questionCount) || req.body.questionCount < 2 || req.body.questionCount > 20) return res.status(400).json({ message: "Provide only questionCount, an integer from 2 to 20." });
+    const quiz = await require("../services/quizGenerationService").generateQuiz(lesson, req.body.questionCount);
+    const checked = quizFields({ quiz }, false, req.params.courseId);
+    if (checked.error) return res.status(502).json({ message: "AI returned an invalid quiz. Please try again." });
+    return res.json({ quiz, generated: true, saved: false });
+  } catch (error) {
+    return res.status(error.publicMessage ? error.status : 503).json({ message: error.publicMessage || "Unable to generate a quiz. Please try again." });
+  }
+});
+
 // ---- Quiz question attachments (picture or audio) ----
 async function ownedCourse(req, res, next) {
   try {

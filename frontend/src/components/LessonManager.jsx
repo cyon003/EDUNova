@@ -1,7 +1,8 @@
 import "../styles/LessonEditor.css";
 import { hasLessonEdits } from "../utils/lessonEditor.js";
 import { captureLessonMetadata } from "../utils/lessonMetadata.js";
-import { formatTopicTime, parseTopicTime } from "../utils/topicTime";
+import TopicTimeInput from "./TopicTimeInput.jsx";
+import TopicSuggestions from "./TopicSuggestions.jsx";
 import { useEffect, useId, useRef, useState } from "react";
 import { FaBookOpen, FaCloudUploadAlt, FaGraduationCap, FaPlus, FaTimes, FaTrash } from "react-icons/fa";
 import { API_ROOT } from "../utils/courseApi";
@@ -48,10 +49,6 @@ function UploadCard({ kind, title, hint, accept, multiple, files, onFiles, onRem
     <input ref={input} className="lesson-hidden-file" type="file" accept={accept} multiple={multiple} onChange={(event)=>onFiles(event.target.files)}/>
     <div className="lesson-selected-files">{files.map((file,index)=><div key={`${file.name}-${index}`}><span><strong>{file.name}</strong><small>{formatFileSize(file.size)}</small></span><button type="button" onClick={()=>input.current?.click()}>{kind==="video"?"Replace":"Add"}</button><button type="button" onClick={()=>onRemove(index)}>Remove</button></div>)}</div>
   </section>;
-}
-
-function TopicTimeInput({ label, value, onChange }) {
-  return <label>{label}<span className="lesson-topic-time-input"><input type="text" inputMode="decimal" required pattern="[0-9]+:[0-5][0-9]([.][0-9]{1,3})?" placeholder="00:00" aria-label={`${label} (MM:SS)`} value={formatTopicTime(value)} onChange={event => onChange(event.target.value)} onBlur={event => { if(typeof value === "number")return; const seconds = parseTopicTime(event.target.value); if (seconds !== null) onChange(seconds); }} /><small>MM:SS</small></span></label>;
 }
 
 function LessonFields({ value, setValue }) {
@@ -265,6 +262,9 @@ export default function LessonManager({ course, form, setForm, add, update, remo
   const [draft, setDraft] = useState(()=>({...editable(lesson), courseVersion: course.__v || 0}));
   const [baseline, setBaseline] = useState(() => draft);
   const busy = useRef(false);
+  const videoPreview = useRef(null);
+  const [suggestionDirty, setSuggestionDirty] = useState(false);
+  const [suggestionEpoch, setSuggestionEpoch] = useState(0);
   const mediaSelection = useRef(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -300,10 +300,12 @@ export default function LessonManager({ course, form, setForm, add, update, remo
   };
   const resetDraft = (item, savedCourse = course) => {
     mediaSelection.current++;
+    setSuggestionEpoch(value => value + 1);
+    setSuggestionDirty(false);
     const next = { ...editable(item), courseVersion: savedCourse.__v || 0 };
     setDraft(next); setBaseline(next); setSelectedId(item?._id || ""); setMessage(""); setSaveError("");
   };
-  const mayDiscard = () => !hasLessonEdits(draft, baseline) || window.confirm("Discard unsaved changes to this lesson?");
+  const mayDiscard = () => (!hasLessonEdits(draft, baseline) && !suggestionDirty) || window.confirm("Discard unsaved lesson and suggestion changes?");
   const selectLesson = item => { if (busy.current || String(item._id) === String(selectedId)) return; if (mayDiscard()) resetDraft(item); };
   const closeEditor = () => { if (!busy.current && mayDiscard()) close(); };
   const openModal = () => { if (busy.current || !mayDiscard()) return; resetDraft(lesson); setModalOpen(true); };
@@ -315,7 +317,9 @@ export default function LessonManager({ course, form, setForm, add, update, remo
   };
   const showToast = (text) => { window.clearTimeout(toastTimer.current); setToast(text); toastTimer.current=window.setTimeout(()=>setToast(""),3000); };
   const saveLesson = async event => {
-    event.preventDefault(); if (busy.current) return; busy.current = true; setSaving(true);
+    event.preventDefault(); if (busy.current) return;
+    if (suggestionDirty && !window.confirm("Saving the lesson reloads suggestions. Discard unsaved suggestion edits?")) return;
+    busy.current = true; setSaving(true);
     try {
       if (!lesson || String(draft.lessonId) !== String(lesson._id)) throw new Error("Select the lesson again before saving.");
       const saved = await update(lesson._id, draft);
@@ -331,16 +335,39 @@ export default function LessonManager({ course, form, setForm, add, update, remo
     catch (error) { setSaveError(error.message); } finally { busy.current = false; setSaving(false); }
   };
   const reloadEditor = () => changeMedia(reload);
+  const reviewSuggestions = async operation => {
+    if (busy.current || hasLessonEdits(draft, baseline)) throw new Error("Save or cancel lesson changes before reviewing suggestions.");
+    busy.current = true; setSaving(true);
+    try {
+      const result = await operation();
+      try {
+        const saved = await reload();
+        const savedLesson = saved.lessons.find(item => String(item._id) === String(selectedId));
+        if (!savedLesson) throw new Error("This lesson is no longer available.");
+        resetDraft(savedLesson, saved);
+        showToast(result.generationRequested ? "Transcript and topic generation requested" : result.reviewStatus === "accepted" ? "Suggested topics added" : result.reviewStatus === "rejected" ? "Suggestions rejected" : "Suggestion edits saved");
+      } catch { throw new Error("The review was saved, but the lesson could not be refreshed."); }
+      return result;
+    } finally { busy.current = false; setSaving(false); }
+  };
+  const previewTopic = seconds => {
+    const video = videoPreview.current;
+    if (!video || video.readyState < 1) { setMessage("Wait for the saved video to load before previewing."); return; }
+    video.currentTime = seconds;
+    video.scrollIntoView({ behavior: "smooth", block: "center" });
+    video.focus();
+  };
   const accessResource = async (resource, action) => { const response=await fetch(`${API_ROOT}/courses/${encodeURIComponent(course.slug)}/lessons/${selected}/resources/${resource._id}/${action}`,{headers:{Authorization:`Bearer ${localStorage.getItem("token")}`,"X-Course-Version":String(course.__v||0)}});if(!response.ok){setMessage("This resource is unavailable.");return}const url=URL.createObjectURL(await response.blob());if(action==="view")window.open(url,"_blank","noopener,noreferrer");else{const link=document.createElement("a");link.href=url;link.download=resource.originalName;link.click()}window.setTimeout(()=>URL.revokeObjectURL(url),60000)};
 
   return <div className="lesson-studio"><header><div><FaGraduationCap/><strong>EDUNOVA</strong><span>{course.name}</span></div><button disabled={saving} onClick={closeEditor}>Close</button></header><div className="lesson-studio-layout"><main>
     {message&&<p className="lesson-manager-message" role="status">{message}</p>}
     {!lesson?<><div className="lesson-editor-heading"><h2>Edit Lesson</h2><button className="primary" type="button" onClick={openModal}><FaPlus/> New Lesson</button></div><div className="lesson-preview empty"><FaBookOpen/><strong>Select a lesson or add the first one</strong></div></>:<>
-      <div className="lesson-preview">{primary&&persistedMedia.url?<video key={persistedMedia.url} src={persistedMedia.url} controls onLoadedMetadata={event => captureLessonMetadata(event, { lessonId: lesson._id, savedDuration: lesson.duration, isCurrent: () => activePreview.current === previewIdentity, setDraft })} onError={()=>setMessage("This video format is not supported by your browser.")}/>:<div className="lesson-preview empty"><FaBookOpen/><strong>{persistedMedia.error||"No lesson video has been uploaded."}</strong></div>}</div>
+      <div className="lesson-preview">{primary&&persistedMedia.url?<video ref={videoPreview} tabIndex={0} aria-label="Saved lesson video" key={persistedMedia.url} src={persistedMedia.url} controls onLoadedMetadata={event => captureLessonMetadata(event, { lessonId: lesson._id, savedDuration: lesson.duration, isCurrent: () => activePreview.current === previewIdentity, setDraft })} onError={()=>setMessage("This video format is not supported by your browser.")}/>:<div className="lesson-preview empty"><FaBookOpen/><strong>{persistedMedia.error||"No lesson video has been uploaded."}</strong></div>}</div>
+      <TopicSuggestions key={`${lesson._id}:${course.__v || 0}:${suggestionEpoch}`} courseId={course._id} courseVersion={course.__v || 0} lesson={lesson} lessonDirty={hasLessonEdits(draft, baseline)} disabled={saving || modalOpen} canPreview={Boolean(persistedMedia.url)} onPreview={previewTopic} onDirty={setSuggestionDirty} onReview={reviewSuggestions} onReload={reloadEditor}/>
       <form className="form-grid lesson-builder lesson-editor" onSubmit={saveLesson}><fieldset className="lesson-edit-controls wide" disabled={saving}><div className="lesson-editor-heading wide"><h2>Edit Lesson</h2><button className="primary" type="button" onClick={openModal}><FaPlus/> New Lesson</button></div><div className="lesson-upload-grid wide">
         <UploadCard kind="video" title="Replace lesson video" hint="MP4, WebM or Ogg · one file" accept={mediaAccept} files={draft.mainVideo?[draft.mainVideo]:[]} onFiles={(files)=>{const chosen=validateFiles(files,mediaExtensions,true);if(chosen[0])void selectVideo(chosen[0],setDraft)}} onRemove={()=>{mediaSelection.current++;setDraft({...draft,mainVideo:null,durationSeconds:0,duration:lesson?.duration||""})}}/>
         <UploadCard kind="documents" title="Add supporting documents" hint="PDF, Office, TXT, images and additional media" accept={resourceAccept} multiple files={draft.documents} onFiles={(files)=>setDraft({...draft,documents:[...draft.documents,...validateFiles(files,resourceExtensions)]})} onRemove={(index)=>setDraft({...draft,documents:draft.documents.filter((_,item)=>item!==index)})}/>
-      </div><div className="wide lesson-current-media"><strong>Existing main video</strong><span>{primary?.originalName||"None"}</span>{primary&&<button type="button" disabled={saving} onClick={()=>changeMedia(()=>removeMain(lesson._id))}>Remove Video</button>}</div><LessonFields key={draft.lessonId} value={draft} setValue={setDraft}/><QuizEditor key={draft.lessonId} courseId={course._id} quiz={draft.quiz} setQuiz={(quiz) => setDraft((current)=>({...current, quiz}))}/>{saveError&&<div className="lesson-form-error wide" role="alert"><p>{saveError}</p><button type="button" disabled={saving} onClick={reloadEditor}>Reload saved lesson</button><small>Reload asks before discarding your draft.</small></div>}<footer className="lesson-editor-actions wide">{toast&&<span className="lesson-save-toast" role="status" aria-live="polite">{toast}</span>}<button type="button" disabled={saving} onClick={()=>resetDraft(lesson)}>Cancel</button><button className="primary" disabled={saving}>{saving?"Saving...":"Save"}</button></footer></fieldset></form>
+      </div><div className="wide lesson-current-media"><strong>Existing main video</strong><span>{primary?.originalName||"None"}</span>{primary&&<button type="button" disabled={saving} onClick={()=>changeMedia(()=>removeMain(lesson._id))}>Remove Video</button>}</div><LessonFields key={`fields:${draft.lessonId}`} value={draft} setValue={setDraft}/><QuizEditor key={`quiz:${draft.lessonId}`} courseId={course._id} quiz={draft.quiz} setQuiz={(quiz) => setDraft((current)=>({...current, quiz}))}/>{saveError&&<div className="lesson-form-error wide" role="alert"><p>{saveError}</p><button type="button" disabled={saving} onClick={reloadEditor}>Reload saved lesson</button><small>Reload asks before discarding your draft.</small></div>}<footer className="lesson-editor-actions wide">{toast&&<span className="lesson-save-toast" role="status" aria-live="polite">{toast}</span>}<button type="button" disabled={saving} onClick={()=>{if(mayDiscard())resetDraft(lesson)}}>Cancel</button><button className="primary" disabled={saving}>{saving?"Saving...":"Save"}</button></footer></fieldset></form>
       {lesson.resources?.length>0&&<section className="lesson-resource-status-list" aria-label="Existing supporting resources">{lesson.resources.filter((resource)=>String(primary?.resourceId)!==String(resource._id)).map((resource)=><div key={resource._id}><div><strong>{resource.originalName}</strong><small>{fileType(resource)} · {formatFileSize(resource.size)} · {isMediaResource(resource)?"Supporting video":"Supporting resource"}</small></div><span>{canPreviewResource(resource)&&<button type="button" onClick={()=>accessResource(resource,"view")}>View</button>}<button type="button" onClick={()=>accessResource(resource,"download")}>Download</button>{isMediaResource(resource)&&<button type="button" disabled={saving} onClick={()=>changeMedia(()=>selectMain(lesson._id,resource._id))}>Set as main</button>}<button type="button" disabled={saving} onClick={()=>changeMedia(()=>removeResource(lesson._id,resource._id))}>Delete</button></span></div>)}</section>}
     </>}
   </main><aside><header><h2>Course content</h2><span>{course.lessons.length} lessons</span></header>{course.lessons.map((item,index)=><button disabled={saving} className={selected===index?"active":""} onClick={()=>selectLesson(item)} key={item._id}><span>{String(index+1).padStart(2,"0")}</span><div><strong>{item.title}</strong><small>{getLessonPrimaryMedia(item)?"Main video":"No video"} · {item.resources?.length||0} resources</small></div><i onClick={(event)=>{event.stopPropagation();if(!saving && window.confirm(`Delete ${item.title}?`))void changeMedia(()=>remove(item._id))}}>Delete</i></button>)}</aside></div>

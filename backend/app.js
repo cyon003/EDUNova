@@ -63,6 +63,8 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/announcements", announcementRoutes);
 app.use("/api/tutor-application", tutorApplicationRoutes);
 app.use("/api/tutor", tutorRoutes);
+app.use("/api/tutor/courses", require("./routes/transcriptionRoutes"));
+app.use("/api/tutor/courses", require("./routes/topicSuggestionRoutes"));
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/favorites", favoriteRoutes);

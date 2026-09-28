@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 const source = await readFile(new URL('../src/pages/TutorDashboard.jsx', import.meta.url), 'utf8');
 const code = source.slice(source.indexOf('function confusionLevel'), source.indexOf('\nfunction ', source.indexOf('function CourseHeatmapSection') + 1));
 const compiled = await transformWithOxc(code, 'heatmap.jsx', { jsx: { runtime: 'classic' } });
-const { Analytics, CourseHeatmapSection, confusionLevel, TopicSignals, topicTime } = new Function('React', 'useState', 'apiAssetUrl', 'FaBookOpen', 'when', 'Header', `${compiled.code}; return {Analytics, CourseHeatmapSection, confusionLevel, TopicSignals, topicTime};`)(React, React.useState, x=>x, ()=>null, x=>x, ({title})=>React.createElement('h1',null,title));
+const { Analytics, CourseHeatmapSection, confusionLevel, TopicSignals, topicTime } = new Function('React', 'useState', 'apiAssetUrl', 'FaBookOpen', 'when', 'Header', 'LearningInsights', `${compiled.code}; return {Analytics, CourseHeatmapSection, confusionLevel, TopicSignals, topicTime};`)(React, React.useState, x=>x, ()=>null, x=>x, ({title})=>React.createElement('h1',null,title), ()=>null);
 const lesson = (count, rate=0) => ({lessonId:`internal-${count}`,lessonOrder:count,lessonTitle:`Topic ${count}`,predictionCount:count,confusionRate:rate});
 const course = {courseId:'internal-course',courseTitle:'Applied mathematics',category:'Science',totalStudentsAnalyzed:8,predictionLessonCount:3,overallConfusionRate:40,lessons:[lesson(0),lesson(3),lesson(5,40),lesson(8,75)]};
 const render = (Component, props) => renderToStaticMarkup(React.createElement(Component,props));
@@ -64,7 +64,7 @@ test('analytics keeps courses separate and shows stale insights alongside refres
 const topic = (observedStudents=10, confusedStudents=8) => ({topicId:'internal-topic',title:'While Loop',startTimeSeconds:480,endTimeSeconds:720,observedStudents,confusedStudents,sampleSufficient:observedStudents>=5,confusionRate:observedStudents>=5?Math.round(confusedStudents/observedStudents*100):null,latestConfusionAt:null});
 test('topic rows show rate, counts, ranges and behavioral-inference explanation alongside lesson heatmap',()=>{
  const html=render(CourseHeatmapSection,{course:{...course,lessons:[{...lesson(10,50),topics:[topic()]}]}});
- for(const text of ['Topic signals','While Loop','80%','Students with Learning Difficulties: 8 of 10 sufficiently-exposed students (predicted)','08:00','12:00','High potential confusion','50%','at least 50% unique video coverage','not proof of confusion']) assert.ok(html.includes(text),text);
+ for(const text of ['Topic signals','While Loop','80%','Students with mapped model flags: 8 of 10 sufficiently-exposed students (predicted)','08:00','12:00','High potential confusion','50%','at least 50% unique video coverage','not proof of confusion']) assert.ok(html.includes(text),text);
  assert.doesNotMatch(html,/internal-topic/);
 });
 test('insufficient topic samples show collecting and observed count without a severity band',()=>{

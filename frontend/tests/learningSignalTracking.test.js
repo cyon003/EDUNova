@@ -83,7 +83,7 @@ test("confusion heatmap thresholds and insufficient-data copy are present", asyn
   assert.match(dashboard, /40–69%/);
   assert.match(dashboard, /70–100%/);
   assert.match(dashboard, /Collecting data/);
-  assert.match(dashboard, /predictionCount<5/);
+  assert.match(dashboard, /predictionCount>=5/);
   assert.doesNotMatch(dashboard, /window\.location\.reload\(\)/);
 });
 

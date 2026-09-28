@@ -19,7 +19,7 @@ async function startServer() {
       throw new Error("Production MongoDB must support transactions. Use a replica set or MongoDB Atlas.");
     }
   }
-  await Promise.all([TutorApplication.syncIndexes(), RefreshSession.syncIndexes(), LearningSignal.syncIndexes()]);
+  await Promise.all([TutorApplication.syncIndexes(), RefreshSession.syncIndexes(), LearningSignal.syncIndexes(), require("./models/TranscriptionJob").createIndexes(), require("./models/TranscriptSegment").createIndexes(), require("./models/TopicSuggestion").createIndexes()]);
   console.log("MongoDB Connected");
 
   const server = http.createServer(app);

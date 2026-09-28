@@ -126,3 +126,18 @@ test("schema preserves uploaded resources, primary media metadata and reference 
   assert.equal(course.lessons[0].resources[0].originalName, "guide.pdf");
   assert.equal(Object.keys(course.lessons[0].resources[0].toObject()).some((key) => key.startsWith("extract")), false);
 });
+
+test('expired signed video links reject and the owning tutor can obtain a fresh link', async () => {
+  activeCourse.moderationStatus='unpublished';
+  currentUser={_id:ids.tutor,role:'tutor',tokenVersion:0,accountStatus:'approved'};
+  const access=await request('/api/courses/protected-course/lessons/0/media-access',token(ids.tutor,'tutor'));
+  assert.equal(access.status,200);
+  const url=new URL(JSON.parse(access.body).url);
+  const claims=jwt.verify(url.searchParams.get('token'),process.env.JWT_SECRET);
+  delete claims.iat; delete claims.exp;
+  const expired=jwt.sign(claims,process.env.JWT_SECRET,{expiresIn:-1});
+  assert.equal((await request(`${url.pathname}?token=${encodeURIComponent(expired)}`)).status,401);
+  const renewed=await request('/api/courses/protected-course/lessons/0/media-access',token(ids.tutor,'tutor'));
+  assert.equal(renewed.status,200);
+  assert.ok(jwt.verify(new URL(JSON.parse(renewed.body).url).searchParams.get('token'),process.env.JWT_SECRET).exp>Date.now()/1000);
+});

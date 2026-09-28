@@ -5,6 +5,7 @@ import { canPreviewResource, fileType, formatFileSize, getLessonPrimaryMedia, le
 import { API_ROOT, getPublicCourse } from "../utils/courseApi";
 import { LessonSummaryPanel, VideoTranscriptPanel } from "../components/Summaries";
 import LessonQuiz from "../components/LessonQuiz";
+import LessonTopics from "../components/LessonTopics.jsx";
 import { useAuth } from "../hooks/useAuth";
 import { useLearningSignal } from "../hooks/useLearningSignal";
 import ConfusionRecommendation from "../components/ConfusionRecommendation.jsx";
@@ -304,6 +305,8 @@ function LessonPlayer() {
             Your browser does not support HTML video.
           </video> : <div className="lesson-media-unavailable">{mediaError || (primaryMedia ? "Loading lesson video..." : "No lesson video has been uploaded.")}</div>}
         </div>
+
+        <LessonTopics topics={lesson.topics || []} mediaRef={videoRef} ready={Boolean(primaryMedia && mediaUrl && mediaLessonIndex === lessonIndex && !mediaError && lessonWatch.ready)} />
 
         {learningSignal.recommendation && <ConfusionRecommendation
           onDismiss={learningSignal.dismissRecommendation}

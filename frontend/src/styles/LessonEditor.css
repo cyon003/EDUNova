@@ -54,6 +54,29 @@
 .tutor-dashboard .lesson-modal .lesson-quiz-editor.is-empty .primary { white-space: nowrap; background: #30233f; border: 1px solid #5c427a; font-size: 12px; }
 .tutor-dashboard .lesson-modal .lesson-modal-actions { position: sticky; bottom: 0; z-index: 2; align-items: center; margin: 0 -28px; padding: 16px 28px; background: #191620; border-top: 1px solid #342c40; }
 .lesson-modal-actions > span { margin-right: auto; color: #978ca4; font-size: 11px; }
+.tutor-dashboard .lesson-suggestions { margin: 20px 0; padding: 20px; border: 1px solid #383040; border-radius: 12px; background: #1a1622; }
+.lesson-suggestions > header { display: flex; justify-content: space-between; align-items: start; gap: 16px; }
+.lesson-suggestions h3 { margin: 0; }
+.lesson-suggestions button { min-height: 36px; }
+.lesson-generation-status { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+.lesson-generation-status > div { padding: 12px; border: 1px solid #383040; border-radius: 8px; background: #211a2d; }
+.lesson-generation-status strong { font-size: 13px; color: #dfccf7; }
+.lesson-suggestions small { display: block; color: #b7a4cf; margin-top: 6px; overflow-wrap: anywhere; }
+.lesson-suggestion-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
+.lesson-suggestion-fields:disabled { opacity: .75; }
+.lesson-suggestions .lesson-topic-card { min-width: 0; }
+.lesson-suggestions .lesson-topic-title { display: grid; gap: 8px; }
+.lesson-suggestions input { min-width: 0; width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #51445e; border-radius: 8px; background: #100e17; color: #f1edf7; }
+.lesson-suggestions blockquote { margin: 12px 0 0; padding: 12px; border-left: 3px solid #b18aea; color: #d9cee7; font-size: 13px; line-height: 1.6; }
+.lesson-suggestions .lesson-suggestion-notice { padding: 12px; border-left: 3px solid #bd965b; background: #2a2230; color: #e0cbb0; }
+.lesson-suggestion-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.lesson-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.lesson-suggestions button:focus-visible, .lesson-suggestions input:focus-visible { outline: 2px solid #c4a7f2; outline-offset: 3px; }
+@media (max-width: 600px) {
+  .lesson-generation-status { grid-template-columns: minmax(0, 1fr); }
+  .lesson-suggestions > header { flex-direction: column; }
+  .lesson-suggestion-actions > button { flex: 1 1 100%; }
+}
 .tutor-dashboard .lesson-modal-actions button { min-height: 40px; padding: 10px 18px; font-size: 13px; font-weight: 600; white-space: nowrap; }
 .tutor-dashboard .lesson-modal-actions .primary { background: #9163d4; border-color: #a77be6; box-shadow: 0 3px 12px #8050bd33; }
 .tutor-dashboard .lesson-modal-actions .primary:hover:not(:disabled) { background: #a173e1; }

@@ -2,11 +2,12 @@ import { parseTopicTime } from "./topicTime.js";
 import { validLessonDuration } from "./lessonMetadata.js";
 
 export function topicPayload(topics, duration = null) {
+  if (!Array.isArray(topics || []) || (topics || []).length > 200) throw new Error("Use at most 200 topics.");
   let previousEnd = 0;
   return (topics || []).map((topic, index) => {
     const start = typeof topic.startTimeSeconds === "string" ? parseTopicTime(topic.startTimeSeconds) : topic.startTimeSeconds;
     const end = typeof topic.endTimeSeconds === "string" ? parseTopicTime(topic.endTimeSeconds) : topic.endTimeSeconds;
-    if (!topic.title.trim()) throw new Error(`Topic ${index + 1} needs a title.`);
+    if (!topic.title.trim() || topic.title.trim().length > 200) throw new Error(`Topic ${index + 1} needs a title of 1 to 200 characters.`);
     if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start) throw new Error(`Topic ${index + 1}: use MM:SS with an end after the start.`);
     if (start < previousEnd) throw new Error(`Topic ${index + 1} overlaps the previous topic.`);
     if (duration > 0 && end > duration) throw new Error(`Topic ${index + 1} ends after the lesson media.`);

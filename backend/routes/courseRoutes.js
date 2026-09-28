@@ -16,7 +16,6 @@ router.use("/:slug/reviews", require("./courseReviewRoutes"));
 // A course is discoverable only after its first lesson is ready. This prevents
 // students from enrolling in a published shell with no learning content.
 const publiclyVisible = { moderationStatus: "published", "lessons.0": { $exists: true } };
-const mediaExtensions = /\.(mp4|webm|ogv|mov|m4v|mp3|wav|m4a|ogg)$/i;
 
 function safeUploadPath(storage, storedName) {
   if (!["course-videos", "lesson-resources"].includes(storage) || !storedName || path.basename(storedName) !== storedName) throw new Error("unsafe_path");
@@ -26,26 +25,7 @@ function safeUploadPath(storage, storedName) {
   return resolved;
 }
 
-function legacyStoredName(url) {
-  try { return path.basename(new URL(url).pathname); } catch { return path.basename(String(url || "")); }
-}
-
-function legacyMediaType(storedName) {
-  const extension = path.extname(storedName).toLowerCase();
-  return ({ ".webm": "video/webm", ".ogv": "video/ogg", ".ogg": "video/ogg", ".mov": "video/quicktime", ".m4v": "video/x-m4v", ".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4" })[extension] || "video/mp4";
-}
-
-function primaryMediaFor(lesson) {
-  if (lesson.primaryMedia?.storedName) return lesson.primaryMedia;
-  if (lesson.primaryMediaRemoved) return null;
-  const resource = lesson.resources?.find((item) => /^(video|audio)\//i.test(item.mimeType || "") || mediaExtensions.test(item.originalName || ""));
-  if (resource) return { ...(typeof resource.toObject === "function" ? resource.toObject() : resource), storage: "lesson-resources", resourceId: resource._id };
-  if (String(lesson.videoUrl || "").includes("/uploads/course-videos/")) {
-    const storedName = legacyStoredName(lesson.videoUrl);
-    return { originalName: storedName, storedName, mimeType: legacyMediaType(storedName), size: 0, storage: "course-videos" };
-  }
-  return null;
-}
+const { primaryMediaFor } = require("../utils/primaryMedia");
 
 async function authorizedLesson(req, res) {
   const course = await Course.findOne({ slug: req.params.slug.toLowerCase() });

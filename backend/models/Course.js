@@ -81,6 +81,7 @@ const quizSchema = new mongoose.Schema(
 const courseSchema = new mongoose.Schema(
   {
     enrollmentRevision: { type: Number, default: 0, select: false },
+    topicSuggestionRevision: { type: Number, select: false },
 
     slug: {
       type: String,
@@ -201,6 +202,11 @@ const courseSchema = new mongoose.Schema(
           }],
           default: [],
           validate: { validator: topics => !topicRangesError(topics), message: "Invalid, unordered or overlapping lesson topics" },
+        },
+        transcriptionSource: {
+          mediaVersion: String,
+          storage: String,
+          storedName: String,
         },
         transcript: {
           type: String,
@@ -346,6 +352,7 @@ const courseSchema = new mongoose.Schema(
       value.rating = value.reviewCount ? value.rating : 0;
       value.reviewCount = value.reviewCount || 0;
       delete value.courseReviews;
+      for (const lesson of value.lessons || []) delete lesson.transcriptionSource;
       return value;
     } },
   }

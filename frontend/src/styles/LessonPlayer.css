@@ -64,3 +64,11 @@
 .lesson-confusion-actions button:hover { background: #493461; }
 .lesson-confusion-actions button:focus-visible { outline: 3px solid #c4a2ff; outline-offset: 3px; }
 @media (max-width: 600px) { .lesson-confusion-recommendation { align-items: flex-start; flex-direction: column; } .lesson-confusion-actions { flex-wrap: wrap; align-self: flex-end; } }
+
+.lesson-student-topics { margin: 16px 0; padding: 18px; border: 1px solid #393047; border-radius: 12px; background: #171222; }
+.lesson-student-topics p { margin: 8px 0 14px; color: #b3a8c4; font-size: 13px; }
+.lesson-student-topics ol { display: grid; gap: 8px; list-style: none; padding: 0; }
+.lesson-student-topics button { display: flex; justify-content: space-between; gap: 16px; width: 100%; padding: 12px; text-align: left; color: #eee5fa; border: 1px solid #514063; border-radius: 8px; background: #251a35; cursor: pointer; }
+.lesson-student-topics button span { white-space: nowrap; color: #c6acdF; }
+.lesson-student-topics button:disabled { opacity: .5; cursor: default; }
+.lesson-student-topics button:focus-visible { outline: 2px solid #bc92ef; outline-offset: 3px; }

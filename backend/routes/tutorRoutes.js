@@ -1,3 +1,5 @@
+const { latestStudentSignals, lessonBehavior } = require("../services/analyticsBehaviorService");
+const { setTranscriptionSource, queueTranscription } = require("../services/transcriptionService");
 const { assertCourseVersion } = require("../services/curriculumGuard");
 const PlatformSetting = require("../models/PlatformSetting");
 const express = require("express");
@@ -436,7 +438,10 @@ router.post("/courses/:courseId/lessons", receiveLessonFiles, async (req, res) =
     const resources = resourceFiles.map((file) => ({ originalName: file.originalname, storedName: file.filename, mimeType: file.mimetype, size: file.size, url: `${req.protocol}://${req.get("host")}/uploads/lesson-resources/${file.filename}` }));
     course.lessons.push({ title: req.body.title, description: req.body.description || "", ...lessonContent.values, ...topicContent.values, duration, videoUrl: "", primaryMedia: videoFile ? mediaDescriptor(videoFile) : undefined, posterUrl: await createLessonPoster(videoFile), primaryMediaRemoved: false, references, resources, quiz: quizContent.values.quiz });
     if (course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
+    const createdLesson = course.lessons[course.lessons.length - 1];
+    setTranscriptionSource(createdLesson);
     await course.save();
+    await queueTranscription(course, createdLesson);
     return res.status(201).json(await Course.findById(course._id));
   } catch (error) {
     [...(req.files?.video || []), ...(req.files?.resources || [])].forEach((file) => fs.unlink(file.path, () => {}));
@@ -489,10 +494,12 @@ router.patch("/courses/:courseId/lessons/:lessonId", receiveLessonFiles, async (
       lesson.duration = `${Math.floor(replacementSeconds / 60)}:${String(replacementSeconds % 60).padStart(2, "0")}`;
       lesson.posterUrl = await createLessonPoster(video);
       lesson.primaryMediaRemoved = false;
+      setTranscriptionSource(lesson);
     }
     for (const file of resources) lesson.resources.push(mediaDescriptor(file, "lesson-resources"));
     if ((contentChanged || quizContent.values || video || resources.length || Object.hasOwn(req.body, "topics")) && course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
     await course.save();
+    await queueTranscription(course, lesson);
     await finishMediaRecovery(recovery, course.lessons);
     return res.json(course);
   } catch (error) { return res.status(error.status || (error.name === "VersionError" ? 409 : 500)).json({ message: error.status || error.name === "VersionError" ? "This course changed. Reload before saving. Your draft has been kept." : "Unable to update lesson" }); }
@@ -517,7 +524,9 @@ router.post("/courses/:courseId/lessons/:lessonId/main-media", uploadLessonFiles
     lesson.duration = req.body.durationSeconds === undefined ? "Provider managed" : `${Math.floor(durationSeconds / 60)}:${String(durationSeconds % 60).padStart(2, "0")}`;
     lesson.posterUrl = await createLessonPoster(req.file);
     lesson.primaryMediaRemoved = false;
+    setTranscriptionSource(lesson);
     await course.save();
+    await queueTranscription(course, lesson);
     await finishMediaRecovery(recovery, course.lessons);
     return res.json(course);
   } catch (error) { if (req.file) fs.unlink(req.file.path, () => {}); return res.status(500).json({ message: "Unable to replace main lesson media" }); }
@@ -535,7 +544,9 @@ router.patch("/courses/:courseId/lessons/:lessonId/main-media", async (req, res)
     lesson.videoUrl = "";
     lesson.posterUrl = "";
     lesson.primaryMediaRemoved = false;
+    setTranscriptionSource(lesson);
     await course.save();
+    await queueTranscription(course, lesson);
     await finishMediaRecovery(recovery, course.lessons);
     return res.json(course);
   } catch (error) { return res.status(error.status || (error.name === "VersionError" ? 409 : 500)).json({ message: error.status || error.name === "VersionError" ? "This course changed. Reload before continuing." : "Unable to select main lesson media" }); }
@@ -550,6 +561,7 @@ router.delete("/courses/:courseId/lessons/:lessonId/main-media", async (req, res
     const recovery = await prepareMediaRecovery(mainMediaFiles(lesson), recoveryMetadata(course, lesson, "delete-main-media"));
     lesson.primaryMedia = undefined;
     lesson.primaryMediaRemoved = true;
+    lesson.transcriptionSource = undefined;
     lesson.videoUrl = "";
     lesson.posterUrl = "";
     await course.save();
@@ -593,6 +605,7 @@ router.delete("/courses/:courseId/lessons/:lessonId/resources/:resourceId", asyn
     if (String(lesson.primaryMedia?.resourceId || "") === String(resource._id)) {
       lesson.primaryMedia = undefined;
       lesson.primaryMediaRemoved = true;
+      lesson.transcriptionSource = undefined;
     }
     resource.deleteOne();
     if (course.moderationStatus !== "rejected") course.moderationStatus = "unpublished";
@@ -616,7 +629,7 @@ router.get("/analytics", async (req, res) => {
     const signals = courseIds.length
       ? await LearningSignal.find({ course: { $in: courseIds }, "aiPrediction.prediction": { $in: ["clear", "confused"] } }).lean()
       : [];
-    const validSignals = signals.filter((signal) => {
+    const validSignals = latestStudentSignals(signals.filter((signal) => {
       const prediction = signal.aiPrediction;
       return courses.some((course) => String(course._id) === String(signal.course) && course.lessons.some((lesson) => String(lesson._id) === String(signal.lessonId)))
         && prediction
@@ -625,7 +638,7 @@ router.get("/analytics", async (req, res) => {
         && Number.isFinite(prediction.clearProbability)
         && prediction.confusionProbability >= 0 && prediction.confusionProbability <= 1
         && prediction.clearProbability >= 0 && prediction.clearProbability <= 1;
-    });
+    }));
     const eventGroups = courseIds.length ? await ConfusionEvent.aggregate(topicEventPipeline(courseIds)) : [];
     const exposures = courseIds.length ? await LessonVideoExposure.find({ course: { $in: courseIds } }).select("student course lessonId watchedRanges").lean() : [];
     const topicInsights = topicAnalytics(courses, validSignals, eventGroups, exposures);
@@ -649,13 +662,13 @@ router.get("/analytics", async (req, res) => {
         const confused = items.filter((item) => item.aiPrediction.prediction === "confused").length;
         const latestItem = items.filter((item) => item.aiPrediction.predictedAt && Number.isFinite(new Date(item.aiPrediction.predictedAt).getTime())).sort((a, b) => new Date(b.aiPrediction.predictedAt) - new Date(a.aiPrediction.predictedAt))[0];
         const latest = latestItem?.aiPrediction.predictedAt || null;
-        return { lessonId: lesson._id, lessonOrder: index + 1, lessonTitle: lesson.title, predictionCount: items.length, predictedClear: items.length - confused, predictedConfused: confused, confusionRate: items.length ? Math.round((confused / items.length) * 100) : null, modelVersion: latestItem?.aiPrediction.modelVersion || null, latestPredictionAt: latest, ...topicInsights.get(`${course._id}:${lesson._id}`) };
+        return { durationSeconds: statedDurationSeconds(lesson.duration), behavior: lessonBehavior(items), lessonId: lesson._id, lessonOrder: index + 1, lessonTitle: lesson.title, predictionCount: items.length, predictedClear: items.length - confused, predictedConfused: confused, confusionRate: items.length ? Math.round((confused / items.length) * 100) : null, modelVersion: latestItem?.aiPrediction.modelVersion || null, latestPredictionAt: latest, ...topicInsights.get(`${course._id}:${lesson._id}`) };
       });
       const analyzedLessons = lessons.filter((lesson) => lesson.predictionCount > 0);
       const coursePredictions = analyzedLessons.reduce((sum, lesson) => sum + lesson.predictionCount, 0);
       const courseConfused = analyzedLessons.reduce((sum, lesson) => sum + lesson.predictedConfused, 0);
       const totalStudentsAnalyzed = new Set(validSignals.filter((signal) => String(signal.course) === String(course._id)).map((signal) => String(signal.student))).size;
-      return { courseId: course._id, courseTitle: course.name, courseCover: course.thumbnail || "", category: course.category || "General Education", predictionLessonCount: analyzedLessons.length, totalStudentsAnalyzed, overallConfusionRate: coursePredictions >= 5 ? Math.round((courseConfused / coursePredictions) * 100) : null, lessons: lessons.filter(lesson => lesson.predictionCount > 0 || lesson.topics.length > 0) };
+      return { courseSlug: course.slug, courseVersion: course.__v || 0, lessonCatalog: lessons, courseId: course._id, courseTitle: course.name, courseCover: course.thumbnail || "", category: course.category || "General Education", predictionLessonCount: analyzedLessons.length, totalStudentsAnalyzed, overallConfusionRate: coursePredictions >= 5 ? Math.round((courseConfused / coursePredictions) * 100) : null, lessons: lessons.filter(lesson => lesson.predictionCount > 0 || lesson.topics.length > 0) };
     });
     return res.json({ generatedAt: new Date().toISOString(), totalStudentsAnalyzed: new Set(validSignals.filter((signal) => signal.student).map((signal) => String(signal.student))).size, totalStudents: uniqueStudents, totalEnrollments, averageProgress: totalEnrollments ? Math.round(enrollments.reduce((sum, item) => sum + percent(item), 0) / totalEnrollments) : 0, completionRate: totalEnrollments ? Math.round((enrollments.filter((item) => percent(item) === 100).length / totalEnrollments) * 100) : 0, mostPopularCourse: [...rows].sort((a, b) => b.enrollments - a.enrollments)[0]?.name || "No enrollments yet", courses: rows, heatmapCourses });
   } catch (error) { return res.status(500).json({ message: "Unable to load analytics" }); }

@@ -8,7 +8,7 @@ const source=await readFile(new URL('../src/components/LessonManager.jsx',import
 const compiled=await transformWithOxc(source.replace(/^import[\s\S]*?;\n/gm,'').replace('export default ',''),'LessonManager.jsx',{jsx:{runtime:'classic'}});
 const nodes=tree=>!tree||typeof tree!=='object'?[]:Array.isArray(tree)?tree.flatMap(nodes):[tree,...nodes(tree.props?.children)];
 function harness(update){
- const values=[],refs=[];let cursor=0,ref=0;const scope={React,hasLessonEdits,useState(initial){const i=cursor++;if(!(i in values))values[i]=typeof initial==='function'?initial():initial;return [values[i],next=>{values[i]=typeof next==='function'?next(values[i]):next}]},useRef(initial){const i=ref++;return refs[i]||=( {current:initial})},useEffect(){},useId:()=>'',getLessonPrimaryMedia:()=>null,lessonReferences:()=>[]};
+ const values=[],refs=[];let cursor=0,ref=0;const scope={React,hasLessonEdits,TopicSuggestions:()=>null,TopicTimeInput:()=>null,useState(initial){const i=cursor++;if(!(i in values))values[i]=typeof initial==='function'?initial():initial;return [values[i],next=>{values[i]=typeof next==='function'?next(values[i]):next}]},useRef(initial){const i=ref++;return refs[i]||=( {current:initial})},useEffect(){},useId:()=>'',getLessonPrimaryMedia:()=>null,lessonReferences:()=>[]};
  for(const name of ['FaBookOpen','FaCloudUploadAlt','FaGraduationCap','FaPlus','FaTimes','FaTrash'])scope[name]=()=>null;
  const Component=new Function(...Object.keys(scope),`${compiled.code};return LessonManager`)(...Object.values(scope));
  const course={_id:'course',__v:3,lessons:['first','middle','final'].map(_id=>({_id,title:_id,topics:[],resources:[]}))};

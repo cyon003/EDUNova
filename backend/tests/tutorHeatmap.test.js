@@ -99,7 +99,7 @@ test("course boundaries, distinct students, empty courses and latest model metad
   const {body}=await request("/api/tutor/analytics",auth(tutorId));
   assert.equal(body.heatmapCourses.length,3);
   assert.equal(body.heatmapCourses[1].lessons[0].lessonTitle,"Different topic");
-  assert.equal(body.heatmapCourses[1].lessons[0].predictionCount,2);
+  assert.equal(body.heatmapCourses[1].lessons[0].predictionCount,1);
   assert.equal(body.heatmapCourses[1].lessons[0].modelVersion,"latest");
   assert.equal(body.heatmapCourses[1].totalStudentsAnalyzed,1);
   assert.equal(body.heatmapCourses[1].overallConfusionRate,null);
@@ -190,5 +190,33 @@ test("exactly five distinct observed students permits a percentage, four does no
     const result = topicAnalytics([localCourse], observations.slice(0, count), [eventGroup("observed-0"), eventGroup("observed-0")], observations.slice(0,count).map(s => ({...s,watchedRanges:[{startTimeSeconds:720,endTimeSeconds:960}]}))).get(`${courseId}:${lessonId}`);
     assert.equal(result.topics[0].confusedStudents, 1); assert.equal(result.topics[0].sampleSufficient, count === 5);
     assert.equal(result.topics[0].confusionRate, count === 5 ? 20 : null);
+  }
+});
+
+test('lesson catalog includes empty lessons and aggregate behavior without identities', async () => {
+  const {body,status}=await request('/api/tutor/analytics',auth(tutorId));
+  assert.equal(status,200);
+  const catalog=body.heatmapCourses[0].lessonCatalog;
+  assert.equal(catalog.length,3); assert.equal(catalog[2].predictionCount,0);
+  assert.equal(catalog[0].behavior.cohortStudents,10);
+  assert.equal(catalog[0].behavior.metrics.pauseCount.total,null);
+  assert.equal(JSON.stringify(catalog).includes('student-clear-0'),false);
+  assert.equal(body.heatmapCourses[1].lessonCatalog[0].predictionCount,1);
+});
+
+test('current analytics API returns video identity, stored duration and real zero-valued behavior counters', async () => {
+  const oldSlug=course.slug, oldVersion=course.__v, oldDuration=course.lessons[0].duration;
+  const rows=signals.filter(s=>s.course===courseId && s.lessonId===lessonId);
+  try {
+    course.slug='algorithm'; course.__v=4; course.lessons[0].duration='05:11';
+    for(const row of rows) Object.assign(row,{pauseCount:0,replayCount:2,activeTimeSeconds:100,visitCount:1});
+    const {body,status}=await request('/api/tutor/analytics',auth(tutorId)); assert.equal(status,200);
+    const result=body.heatmapCourses[0]; assert.equal(result.courseSlug,'algorithm'); assert.equal(result.courseVersion,4);
+    assert.equal(result.lessonCatalog[0].durationSeconds,311);
+    assert.deepEqual(result.lessonCatalog[0].behavior.metrics.pauseCount,{total:0,studentCount:10});
+    assert.deepEqual(result.lessonCatalog[0].behavior.metrics.replayCount,{total:20,studentCount:10});
+  } finally {
+    course.slug=oldSlug;course.__v=oldVersion;course.lessons[0].duration=oldDuration;
+    for(const row of rows) for(const field of ['pauseCount','replayCount','activeTimeSeconds','visitCount']) delete row[field];
   }
 });

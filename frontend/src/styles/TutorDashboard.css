@@ -58,7 +58,6 @@
 /* ===== Lesson quiz editor ===== */
 .tutor-dashboard .lesson-quiz-editor{box-sizing:border-box;display:grid;gap:16px;padding:20px;color:#f1e9fb;background:#120c1d;border:1px solid #3d2c55;border-radius:14px}
 .tutor-dashboard .lesson-quiz-editor *{box-sizing:border-box}
-.tutor-dashboard .lesson-quiz-editor.is-empty{display:flex;align-items:center;justify-content:space-between;gap:16px;background:#140e20;border-style:dashed;border-color:#5a4180}
 .tutor-dashboard .lesson-quiz-editor .lesson-quiz-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
 .tutor-dashboard .lesson-quiz-editor .lesson-quiz-intro strong{color:#fff;font-size:16px;font-weight:700}
 .tutor-dashboard .lesson-quiz-editor .lesson-quiz-intro p{margin:4px 0 0;color:#a99bb8;font-size:12px}
@@ -101,7 +100,6 @@
 .tutor-dashboard .lesson-quiz-editor .primary:disabled{opacity:.5;cursor:not-allowed}
 .lesson-form-error{grid-column:1/-1;margin:0;padding:11px 14px;color:#ffd5db;font-size:13px;background:#33161f;border:1px solid #85404f;border-radius:9px}
 @media(max-width:640px){
-.tutor-dashboard .lesson-quiz-editor.is-empty{align-items:stretch;flex-direction:column}
 .tutor-dashboard .lesson-quiz-editor .lesson-quiz-header{flex-direction:column}
 .tutor-dashboard .lesson-quiz-editor .lesson-quiz-type{max-width:none}
 .tutor-dashboard .lesson-quiz-editor .lesson-quiz-option,.tutor-dashboard .lesson-quiz-editor .lesson-quiz-option:not(:has(.lesson-quiz-icon)){grid-template-columns:28px minmax(0,1fr)}

@@ -1,95 +1,193 @@
-# EDUNova
+# EDUNova – AI-Powered Learning Platform
 
-EDUNova is a React, Express, MongoDB learning platform with student, tutor, and administrator workflows. Its General AI Tutor uses Gemini for general educational explanations without accessing EDUNova course materials.
+EDUNova is a web-based learning management platform designed to provide a more interactive and intelligent online learning experience for students and tutors.
 
-## Requirements
+The platform combines traditional learning management features with AI-assisted tools such as an AI Tutor, automatic lecture transcription, topic generation, AI-generated quizzes, and learning confusion detection.
 
-- Node.js 20 or newer
-- MongoDB 7 or newer
-- Python 3.10 or newer
+## Main Features
 
-## Local setup
+### Student
+- Browse and enroll in courses
+- Watch lesson videos and track learning progress
+- Complete lesson quizzes
+- View lesson topics and navigate through lesson content
+- Ask questions using the AI Tutor
+- Receive AI assistance based on lesson context
+- Purchase paid courses
+- Free and Premium subscription plans
 
-Start MongoDB using your normal local installation, for example Homebrew:
+### Tutor
+- Create and manage courses and lessons
+- Upload lesson videos and learning materials
+- Automatically transcribe lecture videos
+- Generate lesson topics from transcripts
+- Review and edit generated topics
+- Create quizzes manually
+- Generate quiz questions with AI from saved lesson content
+- Review and edit AI-generated quizzes before saving
+- View learning insights and student confusion information
 
-```bash
-brew services start mongodb-community
-```
+### Admin
+- Manage users and platform content
+- Review and moderate courses
+- Manage platform operations and course approval
 
-Start Express (for a new setup, copy the example once; preserve an existing `.env`):
+## AI Features
 
-```bash
-cd backend
-cp .env.example .env
-npm install
-npm run dev
-```
+### AI Tutor
 
-In another terminal, start React:
+EDUNova provides an AI Tutor powered by Google Gemini. Students can use it for general learning questions as well as supported lesson-context interactions.
 
-```bash
-cd frontend
-cp .env.example .env
-npm install
-npm run dev
-```
+### Automatic Lecture Transcription
 
-Open `http://localhost:5173`, sign in, then open `/ai-tutor`. The legacy `/ai-chatbot` URL redirects there.
+Uploaded lecture videos can be transcribed using Faster-Whisper. The generated transcript can then be used by other learning features.
 
-## General AI Tutor configuration
+### Automatic Topic Generation
 
-Express calls Gemini directly using the official `@google/genai` SDK. Set these variables only in `backend/.env`:
+EDUNova analyzes lesson transcripts using Sentence Transformers to suggest meaningful lesson topics and timestamp ranges. Tutors can review, edit, accept, or reject these suggestions.
 
-```env
-GEMINI_API_KEY=
-GEMINI_MODEL=gemini-3.6-flash
-GEMINI_TIMEOUT_SECONDS=60
-GEMINI_MAX_OUTPUT_TOKENS=1600
-GEMINI_MAX_ANSWER_LENGTH=8000
-GEMINI_MAX_PROMPT_CHARACTERS=30000
-AI_GENERAL_RATE_LIMIT_PER_MINUTE=5
-AI_CHATBOT_RECENT_CONTEXT_LIMIT=3
-```
+### AI Quiz Generation
 
-The backend preserves the educational prompt, recent conversation, continuation handling, safe provider errors, and subscription reservations/refunds. The total Gemini operation is bounded by `GEMINI_TIMEOUT_SECONDS`, including any continuation. No Python chatbot process is required locally. Confusion Detection still uses its separate Python service on port 5002.
+Tutors can automatically generate multiple-choice quiz questions from saved lesson content using Gemini.
 
-## Architecture
+The AI only creates a draft. Tutors can review, modify, delete, or regenerate questions before saving the lesson, keeping the tutor in control of the final quiz.
 
-```text
-React/Vite (browser; static files served by Nginx)
-↓
-Nginx [Azure VM]
-↓
-Node.js/Express [Azure VM]
-├── Gemini API [External]
-├── MongoDB Atlas [External]
-└── Confusion Detection Flask service :5002 [Azure VM]
-```
+### Confusion Detection
 
-The deployment configuration runs Express and Confusion Detection. Gemini settings
-belong in the backend environment. See [docs/PRODUCTION.md](docs/PRODUCTION.md)
-and [docs/CHATBOT_LOCAL.md](docs/CHATBOT_LOCAL.md).
+EDUNova records learning behavior signals and uses a Random Forest model to identify potential student confusion. The resulting learning insights help tutors identify lesson content that may require additional explanation.
 
-Express verifies the JWT, applies the General AI Tutor rate limit, loads only that user’s bounded general-mode history, and calls Gemini directly with the question and context. Course identifiers, lesson identifiers, documents, sources, follow-up retrieval metadata, and `mode=course` are rejected. Answers are labeled as unverified general knowledge. Existing course-mode records are left untouched until an approved database migration.
+## System Architecture
 
-Supporting lesson files remain normal protected uploads. They can be viewed or downloaded by authorized users, but their contents are not extracted or sent to the General AI Tutor.
+The main system consists of:
 
-Current limitations:
+- **Frontend:** React + Vite
+- **Backend:** Node.js + Express.js
+- **Database:** MongoDB Atlas
+- **AI Tutor & Quiz Generation:** Google Gemini
+- **Lecture Transcription:** Faster-Whisper
+- **Topic Generation:** Sentence Transformers / MiniLM
+- **Confusion Detection:** Random Forest
+- **Payment:** Stripe
+- **Deployment:** Microsoft Azure Virtual Machine
+- **Reverse Proxy:** Nginx
+- **Process Management:** systemd
 
-- Gemini availability and free-tier quota depend on the configured Google AI project.
-- Gemini failures return a bounded, safe General AI Tutor error without exposing course content.
+Simplified architecture:
 
-## Tests
+Frontend (React)
+        |
+        v
+Nginx Reverse Proxy
+        |
+        v
+Node.js / Express Backend
+        |
+        +---- MongoDB Atlas
+        |
+        +---- Google Gemini
+        |
+        +---- Transcription Worker (Faster-Whisper)
+        |
+        +---- Topic Generation Worker (MiniLM)
+        |
+        +---- Confusion Detection Service (Random Forest)
+        |
+        +---- Stripe Payment
 
-```bash
-cd backend
-npm run check
-npm test
+## Technology Stack
 
-cd ../frontend
-npm test
-npm run lint
-npm run build
-```
+### Frontend
+- React
+- Vite
+- JavaScript
+- CSS
 
-See [docs/PRODUCTION.md](docs/PRODUCTION.md) for deployment guidance.
+### Backend
+- Node.js
+- Express.js
+- REST APIs
+- JWT-based authentication
+
+### Database
+- MongoDB
+- Mongoose
+- MongoDB Atlas
+
+### Artificial Intelligence / Machine Learning
+- Google Gemini
+- Faster-Whisper
+- Sentence Transformers
+- all-MiniLM-L6-v2
+- Random Forest
+- Python
+
+### Payment
+- Stripe Checkout
+- Stripe Webhooks
+
+### Deployment
+- Microsoft Azure VM
+- Ubuntu Linux
+- Nginx
+- systemd
+
+## Learning Workflow
+
+A typical learning workflow in EDUNova is:
+
+1. A tutor creates a course and uploads lesson content.
+2. Lecture videos can be automatically transcribed.
+3. EDUNova can generate lesson topics from the transcript.
+4. The tutor reviews and confirms the lesson content.
+5. AI can generate draft quiz questions from saved lesson material.
+6. The tutor reviews and saves the quiz.
+7. Students enroll in the course and study the lessons.
+8. EDUNova records learning progress and learning behavior signals.
+9. The confusion detection system analyzes learning signals.
+10. Tutors can use learning insights to identify content where students may need additional support.
+
+## AI Quiz Generation Workflow
+
+Tutor
+  ↓
+Select Number of Questions
+  ↓
+Generate with AI
+  ↓
+Express Backend
+  ↓
+Saved Lesson Content
+  ↓
+Google Gemini
+  ↓
+Server-side Validation
+  ↓
+Quiz Draft
+  ↓
+Tutor Reviews / Edits
+  ↓
+Save Lesson
+  ↓
+Quiz Available to Students
+
+AI-generated quizzes are never automatically published. The tutor must review and save the lesson before students can access the quiz.
+
+## Deployment
+
+EDUNova is deployed on a Microsoft Azure Virtual Machine.
+
+Nginx serves the frontend and acts as a reverse proxy for backend API requests. The Node.js backend and supporting AI/ML services are managed using systemd.
+
+MongoDB Atlas is used as the cloud database, while external AI and payment functionality is provided through Google Gemini and Stripe.
+
+## Project Goal
+
+The goal of EDUNova is to combine learning management, artificial intelligence, and learning analytics in one platform.
+
+Rather than replacing tutors, EDUNova uses AI to assist them with repetitive tasks such as transcription, topic organization, quiz preparation, and identifying learning difficulties.
+
+The platform aims to help students learn more effectively while giving tutors useful information about the learning process.
+
+## Project Status
+
+EDUNova is developed as a Senior Project and currently includes functional implementations of its core learning, AI, quiz, payment, subscription, and learning-analysis features.

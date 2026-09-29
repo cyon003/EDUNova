@@ -6,8 +6,6 @@ The platform combines traditional learning management features with AI-assisted 
 
 The goal of EDUNova is to support both students and tutors by using AI to assist learning, reduce repetitive work, organize lesson content, and provide useful learning insights.
 
----
-
 ## Main Features
 
 ### Student Features
@@ -26,7 +24,6 @@ Students can:
 - Purchase paid courses
 - Use Free or Premium membership plans
 
----
 
 ### Tutor Features
 
@@ -44,8 +41,6 @@ Tutors can:
 - View learning insights
 - Identify lesson topics where students may be experiencing confusion
 
----
-
 ### Administrator Features
 
 Administrators can:
@@ -55,8 +50,6 @@ Administrators can:
 - Review courses
 - Approve or moderate course content
 - Support overall platform administration
-
----
 
 # AI and Intelligent Learning Features
 
@@ -595,21 +588,3 @@ The repository contains implementations for the core learning platform together 
 
 AI and machine-learning features depend on their corresponding models, workers, environment configuration, and external services being correctly configured in the deployment environment.
 
----
-
-# Important Note
-
-Do not commit sensitive configuration to the repository.
-
-The following should remain private:
-
-- `.env` files
-- Gemini API keys
-- Stripe secret keys
-- Stripe webhook secrets
-- MongoDB connection strings
-- Azure credentials
-- Private SSH keys
-- Production user data
-- Uploaded private files
-- Local AI model files where excluded from version control

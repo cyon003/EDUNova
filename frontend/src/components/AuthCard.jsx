@@ -95,6 +95,7 @@ function AuthCard() {
         <button
           type="button"
           className={!isLogin ? "tab active" : "tab"}
+          aria-pressed={!isLogin}
           onClick={() => changeMode(false)}
         >
           Sign Up
@@ -103,6 +104,7 @@ function AuthCard() {
         <button
           type="button"
           className={isLogin ? "tab active" : "tab"}
+          aria-pressed={isLogin}
           onClick={() => changeMode(true)}
         >
           Log In
@@ -116,7 +118,7 @@ function AuthCard() {
       </div>
 
       <div className="signup-header">
-        <h2>
+        <h2 id="auth-form-title">
           {isLogin
             ? "Welcome back"
             : "Create your account"}
@@ -124,7 +126,7 @@ function AuthCard() {
       </div>
 
       <div className="signup-form">
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} aria-labelledby="auth-form-title" aria-busy={loading}>
           <div
             className="form-content"
             key={isLogin ? "login" : "signup"}
@@ -137,6 +139,7 @@ function AuthCard() {
                   type="text"
                   id="name"
                   name="name"
+                  autoComplete="username"
                   placeholder="Enter username"
                   value={formData.name}
                   onChange={handleChange}
@@ -152,6 +155,7 @@ function AuthCard() {
                 type="email"
                 id="email"
                 name="email"
+                autoComplete="email"
                 placeholder="Enter email"
                 value={formData.email}
                 onChange={handleChange}
@@ -167,6 +171,7 @@ function AuthCard() {
                   type={showPassword ? "text" : "password"}
                   id="password"
                   name="password"
+                  autoComplete={isLogin ? "current-password" : "new-password"}
                   placeholder="Enter password"
                   value={formData.password}
                   onChange={handleChange}
@@ -174,13 +179,12 @@ function AuthCard() {
                   required
                 />
 
-                <span
+                <button
+                  type="button"
                   className="eye-icon"
                   onClick={() =>
                     setShowPassword(!showPassword)
                   }
-                  role="button"
-                  tabIndex="0"
                   aria-label={
                     showPassword
                       ? "Hide password"
@@ -192,17 +196,17 @@ function AuthCard() {
                   ) : (
                     <FaEye />
                   )}
-                </span>
+                </button>
               </div>
               {isLogin && <Link className="forgot-password-link" to="/forgot-password">Forgot password?</Link>}
             </div>
 
             {message && (
-              <p className="auth-message">{message}</p>
+              <p className="auth-message" role="status">{message}</p>
             )}
 
             <div className="signup-btn-container">
-              <button type="submit" disabled={loading}>
+              <button type="submit" disabled={loading} aria-label={loading ? (isLogin ? "Logging in" : "Creating account") : undefined}>
                 {loading ? (
                   <span className="btn-spinner" />
                 ) : isLogin ? (
@@ -218,9 +222,9 @@ function AuthCard() {
                 ? "Don't have an account?"
                 : "Already have an account?"}
 
-              <span onClick={() => changeMode(!isLogin)}>
+              <button type="button" onClick={() => changeMode(!isLogin)}>
                 {isLogin ? " Sign Up" : " Login"}
-              </span>
+              </button>
             </p>
           </div>
         </form>

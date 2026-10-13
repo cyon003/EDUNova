@@ -4,14 +4,14 @@ import "../styles/Auth.css";
 
 function Auth() {
   return (
-    <div className="signup-page">
-      <div className="auth-glow auth-glow-1" />
-      <div className="auth-glow auth-glow-2" />
+    <main className="signup-page">
+      <div className="auth-glow auth-glow-1" aria-hidden="true" />
+      <div className="auth-glow auth-glow-2" aria-hidden="true" />
       <div className="signup-inner">
         <HeroSection />
         <AuthCard />
       </div>
-    </div>
+    </main>
   );
 }
 

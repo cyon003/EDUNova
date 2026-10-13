@@ -17,8 +17,8 @@
 .signup-hero {
   position: relative;
   width: 100%;
-  max-width: 560px;
-  flex: 1 1 480px;
+  max-width: 720px;
+  min-width: 0;
   color: aliceblue;
   animation: heroFadeIn 0.8s ease both;
 }
@@ -27,7 +27,7 @@
   display: flex;
   align-items: center;
   gap: 15px;
-  margin-bottom: 30px;
+  margin-bottom: 32px;
 }
 
 .signup-brand-icon {
@@ -45,7 +45,7 @@
 
 .signup-brand:hover .signup-brand-icon {
   transform: rotate(-8deg) scale(1.06);
-  box-shadow: 0 0 24px rgba(240, 164, 0, 0.55);
+  box-shadow: 0 0 24px rgba(141, 99, 234, 0.55);
 }
 
 .signup-brand h2 {
@@ -55,30 +55,13 @@
   letter-spacing: 1px;
 }
 
-.signup-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: var(--t0);
-  padding: 8px 16px;
-  border-radius: 50px;
-  font-size: 13px;
-  font-weight: 500;
-  backdrop-filter: blur(6px);
-  margin-bottom: 25px;
-}
-
-.signup-badge svg {
-  color: var(--gold2);
-}
-
 .signup-hero h1 {
-  font-size: 62px;
+  font-size: clamp(44px, 4.7vw, 80px);
+  letter-spacing: -0.035em;
+  text-wrap: balance;
   line-height: 1.1;
   color: aliceblue;
-  margin-bottom: 30px;
+  margin-bottom: 32px;
   font-weight: 800;
 }
 
@@ -98,52 +81,49 @@
 }
 
 .signup-hero p {
-  font-size: 20px;
-  line-height: 1.6;
+  font-size: clamp(17px, 1.45vw, 21px);
+  line-height: 1.7;
   color: var(--t1);
-  margin-bottom: 55px;
-  max-width: 480px;
+  margin-bottom: 36px;
+  max-width: 580px;
 }
 
-.signup-stats {
-  display: flex;
-  gap: 20px;
+.signup-features {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
-.signup-stat-card {
-  width: 150px;
-  padding: 20px;
+.signup-feature-card {
+  min-width: 0;
+  padding: 22px 14px;
   border-radius: 15px;
   background: #151124;
-  border: 1px solid whitesmoke;
-  box-shadow: 8px 10px 10px var(--gold);
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  box-shadow: 0 10px 28px rgba(125, 86, 217, 0.15);
   color: aliceblue;
-  transition: transform 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
-  animation: statPop 0.6s ease both;
+  transition: transform 0.3s ease, border-color 0.3s ease;
 }
 
-.signup-stat-card:nth-child(2) {
-  animation-delay: 0.1s;
-}
-
-.signup-stat-card:nth-child(3) {
-  animation-delay: 0.2s;
-}
-
-.signup-stat-card:hover {
-  transform: translateY(-6px);
+.signup-feature-card:hover {
+  transform: translateY(-4px);
   border-color: var(--gold2);
-  box-shadow: 0 12px 28px rgba(240, 164, 0, 0.4);
 }
 
-.signup-stat-card h3 {
-  font-size: 30px;
-  color: aliceblue;
+.signup-feature-card > svg {
+  display: block;
+  margin-bottom: 14px;
+  font-size: 24px;
+  color: #b69af3;
 }
 
-.signup-stat-card span {
-  font-size: 14px;
-  color: var(--t1);
+.signup-feature-card h3 {
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 600;
 }
 
 .signup-hero-icon {
@@ -151,7 +131,7 @@
   right: 10px;
   bottom: 10px;
   font-size: 90px;
-  color: rgba(240, 164, 0, 0.12);
+  color: rgba(141, 99, 234, 0.12);
   animation: float 6s ease-in-out infinite;
   pointer-events: none;
 }
@@ -188,18 +168,16 @@
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .signup-hero {
-    max-width: 100%;
+    max-width: 640px;
   }
 
   .signup-hero h1 {
-    font-size: 42px;
+    font-size: clamp(36px, 7vw, 56px);
   }
 
-  .signup-stats {
-    flex-wrap: wrap;
-  }
+  .signup-hero p { max-width: 100%; }
 
   .signup-hero-icon {
     display: none;
@@ -207,8 +185,19 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * {
+  .signup-hero * {
     animation: none !important;
     transition: none !important;
   }
+}
+
+@media (max-width: 480px) {
+  .signup-brand { gap: 12px; margin-bottom: 28px; }
+  .signup-brand h2 { font-size: 28px; }
+  .signup-brand-icon { width: 48px; height: 48px; font-size: 34px; }
+  .signup-hero h1 { margin-bottom: 24px; }
+  .signup-hero p { margin-bottom: 28px; }
+  .signup-features { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .signup-feature-card { display: flex; align-items: center; gap: 14px; padding: 16px 18px; }
+  .signup-feature-card > svg { margin: 0; flex-shrink: 0; }
 }
